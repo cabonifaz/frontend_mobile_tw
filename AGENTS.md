@@ -1,5 +1,13 @@
 This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
 
+## Proyecto: App Mobile Total Weight (Servicio de Campo)
+
+- Nombres de variables, funciones, componentes y archivos en **español** (igual que el backend `backend_intranet_tw`).
+- Backend: API .NET de la intranet. Respuestas con sobre `{ idTipoMensaje (1 regla | 2 éxito | 3 error), mensaje, datos }`; usar `src/api/cliente.ts` (`solicitar`), nunca `fetch` directo.
+- Fechas del backend: hora de Lima sin zona → convertir con `fechaDesdeApi`.
+- Acceso (HU-01): solo usuario (no correo), sin modo offline, 1 sesión por equipo (`api/movil/autenticacion/*`).
+- Todo endpoint nuevo debe tener su versión en `src/api/mock.ts` para el modo demo (`EXPO_PUBLIC_USE_MOCK=true`).
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
