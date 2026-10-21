@@ -34,8 +34,10 @@ docs/
 | Login | `POST api/movil/autenticacion/iniciar-sesion` | `SP_ObtenerUsuarioPorNombreUsuario`, `SP_IniciarSesionMovil` | `usuario`, `sesion_usuario` |
 | Cerrar sesión | `POST api/movil/autenticacion/cerrar-sesion` | `SP_CerrarSesionMovil` | `sesion_usuario` |
 | Cambiar contraseña | `POST api/autenticacion/cambiar-contrasena` | `SP_CambiarContrasenaUsuario` | `usuario` |
-| Inicio · Mis datos | `GET api/autenticacion/me` | `SP_ObtenerUsuarioPorId` | `usuario` |
-| Inicio · Área / Cargo | `GET api/maestros/catalogos/{AREA_USUARIO \| CARGO_USUARIO}` | `SP_ObtenerCatalogo` | `tabla_maestra` |
+| Menú (Ruta) · indicadores y Próximo Hit | `GET api/movil/menu/resumen` | `SP_ObtenerResumenMenuMovil` | `orden_servicio`, `os_personal`, `cliente`, `sede_cliente`, `tabla_maestra` |
+| Menú · cargo del encabezado | `GET api/maestros/catalogos/CARGO_USUARIO` | `SP_ObtenerCatalogo` | `tabla_maestra` |
+| Perfil · Mis datos | `GET api/autenticacion/me` | `SP_ObtenerUsuarioPorId` | `usuario` |
+| Perfil · Área / Cargo | `GET api/maestros/catalogos/{AREA_USUARIO \| CARGO_USUARIO}` | `SP_ObtenerCatalogo` | `tabla_maestra` |
 
 > Cada HU nueva agrega sus filas a esta tabla.
 
@@ -100,4 +102,4 @@ EXPO_PUBLIC_USE_MOCK=false
 - El back debe tener aplicado el parche de la HU-01 y ejecutados sus scripts en la BD.
 - El técnico debe tener usuario de app asignado (`HU01_datos_prueba.sql` o `PUT api/maestros/usuarios/{id}/acceso-movil`).
 
-Cualquier cambio que hagas en la BD (por ejemplo, el área o el nombre del técnico desde la intranet) se ve en la app al **deslizar hacia abajo** en el Inicio.
+Cualquier cambio en la BD (una OS nueva para el técnico, su área o nombre) se ve en la app al **deslizar hacia abajo** o con el botón de actualizar del menú.

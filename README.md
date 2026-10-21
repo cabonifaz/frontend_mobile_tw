@@ -10,6 +10,13 @@ App Android para los técnicos de campo de Total Weight. Usa el backend y la bas
 | HU | Qué hace | Estado |
 |----|----------|--------|
 | HU-01 | Acceso seguro: login con usuario, recordar sesión, recuperar y cambiar contraseña, una sesión por equipo | ✅ |
+| HU-02 | Menú principal: cuadrícula de módulos, indicadores desde la BD, banner "Próximo Hit", pestañas Ruta / Notificaciones / Asistente / Perfil | ✅ |
+
+### HU-02: decisiones sobre el mockup
+- **Sin "Online · Sincronizado" ni tarjeta "Sincronización · 12 pendientes"**, porque el modo offline se quitó en la HU-01. El ícono de flechas de arriba ahora **actualiza** los indicadores.
+- **Indicadores reales:** "Servicios Programados" cuenta las OS vigentes del técnico (principal o en `os_personal`); "Ruta del Día" cuenta las de hoy; el banner muestra la OS en curso o la siguiente.
+- **Avatar:** se usan las iniciales del técnico, porque la BD no guarda foto.
+- **Módulos aún no desarrollados:** abren una pantalla "Próximamente". Para habilitar uno, se cambia su `ruta` en `src/menu/modulos.ts`.
 
 ### HU-01: cambios acordados sobre el mockup
 1. **Solo usuario, nunca correo.** El jefe asigna el usuario desde la intranet. Si alguien escribe un correo, la app y el backend lo rechazan.
@@ -31,14 +38,21 @@ src/
     login.tsx               HU-01
     recuperar-contrasena.tsx
     cambiar-contrasena.tsx  Obligatoria si la contraseña es temporal
-    (app)/index.tsx         Inicio: "Mis datos" (de la BD) y, más adelante, la agenda
+    (app)/(tabs)/           Pestañas inferiores (HU-02)
+      index.tsx             Ruta: menú principal con indicadores y banner "Próximo Hit"
+      notificaciones.tsx    (próximamente)
+      asistente.tsx         (próximamente)
+      perfil.tsx            Mis datos (de la BD), cambiar contraseña, cerrar sesión
+    (app)/modulo/[id].tsx   Pantalla temporal de los módulos aún no desarrollados
   api/                      Llamadas al backend, un archivo por módulo
     cliente.ts              URL, token, errores; un 401 cierra la sesión
     autenticacion.ts        Login, cierre y cambio de contraseña
     usuario.ts              Datos del usuario (tabla usuario)
     catalogos.ts            Catálogos de tabla_maestra
+    menu.ts                 Indicadores del menú (orden_servicio)
     mock.ts                 Las mismas funciones con datos de prueba (modo demo)
   hooks/useConsulta.ts      Carga datos en una pantalla (cargando, error, recargar)
+  menu/modulos.ts           Módulos del menú: título, ícono, indicador y ruta
   sesion/                   Sesión, almacenamiento seguro e id del equipo
   actualizaciones/          Descarga los avances publicados al abrir la app
   componentes/              Campo, botón, casilla, avisos, pantalla…

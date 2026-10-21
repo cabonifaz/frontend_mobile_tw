@@ -8,12 +8,14 @@ interface Props {
   /** Si se pasa, la pantalla permite "deslizar hacia abajo para actualizar". */
   onRecargar?: () => void;
   recargando?: boolean;
+  /** true en pantallas con pestañas inferiores: la barra de pestañas ya cubre el borde inferior. */
+  conPestanas?: boolean;
 }
 
 /** Contenedor de pantalla con scroll, teclado y (opcional) deslizar para actualizar. */
-export function Pantalla({ children, onRecargar, recargando = false }: Props) {
+export function Pantalla({ children, onRecargar, recargando = false, conPestanas = false }: Props) {
   return (
-    <SafeAreaView style={estilos.area} edges={['top', 'bottom']}>
+    <SafeAreaView style={estilos.area} edges={conPestanas ? ['top'] : ['top', 'bottom']}>
       <KeyboardAvoidingView style={estilos.area} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={estilos.contenido}

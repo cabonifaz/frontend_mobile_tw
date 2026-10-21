@@ -17,6 +17,17 @@ export const colores = {
   errorBorde: '#F5C2C2',
   exito: '#1B7F3B',
   blanco: '#FFFFFF',
+  bordeSuave: '#E3E9F1',
+  // Indicadores del menú (HU-02)
+  amarilloFondo: '#FEF3C7',
+  amarilloTexto: '#92400E',
+  azulFondo: '#DBEAFE',
+  azulTexto: '#1E40AF',
+  grisFondo: '#EEF2F7',
+  grisTexto: '#5F6B7A',
+  verde: '#16A34A',
+  verdeFondo: '#F0FDF4',
+  verdeBorde: '#CDEFD8',
 } as const;
 
 export const radios = {

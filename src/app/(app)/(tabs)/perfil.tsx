@@ -12,12 +12,12 @@ import { colores, radios } from '@/tema/colores';
 import { confirmar } from '@/utilidades/dialogos';
 
 /**
- * Inicio. Muestra los datos del técnico tal como están en la BD (total_weight_stg):
+ * Perfil (pestaña). Datos del técnico tal como están en la BD (total_weight_stg):
  *   - usuario ........ GET api/autenticacion/me
  *   - área y cargo ... catálogos AREA_USUARIO y CARGO_USUARIO de tabla_maestra
- * Deslizar hacia abajo vuelve a leerlos. La agenda llega en las siguientes HU.
+ * Deslizar hacia abajo vuelve a leerlos. Desde aquí se cambia la contraseña y se cierra sesión.
  */
-export default function PantallaInicio() {
+export default function PantallaPerfil() {
   const { sesion, cerrarSesion } = useSesion();
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
@@ -50,7 +50,7 @@ export default function PantallaInicio() {
   }
 
   return (
-    <Pantalla onRecargar={recargar} recargando={recargando}>
+    <Pantalla onRecargar={recargar} recargando={recargando} conPestanas>
       <View style={estilos.cabecera}>
         <View style={{ flex: 1 }}>
           <Text style={estilos.saludo}>Hola, {nombre}</Text>
@@ -61,14 +61,6 @@ export default function PantallaInicio() {
         <Pressable onPress={confirmarCierre} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cerrar sesión">
           <Ionicons name="log-out-outline" size={26} color={colores.textoSecundario} />
         </Pressable>
-      </View>
-
-      <View style={estilos.tarjeta}>
-        <Ionicons name="calendar-outline" size={34} color={colores.primario} />
-        <Text style={estilos.tituloTarjeta}>Mi agenda de servicios</Text>
-        <Text style={estilos.textoTarjeta}>
-          Aquí verás los servicios que te asignen. Esta sección se habilita en las próximas historias.
-        </Text>
       </View>
 
       <View style={estilos.datos}>
@@ -117,17 +109,6 @@ const estilos = StyleSheet.create({
   cabecera: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   saludo: { fontSize: 24, fontWeight: '700', color: colores.titulo },
   detalle: { fontSize: 14, color: colores.textoSecundario, marginTop: 4 },
-  tarjeta: {
-    backgroundColor: colores.tarjeta,
-    borderRadius: radios.tarjeta,
-    borderWidth: 1,
-    borderColor: '#E3E9F1',
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  tituloTarjeta: { fontSize: 18, fontWeight: '700', color: colores.titulo, marginTop: 12 },
-  textoTarjeta: { fontSize: 14, lineHeight: 20, color: colores.textoSecundario, textAlign: 'center', marginTop: 6 },
   datos: {
     backgroundColor: colores.tarjeta,
     borderRadius: radios.tarjeta,

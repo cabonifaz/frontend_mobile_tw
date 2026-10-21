@@ -2,6 +2,7 @@ import { ErrorApi } from './cliente';
 import type { DatosIngreso, SesionIniciada } from './autenticacion';
 import type { ItemCatalogo } from './catalogos';
 import type { MisDatos } from './usuario';
+import type { ResumenMenu } from './menu';
 
 /**
  * Modo demo (EXPO_PUBLIC_USE_MOCK=true): la app funciona sin backend para revisar
@@ -99,5 +100,29 @@ export const mockCatalogos = {
     const items = catalogos[nombre];
     if (!items) throw new ErrorApi(`Catálogo no encontrado: ${nombre}`, 404, 1);
     return items;
+  },
+};
+
+/** Menú principal (mismos campos que GET api/movil/menu/resumen). */
+export const mockMenu = {
+  async resumen(): Promise<ResumenMenu> {
+    await esperar(500);
+    const hoy = new Date();
+    const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    return {
+      serviciosAsignados: 8,
+      serviciosHoy: 3,
+      proximoServicio: {
+        idOs: 1,
+        numero: 'OS-2026-0001',
+        cliente: 'Las Bambas',
+        sede: 'Planta Norte',
+        distrito: 'Challhuahuacho',
+        tipoServicio: 'Calibración',
+        fechaEjecucion: fecha,
+        horaInicio: '09:00',
+        estado: 'programada',
+      },
+    };
   },
 };
