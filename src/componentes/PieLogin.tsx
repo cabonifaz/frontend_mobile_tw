@@ -1,9 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Constants from 'expo-constants';
 import { colores } from '@/tema/colores';
 import { avisar } from '@/utilidades/dialogos';
-
-const version = Constants.expoConfig?.version ?? '0.1.0';
+import { textoVersion } from '@/actualizaciones/actualizaciones';
 
 const enlaces: { titulo: string; mensaje: string }[] = [
   { titulo: 'Soporte Técnico', mensaje: 'Si tienes problemas para ingresar, comunícate con tu jefe o con el área de TI de Total Weight.' },
@@ -15,7 +13,7 @@ const enlaces: { titulo: string; mensaje: string }[] = [
 export function PieLogin() {
   return (
     <View style={estilos.pie}>
-      <Text style={estilos.version}>Versión {version}</Text>
+      <Text style={estilos.version}>{textoVersion()}</Text>
       <View style={estilos.enlaces}>
         {enlaces.map((e, i) => (
           <View key={e.titulo} style={estilos.enlaceFila}>

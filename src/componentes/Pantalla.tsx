@@ -1,10 +1,17 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colores } from '@/tema/colores';
 
-/** Contenedor de pantalla con scroll y teclado (formularios). */
-export function Pantalla({ children }: { children: ReactNode }) {
+interface Props {
+  children: ReactNode;
+  /** Si se pasa, la pantalla permite "deslizar hacia abajo para actualizar". */
+  onRecargar?: () => void;
+  recargando?: boolean;
+}
+
+/** Contenedor de pantalla con scroll, teclado y (opcional) deslizar para actualizar. */
+export function Pantalla({ children, onRecargar, recargando = false }: Props) {
   return (
     <SafeAreaView style={estilos.area} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={estilos.area} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -12,6 +19,11 @@ export function Pantalla({ children }: { children: ReactNode }) {
           contentContainerStyle={estilos.contenido}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            onRecargar ? (
+              <RefreshControl refreshing={recargando} onRefresh={onRecargar} colors={[colores.primario]} tintColor={colores.primario} />
+            ) : undefined
+          }
         >
           {children}
         </ScrollView>

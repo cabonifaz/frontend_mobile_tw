@@ -1,12 +1,17 @@
 import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useBuscarActualizacion } from '@/actualizaciones/actualizaciones';
 import { ProveedorSesion, useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RaizApp() {
+  // Mientras se ve el splash, revisa si hay un avance nuevo publicado (EAS Update).
+  const actualizacionRevisada = useBuscarActualizacion();
+  if (!actualizacionRevisada) return null;
+
   return (
     <SafeAreaProvider>
       <ProveedorSesion>
@@ -18,7 +23,7 @@ export default function RaizApp() {
   );
 }
 
-/** Mantiene el splash hasta saber si hay una sesión recordada. */
+/** Mantiene el splash hasta revisar actualizaciones y saber si hay una sesión recordada. */
 function ControladorSplash() {
   const { cargando } = useSesion();
   if (!cargando) SplashScreen.hide();

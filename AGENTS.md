@@ -7,6 +7,8 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 - Fechas del backend: hora de Lima sin zona → convertir con `fechaDesdeApi`.
 - Acceso (HU-01): solo usuario (no correo), sin modo offline, 1 sesión por equipo (`api/movil/autenticacion/*`).
 - Todo endpoint nuevo debe tener su versión en `src/api/mock.ts` para el modo demo (`EXPO_PUBLIC_USE_MOCK=true`).
+- La app lee la BD (`total_weight_stg`) solo a través del backend. Un archivo por módulo en `src/api/`, pantallas con `useConsulta`, catálogos con `obtenerCatalogo` + `nombreDeCodigo`.
+- Cada pantalla nueva se documenta en la tabla de `docs/BACKEND.md` (endpoint → SP → tablas).
 
 ## Expo has changed — do not trust your training data
 

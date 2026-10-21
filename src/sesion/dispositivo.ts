@@ -49,7 +49,7 @@ export async function obtenerIdDispositivo(): Promise<string> {
 /** Nombre legible del equipo (se muestra si alguien intenta entrar desde otro celular). */
 export function obtenerNombreDispositivo(): string | null {
   const partes = [Device.manufacturer, Device.modelName].filter(Boolean) as string[];
-  if (partes.length === 0) return Platform.OS === 'web' ? 'Navegador web' : null;
+  if (partes.length === 0) return null;
   // Evita "samsung samsung SM-A546E"
   const [fabricante, modelo] = partes;
   if (modelo && fabricante && modelo.toLowerCase().startsWith(fabricante.toLowerCase())) return modelo;

@@ -1,21 +1,12 @@
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 
-/**
- * Diálogos nativos (Alert) que también funcionan en la vista previa web,
- * donde Alert de React Native no hace nada.
- */
+/** Mensaje simple con botón Aceptar. */
 export function avisar(titulo: string, mensaje: string): void {
-  if (Platform.OS === 'web') {
-    globalThis.alert?.(`${titulo}\n\n${mensaje}`);
-    return;
-  }
   Alert.alert(titulo, mensaje);
 }
 
+/** Pregunta Sí/No. Devuelve true si la persona acepta. */
 export function confirmar(titulo: string, mensaje: string, textoAceptar = 'Aceptar'): Promise<boolean> {
-  if (Platform.OS === 'web') {
-    return Promise.resolve(globalThis.confirm?.(`${titulo}\n\n${mensaje}`) ?? false);
-  }
   return new Promise((resolver) => {
     Alert.alert(
       titulo,
