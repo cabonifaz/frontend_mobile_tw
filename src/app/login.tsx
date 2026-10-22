@@ -87,6 +87,7 @@ export default function PantallaLogin() {
           }}
           error={errores.usuario}
           autoComplete="username"
+          maxLength={50}
           textContentType="username"
           returnKeyType="next"
           onSubmitEditing={() => refContrasena.current?.focus()}
@@ -107,6 +108,7 @@ export default function PantallaLogin() {
           }}
           error={errores.contrasena}
           autoComplete="current-password"
+          maxLength={128}
           textContentType="password"
           returnKeyType="go"
           onSubmitEditing={ingresar}

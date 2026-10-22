@@ -3,6 +3,7 @@ import type { DatosIngreso, SesionIniciada } from './autenticacion';
 import type { ItemCatalogo } from './catalogos';
 import type { MisDatos } from './usuario';
 import type { ResumenMenu } from './menu';
+import type { FiltroServicios, ServicioProgramado } from './servicios';
 
 /**
  * Modo demo (EXPO_PUBLIC_USE_MOCK=true): la app funciona sin backend para revisar
@@ -110,19 +111,72 @@ export const mockMenu = {
     const hoy = new Date();
     const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
     return {
-      serviciosAsignados: 8,
+      serviciosAsignados: 4,
       serviciosHoy: 3,
       proximoServicio: {
         idOs: 1,
-        numero: 'OS-2026-0001',
-        cliente: 'Las Bambas',
-        sede: 'Planta Norte',
-        distrito: 'Challhuahuacho',
+        numero: 'OS-000791',
+        cliente: 'Alicorp S.A.A.',
+        sede: 'Planta Cliente',
+        distrito: 'Callao',
         tipoServicio: 'Calibración',
         fechaEjecucion: fecha,
-        horaInicio: '09:00',
+        horaInicio: '08:30',
         estado: 'programada',
       },
     };
+  },
+};
+
+/** Agenda demo (mismos campos que GET api/movil/servicios). */
+function fechaRelativa(dias: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const serviciosDemo = (): ServicioProgramado[] => [
+  {
+    idOs: 791, numeroOs: 'OS-000791', numeroRq: 'RQ-000245', numeroOm: null, cliente: 'Alicorp S.A.A.',
+    fechaEjecucion: fechaRelativa(0), horaInicio: '08:30', estadoOs: 'programada', sede: 'Planta Cliente',
+    responsable: 'Jhonny Iparraguirre', objetivosTotal: 8, objetivosCompletados: 0, clienteConfirmado: true,
+    estadoSsoma: 'habilitado', alertasPredictivas: 1, estadoGeneral: 'LISTO', motivoBloqueo: null,
+  },
+  {
+    idOs: 799, numeroOs: 'OS-000799', numeroRq: 'RQ-000250', numeroOm: 'OM-000332', cliente: 'Aceros Arequipa',
+    fechaEjecucion: fechaRelativa(0), horaInicio: '11:00', estadoOs: 'programada', sede: 'Planta Cliente',
+    responsable: 'Carlos Medina', objetivosTotal: 5, objetivosCompletados: 0, clienteConfirmado: false,
+    estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'PENDIENTE', motivoBloqueo: null,
+  },
+  {
+    idOs: 812, numeroOs: 'OS-000812', numeroRq: 'RQ-000251', numeroOm: null, cliente: 'Machu Picchu Foods',
+    fechaEjecucion: fechaRelativa(0), horaInicio: '15:00', estadoOs: 'programada', sede: 'Planta Principal',
+    responsable: 'Carlos Quispe', objetivosTotal: 3, objetivosCompletados: 0, clienteConfirmado: true,
+    estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'BLOQUEADO', motivoBloqueo: 'Expediente incompleto',
+  },
+  {
+    idOs: 820, numeroOs: 'OS-000820', numeroRq: 'RQ-000260', numeroOm: null, cliente: 'Las Bambas',
+    fechaEjecucion: fechaRelativa(1), horaInicio: '09:00', estadoOs: 'programada', sede: 'Planta Norte',
+    responsable: 'Carlos Quispe', objetivosTotal: 4, objetivosCompletados: 0, clienteConfirmado: false,
+    estadoSsoma: 'habilitado', alertasPredictivas: 0, estadoGeneral: 'PENDIENTE', motivoBloqueo: null,
+  },
+];
+
+export const mockServicios = {
+  async programados(filtro: FiltroServicios, busqueda: string): Promise<ServicioProgramado[]> {
+    await esperar(500);
+    const hoy = fechaRelativa(0);
+    const texto = busqueda.trim().toLowerCase();
+    return serviciosDemo().filter((s) => {
+      const pasaFiltro =
+        filtro === 'todos' ||
+        (filtro === 'hoy' && s.fechaEjecucion === hoy) ||
+        (filtro === 'pendientes' && s.estadoGeneral === 'PENDIENTE') ||
+        (filtro === 'en_ejecucion' && ['en_ruta', 'en_ejecucion', 'pausada'].includes(s.estadoOs));
+      const pasaBusqueda =
+        !texto ||
+        [s.numeroOs, s.numeroRq, s.numeroOm, s.cliente].some((v) => (v ?? '').toLowerCase().includes(texto));
+      return pasaFiltro && pasaBusqueda;
+    });
   },
 };

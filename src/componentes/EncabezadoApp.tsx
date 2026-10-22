@@ -1,5 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, View } from 'react-native';
 import { colores } from '@/tema/colores';
 
 interface Props {
@@ -7,12 +6,10 @@ interface Props {
   apellido?: string;
   /** Texto bajo el título (sin el indicador "Online · Sincronizado", que se quitó en la HU-01). */
   subtitulo?: string;
-  onActualizar?: () => void;
-  actualizando?: boolean;
 }
 
-/** Barra superior de la zona privada: iniciales del técnico, título y botón actualizar. */
-export function EncabezadoApp({ nombre, apellido, subtitulo, onActualizar, actualizando = false }: Props) {
+/** Barra superior de la zona privada: iniciales del técnico y título (sin botón de refresh). */
+export function EncabezadoApp({ nombre, apellido, subtitulo }: Props) {
   const iniciales = `${nombre.charAt(0)}${(apellido ?? '').charAt(0)}`.toUpperCase() || 'TW';
   return (
     <View style={estilos.barra}>
@@ -27,22 +24,6 @@ export function EncabezadoApp({ nombre, apellido, subtitulo, onActualizar, actua
           </Text>
         )}
       </View>
-      {onActualizar && (
-        <Pressable
-          onPress={onActualizar}
-          disabled={actualizando}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Actualizar"
-          testID="boton-actualizar"
-        >
-          {actualizando ? (
-            <ActivityIndicator color={colores.primario} />
-          ) : (
-            <Ionicons name="refresh-outline" size={24} color={colores.primario} />
-          )}
-        </Pressable>
-      )}
     </View>
   );
 }

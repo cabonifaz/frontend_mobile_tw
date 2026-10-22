@@ -34,7 +34,7 @@ function ControladorSplash() {
  * Rutas protegidas:
  *  - Sin sesión ................................ login y recuperar contraseña.
  *  - Con sesión y contraseña temporal .......... solo "cambiar contraseña" (obligatorio).
- *  - Con sesión ................................ la app (agenda, etc.).
+ *  - Con sesión ................................ la app: pestañas (tabs), módulos (modulo/[id]).
  */
 function Navegacion() {
   const { sesion, cargando } = useSesion();
@@ -46,7 +46,8 @@ function Navegacion() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colores.fondo } }}>
       <Stack.Protected guard={conSesion && !debeCambiar}>
-        <Stack.Screen name="(app)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="modulo/[id]" />
       </Stack.Protected>
 
       <Stack.Protected guard={conSesion}>

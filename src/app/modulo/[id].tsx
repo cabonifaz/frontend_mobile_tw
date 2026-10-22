@@ -6,10 +6,11 @@ import { Proximamente } from '@/componentes/Proximamente';
 import { moduloPorId } from '@/menu/modulos';
 import { colores } from '@/tema/colores';
 
-/** Pantalla temporal de los módulos del menú que aún no se desarrollan. */
+/** Pantalla temporal de los módulos del menú (y del detalle de un servicio) que aún no se desarrollan. */
 export default function PantallaModulo() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, titulo: tituloParam } = useLocalSearchParams<{ id: string; titulo?: string }>();
   const modulo = moduloPorId(id);
+  const titulo = modulo?.titulo ?? tituloParam ?? 'Módulo';
 
   return (
     <SafeAreaView style={estilos.area} edges={['top', 'bottom']}>
@@ -18,10 +19,10 @@ export default function PantallaModulo() {
           <Ionicons name="arrow-back" size={24} color={colores.titulo} />
         </Pressable>
         <Text style={estilos.titulo} numberOfLines={1}>
-          {modulo?.titulo ?? 'Módulo'}
+          {titulo}
         </Text>
       </View>
-      <Proximamente titulo={modulo?.titulo ?? 'Módulo'} icono={modulo?.icono ?? { familia: 'ion', nombre: 'apps-outline' }} />
+      <Proximamente titulo={titulo} icono={modulo?.icono ?? { familia: 'ion', nombre: 'document-text-outline' }} />
     </SafeAreaView>
   );
 }

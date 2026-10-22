@@ -3,7 +3,12 @@ import type { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ResumenMenu } from '@/api/menu';
 
 /**
- * Módulos del menú principal (HU-02), en el orden del mockup.
+ * Módulos del menú principal (HU-02), en el orden del mockup y con los nombres
+ * que ya usan los técnicos en la app actual de TW (menú lateral): Reloj Marcador,
+ * Servicios Programados, Procedimientos, Recepción Instrumentos OM, Ingreso de
+ * Equipos OS, Viáticos, Solicitud de Gastos y Configuraciones.
+ * Nuevos respecto a la app actual: Ruta del Día y Asistente IA.
+ * "Cerrar App" de la app actual está en la pestaña Perfil como "Cerrar sesión".
  * Para habilitar un módulo: crea su pantalla y cambia `ruta` (mientras no tenga,
  * abre la pantalla "Próximamente").
  */
@@ -34,7 +39,7 @@ export const modulosMenu: ModuloMenu[] = [
     id: 'servicios-programados',
     titulo: 'Servicios Programados',
     icono: { familia: 'ion', nombre: 'clipboard-outline' },
-    ruta: null,
+    ruta: '/servicios-programados', // HU-03
     indicador: (r) => ({
       texto: r.serviciosAsignados > 0 ? plural(r.serviciosAsignados, 'asignado', 'asignados') : 'Sin asignar',
       tono: r.serviciosAsignados > 0 ? 'amarillo' : 'gris',
@@ -47,15 +52,15 @@ export const modulosMenu: ModuloMenu[] = [
     icono: { familia: 'ion', nombre: 'file-tray-outline' },
     ruta: null,
   },
-  { id: 'ingreso-equipos-os', titulo: 'Ingreso Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: null },
+  { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: null },
   { id: 'viaticos', titulo: 'Viáticos', icono: { familia: 'ion', nombre: 'wallet-outline' }, ruta: null },
   { id: 'solicitud-gastos', titulo: 'Solicitud de Gastos', icono: { familia: 'ion', nombre: 'receipt-outline' }, ruta: null },
-  { id: 'configuracion', titulo: 'Configuración', icono: { familia: 'ion', nombre: 'settings-outline' }, ruta: null },
+  { id: 'configuracion', titulo: 'Configuraciones', icono: { familia: 'ion', nombre: 'settings-outline' }, ruta: null },
   {
     id: 'ruta-del-dia',
     titulo: 'Ruta del Día',
     icono: { familia: 'mci', nombre: 'map-marker-path' },
-    ruta: null,
+    ruta: '/servicios-programados?filtro=hoy', // HU-03 (agenda filtrada en Hoy)
     indicador: (r) => ({
       texto: r.serviciosHoy > 0 ? plural(r.serviciosHoy, 'servicio', 'servicios') : 'Sin servicios hoy',
       tono: r.serviciosHoy > 0 ? 'azul' : 'gris',

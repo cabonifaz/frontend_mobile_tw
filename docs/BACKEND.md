@@ -19,6 +19,8 @@ src/
     autenticacion.ts        Login, cierre, cambio de contraseña
     usuario.ts              Datos del usuario (tabla usuario)
     catalogos.ts            Catálogos de tabla_maestra (con cache en memoria)
+    menu.ts                 Indicadores del menú (HU-02)
+    servicios.ts            Agenda de servicios programados (HU-03)
     mock.ts                 Las mismas funciones con datos de prueba (modo demo)
   hooks/
     useConsulta.ts          Carga datos en una pantalla: datos, cargando, error, recargar
@@ -35,6 +37,7 @@ docs/
 | Cerrar sesión | `POST api/movil/autenticacion/cerrar-sesion` | `SP_CerrarSesionMovil` | `sesion_usuario` |
 | Cambiar contraseña | `POST api/autenticacion/cambiar-contrasena` | `SP_CambiarContrasenaUsuario` | `usuario` |
 | Menú (Ruta) · indicadores y Próximo Hit | `GET api/movil/menu/resumen` | `SP_ObtenerResumenMenuMovil` | `orden_servicio`, `os_personal`, `cliente`, `sede_cliente`, `tabla_maestra` |
+| Servicios Programados (agenda) | `GET api/movil/servicios?filtro=&busqueda=` | `SP_ObtenerServiciosProgramadosMovil` | `orden_servicio`, `os_personal`, `os_equipo`, `informe_tecnico`, `alerta_predictiva`, `expediente_digital`, `expediente_bloqueador`, `requerimiento`, `orden_metrologia`, `cliente`, `sede_cliente`, `usuario` |
 | Menú · cargo del encabezado | `GET api/maestros/catalogos/CARGO_USUARIO` | `SP_ObtenerCatalogo` | `tabla_maestra` |
 | Perfil · Mis datos | `GET api/autenticacion/me` | `SP_ObtenerUsuarioPorId` | `usuario` |
 | Perfil · Área / Cargo | `GET api/maestros/catalogos/{AREA_USUARIO \| CARGO_USUARIO}` | `SP_ObtenerCatalogo` | `tabla_maestra` |
@@ -43,7 +46,7 @@ docs/
 
 ### Tablas ya creadas en la BD para la app de campo
 
-Están en `01_crear_tablas.sql` del back. Por ahora no tienen SPs ni endpoints; se irán habilitando con cada HU:
+Están en `01_crear_tablas.sql` del back. Las de **Agenda / OS** ya se leen desde la HU-02 y la HU-03; el resto se irá habilitando con cada HU:
 
 | Bloque | Tablas |
 |---|---|
@@ -94,12 +97,26 @@ Catálogos útiles en `tabla_maestra`: `TIPO_EVENTO_CAMPO`, `TIPO_EVIDENCIA`, `M
 
 **Opción 2: back de staging en Railway** (la misma BD, sin levantar nada en tu PC)
 ```
-EXPO_PUBLIC_API_URL=https://<back-staging>.up.railway.app
+EXPO_PUBLIC_API_URL=https://backendintranettw-staging.up.railway.app
 EXPO_PUBLIC_USE_MOCK=false
 ```
 
 **Requisitos para entrar con un usuario real:**
-- El back debe tener aplicado el parche de la HU-01 y ejecutados sus scripts en la BD.
-- El técnico debe tener usuario de app asignado (`HU01_datos_prueba.sql` o `PUT api/maestros/usuarios/{id}/acceso-movil`).
+- El back debe tener copiados los archivos del paquete del back (desplegado en el servidor si usas la opción 2).
+- En la BD se debe haber ejecutado `1_BD_app_movil_HU01_a_HU03.sql`: la migración `75_acceso_app_movil.sql` y los SPs de la HU-01 a la HU-03.
+- El técnico debe tener usuario de app asignado (`3_asignar_usuario_app.sql` o `PUT api/maestros/usuarios/{id}/acceso-movil`). `2_ver_cuentas_para_la_app.sql` lista las cuentas de campo con un usuario sugerido.
+- Si aun así no entra, `5_diagnostico_acceso_app.sql` dice el motivo (sin usuario de app, inactivo, sesión abierta en otro equipo, bloqueo por intentos…).
 
-Cualquier cambio en la BD (una OS nueva para el técnico, su área o nombre) se ve en la app al **deslizar hacia abajo** o con el botón de actualizar del menú.
+**No se crean datos de prueba**: la BD es la misma de la intranet. `4_verificar_datos_reales.sql` (solo lectura) muestra, HU por HU, qué datos reales existen y qué falta coordinar.
+
+### Datos que la intranet todavía no registra (coordinar con el equipo)
+
+| Lo que muestra la app | Sale de | Situación hoy |
+|---|---|---|
+| Servicios del técnico (menú, Ruta del Día, Próximo Hit, agenda) | `orden_servicio` + `os_personal` | **La intranet no crea OS**: el flujo llega al expediente en etapa *Programación*, pero no hay pantalla ni SP que registre la OS con fecha, hora, sede y técnico. Sin OS, la app muestra "Sin asignar" y la agenda vacía. |
+| Usuario de la app | `usuario.nombre_usuario` | El back ya tiene `PUT api/maestros/usuarios/{id}/acceso-movil`, pero la ficha de usuario de la intranet no tiene el campo. Mientras tanto: `3_asignar_usuario_app.sql`. |
+| Etiqueta LISTO | `orden_servicio.confirmacion_cliente` + `os_personal.estado_ssoma` | Nadie marca la confirmación del cliente ni valida SSOMA: las tarjetas quedan PENDIENTE. |
+| Objetivos | `os_equipo` + `informe_tecnico` | Equipos por OS: los registraría la programación. Informes: HU siguientes de la app. |
+| Alerta predictiva / N° OM | `alerta_predictiva` / `orden_metrologia.id_os` | Sin proceso que las genere o vincule todavía. |
+
+Cualquier cambio en la BD (una OS nueva para el técnico, su área o nombre) se ve en la app al **deslizar hacia abajo**. No hay botón de actualizar.

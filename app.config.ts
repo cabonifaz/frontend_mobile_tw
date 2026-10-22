@@ -10,6 +10,11 @@ import type { ExpoConfig } from 'expo/config';
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? '';
 const permitirHttp = apiUrl.startsWith('http://');
 
+// Desarrollo seguro: la versión de producción nunca viaja sin cifrar (el token y los datos irían en claro).
+if (process.env.EAS_BUILD_PROFILE === 'production' && !apiUrl.startsWith('https://')) {
+  throw new Error('El build de producción necesita EXPO_PUBLIC_API_URL con https://');
+}
+
 /**
  * Proyecto de EAS (expo.dev). Pega aquí el projectId que muestra `npx eas-cli@latest init`.
  * Con esto se habilitan las actualizaciones por internet (EAS Update): se instala

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -18,7 +17,8 @@ import { colores } from '@/tema/colores';
  *  - Cuadrícula de módulos con íconos.
  *  - Indicadores dinámicos desde la BD: servicios asignados y servicios de hoy.
  *  - Banner "Próximo Hit" con el servicio en curso o el más cercano.
- *  Sin "Online · Sincronizado" ni tarjeta de sincronización (el modo offline se quitó en la HU-01).
+ *  Sin "Online · Sincronizado", sin tarjeta de sincronización y sin botón de refresh.
+ *  Los indicadores se actualizan al abrir el menú y al deslizar hacia abajo.
  */
 export default function PantallaMenu() {
   const { sesion } = useSesion();
@@ -28,13 +28,6 @@ export default function PantallaMenu() {
     const [resumen, cargos] = await Promise.all([obtenerResumenMenu(token), obtenerCatalogo(token, 'CARGO_USUARIO')]);
     return { resumen, cargos };
   });
-
-  const [actualizandoBoton, setActualizandoBoton] = useState(false);
-  async function actualizarDesdeBoton() {
-    setActualizandoBoton(true);
-    await recargar();
-    setActualizandoBoton(false);
-  }
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const resumen = datos?.resumen ?? null;
@@ -54,14 +47,12 @@ export default function PantallaMenu() {
         nombre={usuario?.nombre ?? ''}
         apellido={usuario?.apellido}
         subtitulo={`${usuario?.nombre ?? ''} · ${cargo}`}
-        onActualizar={actualizarDesdeBoton}
-        actualizando={actualizandoBoton}
       />
       <ScrollView
         contentContainerStyle={estilos.contenido}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={recargando && !actualizandoBoton} onRefresh={recargar} colors={[colores.primario]} />
+          <RefreshControl refreshing={recargando} onRefresh={recargar} colors={[colores.primario]} />
         }
       >
         <Text style={estilos.titulo} accessibilityRole="header">
@@ -94,7 +85,7 @@ export default function PantallaMenu() {
         {!cargando && !error && (
           <BannerProximoServicio
             servicio={resumen?.proximoServicio ?? null}
-            onPress={() => router.push({ pathname: '/modulo/[id]', params: { id: 'servicios-programados' } })}
+            onPress={() => router.push('/servicios-programados')}
           />
         )}
       </ScrollView>

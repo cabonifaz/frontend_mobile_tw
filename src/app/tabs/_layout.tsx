@@ -1,9 +1,17 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { usePathname } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { colores } from '@/tema/colores';
 
-/** Pestañas inferiores (HU-02): Ruta (menú principal), Notificaciones, Asistente y Perfil. */
+/**
+ * Pestañas inferiores (HU-02): Ruta (menú principal), Notificaciones, Asistente y Perfil.
+ * "Servicios Programados" (HU-03) vive aquí como pantalla sin botón propio, para que la
+ * barra inferior se siga viendo; mientras está abierta, la pestaña "Ruta" queda marcada.
+ */
 export default function LayoutPestanas() {
+  const pathname = usePathname();
+  const enServicios = pathname === '/servicios-programados';
+
   return (
     <Tabs
       screenOptions={{
@@ -21,7 +29,22 @@ export default function LayoutPestanas() {
         name="index"
         options={{
           title: 'Ruta',
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="map-marker-path" color={color as string} size={size} />,
+          // En "Servicios Programados" la pestaña Ruta se pinta como activa
+          ...(enServicios
+            ? {
+                tabBarItemStyle: {
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  marginHorizontal: 3,
+                  marginVertical: 6,
+                  backgroundColor: colores.primario,
+                },
+                tabBarLabelStyle: { fontSize: 11, fontWeight: '600', color: colores.blanco },
+              }
+            : {}),
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="map-marker-path" color={enServicios ? colores.blanco : (color as string)} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -45,6 +68,13 @@ export default function LayoutPestanas() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color as string} size={size} />,
         }}
       />
+      {/* HU-03: sin botón propio en la barra (se entra desde el menú).
+          No se usa href: null porque en SDK 58 eso deja la pantalla inaccesible. */}
+      <Tabs.Screen
+        name="servicios-programados"
+        options={{ title: 'Servicios Programados', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
     </Tabs>
   );
 }
+

@@ -28,6 +28,14 @@ export const colores = {
   verde: '#16A34A',
   verdeFondo: '#F0FDF4',
   verdeBorde: '#CDEFD8',
+  // Estados de la agenda (HU-03)
+  verdeEtiquetaFondo: '#DCFCE7',
+  verdeEtiquetaTexto: '#166534',
+  rojoEtiquetaFondo: '#FEE2E2',
+  rojoEtiquetaTexto: '#991B1B',
+  rojo: '#DC2626',
+  naranja: '#C2410C',
+  primarioOscuro: '#0B3D91',
 } as const;
 
 export const radios = {

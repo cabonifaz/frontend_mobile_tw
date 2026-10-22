@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { StyleSheet, Text, View, type TextInputInstance } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { ErrorApi } from '@/api/cliente';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
@@ -31,6 +31,8 @@ export default function PantallaCambiarContrasena() {
   const [confirmacion, setConfirmacion] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Se cambió una contraseña temporal: hay que salir de esta pantalla hacia el menú. */
+  const [temporalCambiada, setTemporalCambiada] = useState(false);
   const refNueva = useRef<TextInputInstance>(null);
   const refConfirmacion = useRef<TextInputInstance>(null);
 
@@ -45,14 +47,17 @@ export default function PantallaCambiarContrasena() {
     try {
       const mensaje = await cambiarContrasena(actual, nueva);
       avisar('Contraseña actualizada', mensaje || 'Tu contraseña se cambió correctamente.');
-      if (!obligatorio && router.canGoBack()) router.back();
-      // Si era obligatorio, la navegación pasa sola a la app al quitarse el flag.
+      if (obligatorio) setTemporalCambiada(true);
+      else if (router.canGoBack()) router.back();
     } catch (e) {
       setError(e instanceof ErrorApi ? e.message : 'No se pudo cambiar la contraseña.');
     } finally {
       setEnviando(false);
     }
   }
+
+  // Con la contraseña temporal ya cambiada, esta pantalla sigue permitida: se lleva al menú explícitamente.
+  if (temporalCambiada && !obligatorio) return <Redirect href="/" />;
 
   return (
     <Pantalla>
@@ -69,6 +74,7 @@ export default function PantallaCambiarContrasena() {
         <CampoTexto
           etiqueta={obligatorio ? 'Contraseña temporal' : 'Contraseña actual'}
           esContrasena
+          maxLength={128}
           value={actual}
           onChangeText={setActual}
           returnKeyType="next"
@@ -80,6 +86,7 @@ export default function PantallaCambiarContrasena() {
           ref={refNueva}
           etiqueta="Nueva contraseña"
           esContrasena
+          maxLength={128}
           value={nueva}
           onChangeText={setNueva}
           returnKeyType="next"
@@ -103,6 +110,7 @@ export default function PantallaCambiarContrasena() {
           ref={refConfirmacion}
           etiqueta="Confirmar nueva contraseña"
           esContrasena
+          maxLength={128}
           value={confirmacion}
           onChangeText={setConfirmacion}
           returnKeyType="go"

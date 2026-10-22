@@ -6,6 +6,15 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 - Backend: API .NET de la intranet. Respuestas con sobre `{ idTipoMensaje (1 regla | 2 éxito | 3 error), mensaje, datos }`; usar `src/api/cliente.ts` (`solicitar`), nunca `fetch` directo.
 - Fechas del backend: hora de Lima sin zona → convertir con `fechaDesdeApi`.
 - Acceso (HU-01): solo usuario (no correo), sin modo offline, 1 sesión por equipo (`api/movil/autenticacion/*`).
+- Sin modo offline ni sincronización en ninguna pantalla: no mostrar "Online · Sincronizado", "Disponible offline", "Pendiente sincronizar" ni botones de refresh. Los datos se recargan al **deslizar hacia abajo** (`Pantalla` con `onRecargar`).
+- Nombres de módulos iguales a los de la app actual de TW (Reloj Marcador, Servicios Programados, Procedimientos, Recepción Instrumentos OM, Ingreso de Equipos OS, Viáticos, Solicitud de Gastos, Configuraciones). Se definen en `src/menu/modulos.ts`; un módulo sin `ruta` abre "Próximamente".
+- Estructura de rutas (opción B, sin carpeta `(app)`): pantallas con barra inferior en `src/app/(tabs)/`, pantallas sin barra en `src/app/<nombre>.tsx` o `src/app/modulo/`. Las rutas privadas se protegen en `src/app/_layout.tsx` con `Stack.Protected`. Una pantalla en `(tabs)` que no es pestaña se oculta con `tabBarButton: () => null` y `tabBarItemStyle: { display: 'none' }` (no usar `href: null`).
+- Avance: HU-01 acceso, HU-02 menú principal, HU-03 agenda de servicios programados (`api/movil/servicios`).
+- Cambios en la BD: migraciones y SPs idempotentes en el back, sin romper la intranet; entregar siempre los `.sql` para ejecutarlos en `total_weight_stg`.
+- No hacer commit, push, ramas ni PR: el dueño del repo sube los cambios.
+- Datos: la BD es una sola para la intranet y la app. No crear datos de prueba en la BD; usar los datos reales y avisar qué falta coordinar (`4_verificar_datos_reales.sql` en el paquete del back).
+- Desarrollo seguro: token solo en SecureStore; el id del técnico siempre sale del token (nunca de parámetros: evita IDOR); todo endpoint nuevo de la app va en `api/movil/*` y hereda alcance del token, cabeceras y errores genéricos (`ControladorAppMovil` en el back); validar largo de entradas en la app y en el back; producción solo con `https://`.
+- Al terminar cada HU: typecheck, lint, pruebas E2E con Playwright (web) contra el back y `pruebas_seguridad.mjs` contra la API.
 - Todo endpoint nuevo debe tener su versión en `src/api/mock.ts` para el modo demo (`EXPO_PUBLIC_USE_MOCK=true`).
 - La app lee la BD (`total_weight_stg`) solo a través del backend. Un archivo por módulo en `src/api/`, pantallas con `useConsulta`, catálogos con `obtenerCatalogo` + `nombreDeCodigo`.
 - Cada pantalla nueva se documenta en la tabla de `docs/BACKEND.md` (endpoint → SP → tablas).
