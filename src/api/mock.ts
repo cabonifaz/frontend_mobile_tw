@@ -3,7 +3,15 @@ import type { DatosIngreso, SesionIniciada } from './autenticacion';
 import type { ItemCatalogo } from './catalogos';
 import type { MisDatos } from './usuario';
 import type { ResumenMenu } from './menu';
-import type { FiltroServicios, ServicioProgramado } from './servicios';
+import type {
+  ChecklistSalida,
+  CodigoManual,
+  DetalleServicio,
+  FiltroServicios,
+  ItemChecklist,
+  ResultadoChecklist,
+  ServicioProgramado,
+} from './servicios';
 
 /**
  * Modo demo (EXPO_PUBLIC_USE_MOCK=true): la app funciona sin backend para revisar
@@ -178,5 +186,141 @@ export const mockServicios = {
         [s.numeroOs, s.numeroRq, s.numeroOm, s.cliente].some((v) => (v ?? '').toLowerCase().includes(texto));
       return pasaFiltro && pasaBusqueda;
     });
+  },
+};
+
+/**
+ * HU-04 (modo demo): detalle y checklist de pre-salida. Reproduce las reglas del back
+ * (ReglasChecklistSalida) en memoria; el visto bueno del jefe se simula 2 s después de pedirlo.
+ */
+const presalidaDemo = new Map<
+  number,
+  { manuales: Record<CodigoManual, boolean>; autorizacion: 'pendiente' | 'aprobada' | null; estadoOs: string }
+>();
+
+function estadoDemo(idOs: number) {
+  let e = presalidaDemo.get(idOs);
+  if (!e) {
+    e = {
+      manuales: { expediente: false, epp: false, materiales: false, herramientas: false, pesas_patron: false },
+      autorizacion: null,
+      estadoOs: 'programada',
+    };
+    presalidaDemo.set(idOs, e);
+  }
+  return e;
+}
+
+/** Área que autoriza según la RQ (demo: las OS pares son de Metrología; el resto, de Servicio Técnico). */
+function areaDemo(idOs: number) {
+  return idOs % 2 === 0
+    ? { codigo: 'metrologia' as const, area: 'Metrología', cargo: 'Jefe de Metrología', encargado: 'Mónica Paredes' }
+    : { codigo: 'servicio_tecnico' as const, area: 'Servicio Técnico', cargo: 'Jefe de Servicio Técnico', encargado: 'Jorge Salas' };
+}
+
+function checklistDemo(idOs: number): ChecklistSalida {
+  const s = serviciosDemo().find((x) => x.idOs === idOs) ?? serviciosDemo()[0];
+  const e = estadoDemo(idOs);
+  const area = areaDemo(idOs);
+  const editable = e.estadoOs === 'programada';
+  const manual = (codigo: CodigoManual, nombre: string): ItemChecklist => ({
+    codigo, nombre, tipo: 'manual', obligatorio: true, estado: e.manuales[codigo] ? 'conforme' : 'pendiente', detalle: null, editable,
+  });
+  const items: ItemChecklist[] = [
+    manual('expediente', 'Expediente revisado'),
+    { codigo: 'cliente_confirmo', nombre: 'Cliente confirmó visita', tipo: 'automatico', obligatorio: true,
+      estado: s.clienteConfirmado ? 'conforme' : 'pendiente', detalle: null, editable: false },
+    { codigo: 'ssoma', nombre: 'SSOMA completo', tipo: 'automatico', obligatorio: true,
+      estado: s.estadoSsoma === 'habilitado' ? 'conforme' : 'pendiente', detalle: null, editable: false },
+    { codigo: 'oc', nombre: 'OC cargada', tipo: 'automatico', obligatorio: false, estado: 'conforme', detalle: null, editable: false },
+    manual('epp', 'EPP revisado'),
+    manual('materiales', 'Materiales e insumos'),
+    manual('herramientas', 'Herramientas listas'),
+    manual('pesas_patron', 'Pesas patrón asignadas'),
+    { codigo: 'repuestos', nombre: 'Repuestos asignados', tipo: 'automatico', obligatorio: true,
+      estado: 'pendiente', detalle: '1 de 2 repuestos sin asignar.', editable: false },
+    { codigo: 'alerta', nombre: 'Alerta predictiva', tipo: 'automatico', obligatorio: true,
+      estado: s.alertasPredictivas > 0 ? 'bloqueado' : 'conforme', detalle: null, editable: false },
+    { codigo: 'visto_bueno', nombre: `Visto bueno ${area.cargo}`, tipo: 'autorizacion', obligatorio: false,
+      estado: e.autorizacion === 'aprobada' ? 'conforme' : e.autorizacion === 'pendiente' ? 'pendiente' : 'opcional',
+      detalle: e.autorizacion === 'aprobada' ? `Aprobado por ${area.encargado}.` : e.autorizacion === 'pendiente'
+        ? `Solicitud enviada al ${area.cargo} (${area.encargado}): esperando respuesta.`
+        : `Lo marca el ${area.cargo} desde la intranet. Solo hace falta si quedan pendientes.`,
+      editable: false },
+  ];
+  const faltantes = items.filter((i) => i.obligatorio && (i.estado === 'pendiente' || i.estado === 'bloqueado')).map((i) => i.nombre);
+  const puedeIniciar = editable && (faltantes.length === 0 || e.autorizacion === 'aprobada');
+  return {
+    idOs, numeroOs: s.numeroOs, cliente: s.cliente, fechaEjecucion: s.fechaEjecucion, horaInicio: s.horaInicio,
+    tecnico: s.responsable, estadoOs: e.estadoOs, items, faltantes, puedeIniciar,
+    saleConVistoBueno: puedeIniciar && faltantes.length > 0,
+    puedeSolicitarAutorizacion: editable && faltantes.length > 0 && e.autorizacion === null,
+    trasladoIniciado: e.estadoOs === 'en_ruta',
+    autorizacion: e.autorizacion ? { estado: e.autorizacion, jefe: e.autorizacion === 'aprobada' ? area.encargado : null,
+      comentario: null, solicitadaEn: new Date().toISOString(), resueltaEn: null } : null,
+    areaAutoriza: area,
+  };
+}
+
+export const mockPresalida = {
+  async detalle(idOs: number): Promise<DetalleServicio> {
+    await esperar(400);
+    const s = serviciosDemo().find((x) => x.idOs === idOs) ?? serviciosDemo()[0];
+    return {
+      servicio: {
+        idOs: s.idOs, numeroOs: s.numeroOs, numeroRq: s.numeroRq, numeroOm: s.numeroOm, cliente: s.cliente,
+        idTipoServicio: 1, tipoServicio: 'Mantenimiento Preventivo', fechaEjecucion: s.fechaEjecucion,
+        horaInicio: s.horaInicio, estadoOs: estadoDemo(idOs).estadoOs, sede: s.sede, direccion: 'Av. Argentina 4793, Callao',
+        contactoNombre: 'Carlos Mendoza', contactoCargo: 'Jefe de Mantenimiento', contactoTelefono: '+51 987 654 321',
+        responsable: s.responsable, clienteConfirmado: s.clienteConfirmado, estadoSsoma: s.estadoSsoma,
+        objetivosTotal: s.objetivosTotal, notasOperativas: null,
+      },
+      alertas: s.alertasPredictivas > 0
+        ? [{ idAlerta: 1, tipo: 'Desgaste proyectado por uso acumulado', prioridad: 'Alta', equipo: 'EQ-1001 · Mettler Toledo IND780',
+             descripcion: 'Alta probabilidad de desgaste del rodamiento principal según histórico de fallas del modelo y condiciones de operación.',
+             fechaGeneracion: new Date().toISOString() }]
+        : [],
+      riesgos: [
+        { idRiesgo: 1, nombre: 'Carga suspendida', codigo: 'CARGA_SUSPENDIDA', icono: 'alerta', observacion: null },
+        { idRiesgo: 2, nombre: 'Superficies calientes', codigo: 'SUPERFICIE_CALIENTE', icono: 'fuego', observacion: null },
+      ],
+      repuestos: [
+        { idItem: 1, descripcion: 'Kit de sellos IND780 (REP-00882)', asignado: true },
+        { idItem: 2, descripcion: 'Celda de carga PDX 30t', asignado: false },
+      ],
+      historial: [
+        { fecha: '2026-03-03T15:30:00', origen: 'equipo', titulo: 'Celda de carga', referencia: 'EQ-1001 · Mettler Toledo IND780',
+          valorAnterior: 'PDX 30t (serie A1)', valorNuevo: 'PDX 30t (serie B7)', detalle: 'Cambio de celda', usuario: 'Admin TW' },
+        { fecha: '2025-10-15T10:00:00', origen: 'equipo', titulo: 'Calibración', referencia: 'EQ-1001 · Mettler Toledo IND780',
+          valorAnterior: 'Vence 15/10/2025', valorNuevo: 'Vence 15/10/2026', detalle: 'Calibración anual', usuario: 'Admin TW' },
+      ],
+      documentos: [
+        { idDocumento: 1, nombreArchivo: 'Mettler Toledo IND780 - Manual Técnico v2.4.pdf', tipo: 'Manual', version: 1, fechaCarga: null },
+      ],
+    };
+  },
+  async checklist(idOs: number): Promise<ChecklistSalida> {
+    await esperar(300);
+    return checklistDemo(idOs);
+  },
+  async marcar(idOs: number, codigo: CodigoManual, confirmado: boolean): Promise<ResultadoChecklist> {
+    await esperar(250);
+    estadoDemo(idOs).manuales[codigo] = confirmado;
+    return { mensaje: confirmado ? 'Confirmado.' : 'Desmarcado.', checklist: checklistDemo(idOs) };
+  },
+  async solicitar(idOs: number): Promise<ResultadoChecklist> {
+    await esperar(400);
+    const e = estadoDemo(idOs);
+    e.autorizacion = 'pendiente';
+    setTimeout(() => { e.autorizacion = 'aprobada'; }, 2000);
+    const c = checklistDemo(idOs);
+    return { mensaje: `Solicitud enviada a ${c.areaAutoriza?.encargado} (${c.areaAutoriza?.cargo}).`, checklist: c };
+  },
+  async iniciar(idOs: number): Promise<ResultadoChecklist> {
+    await esperar(400);
+    const c = checklistDemo(idOs);
+    if (!c.puedeIniciar) throw new ErrorApi(`No puedes iniciar el traslado. Faltan: ${c.faltantes.join(', ')}.`, 400, 1);
+    estadoDemo(idOs).estadoOs = 'en_ruta';
+    return { mensaje: 'Traslado iniciado. ¡Buen viaje!', checklist: checklistDemo(idOs) };
   },
 };

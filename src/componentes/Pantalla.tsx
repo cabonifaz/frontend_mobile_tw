@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useDiseno } from '@/hooks/useDiseno';
 import { colores } from '@/tema/colores';
 
 interface Props {
@@ -14,11 +15,12 @@ interface Props {
 
 /** Contenedor de pantalla con scroll, teclado y (opcional) deslizar para actualizar. */
 export function Pantalla({ children, onRecargar, recargando = false, conPestanas = false }: Props) {
+  const d = useDiseno();
   return (
     <SafeAreaView style={estilos.area} edges={conPestanas ? ['top'] : ['top', 'bottom']}>
       <KeyboardAvoidingView style={estilos.area} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          contentContainerStyle={estilos.contenido}
+          contentContainerStyle={[estilos.contenido, { paddingHorizontal: d.margen, maxWidth: d.tablet ? 560 : 480 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           refreshControl={

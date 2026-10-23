@@ -9,6 +9,7 @@ import { Aviso } from '@/componentes/Aviso';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { TarjetaServicio } from '@/componentes/TarjetaServicio';
 import { useConsulta } from '@/hooks/useConsulta';
+import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 
@@ -33,6 +34,7 @@ const esFiltro = (v: unknown): v is FiltroServicios => filtros.some((f) => f.id 
 export default function PantallaServiciosProgramados() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
+  const d = useDiseno();
 
   // El filtro inicial puede venir del menú (?filtro=hoy). Si la persona elige otro, se respeta
   // mientras no vuelva a entrar con otro filtro desde el menú.
@@ -64,7 +66,7 @@ export default function PantallaServiciosProgramados() {
   const servicios: ServicioProgramado[] = datos?.servicios ?? [];
 
   function verDetalle(s: ServicioProgramado) {
-    router.push({ pathname: '/modulo/[id]', params: { id: 'detalle-servicio', titulo: `Servicio ${s.numeroOs}` } });
+    router.push({ pathname: '/detalle-servicio', params: { id: String(s.idOs) } });
   }
 
   return (
@@ -72,7 +74,7 @@ export default function PantallaServiciosProgramados() {
       <EncabezadoApp nombre={usuario?.nombre ?? ''} apellido={usuario?.apellido} subtitulo={`${usuario?.nombre ?? ''} · ${cargo}`} />
 
       <ScrollView
-        contentContainerStyle={estilos.contenido}
+        contentContainerStyle={[estilos.contenido, { paddingHorizontal: d.margen, maxWidth: d.anchoMaximo }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={recargando} onRefresh={recargar} colors={[colores.primario]} />}

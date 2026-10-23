@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import type { ServicioProgramado } from '@/api/servicios';
 import { colores, radios } from '@/tema/colores';
+import { fechaHora } from '@/utilidades/formato';
 
 interface Props {
   servicio: ServicioProgramado;
@@ -14,20 +15,6 @@ const etiquetasEstado = {
   PENDIENTE: { fondo: colores.amarilloFondo, texto: colores.amarilloTexto },
   BLOQUEADO: { fondo: colores.rojoEtiquetaFondo, texto: colores.rojoEtiquetaTexto },
 } as const;
-
-/** "2026-05-24" + "08:30" → "24/05/2026 - 08:30 AM" */
-function fechaHora(fecha: string | null, hora: string | null): string {
-  if (!fecha) return '';
-  const [a, m, d] = fecha.split('-');
-  let texto = `${d}/${m}/${a}`;
-  if (hora) {
-    const [h, min] = hora.split(':').map(Number);
-    const sufijo = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    texto += ` - ${String(h12).padStart(2, '0')}:${String(min).padStart(2, '0')} ${sufijo}`;
-  }
-  return texto;
-}
 
 type NombreIcono = ComponentProps<typeof Ionicons>['name'];
 interface Indicador {
@@ -163,7 +150,7 @@ const estilos = StyleSheet.create({
     borderRadius: radios.tarjeta,
     borderWidth: 1,
     borderColor: colores.bordeSuave,
-    padding: 20,
+    padding: 18,
   },
   cabecera: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   cliente: { flex: 1, fontSize: 18, fontWeight: '700', color: colores.primarioOscuro },
@@ -172,8 +159,8 @@ const estilos = StyleSheet.create({
   fecha: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   fechaTexto: { fontSize: 14, color: colores.texto },
   separador: { height: 1, backgroundColor: '#EEF2F7', marginVertical: 14 },
-  fila: { flexDirection: 'row', gap: 16 },
-  columna: { flex: 1 },
+  fila: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 10 },
+  columna: { flexGrow: 1, flexBasis: 130 },
   rotulo: { fontSize: 11, fontWeight: '700', color: colores.textoSecundario, letterSpacing: 0.3, marginBottom: 3 },
   valor: { fontSize: 14, color: colores.texto, lineHeight: 20 },
   motivo: { fontSize: 15, fontWeight: '700', color: colores.rojo, textAlign: 'right' },

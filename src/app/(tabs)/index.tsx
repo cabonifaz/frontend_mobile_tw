@@ -8,6 +8,7 @@ import { BannerProximoServicio } from '@/componentes/BannerProximoServicio';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { TarjetaModulo } from '@/componentes/TarjetaModulo';
 import { useConsulta } from '@/hooks/useConsulta';
+import { useDiseno } from '@/hooks/useDiseno';
 import { modulosMenu, type ModuloMenu } from '@/menu/modulos';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
@@ -23,6 +24,7 @@ import { colores } from '@/tema/colores';
 export default function PantallaMenu() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
+  const d = useDiseno();
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     const [resumen, cargos] = await Promise.all([obtenerResumenMenu(token), obtenerCatalogo(token, 'CARGO_USUARIO')]);
@@ -37,9 +39,10 @@ export default function PantallaMenu() {
     else router.push({ pathname: '/modulo/[id]', params: { id: modulo.id } });
   }
 
-  // Cuadrícula de 2 columnas
+  // Cuadrícula: 2 columnas en celular, 3 en tablet
+  const columnas = d.columnasMenu;
   const filas: ModuloMenu[][] = [];
-  for (let i = 0; i < modulosMenu.length; i += 2) filas.push(modulosMenu.slice(i, i + 2));
+  for (let i = 0; i < modulosMenu.length; i += columnas) filas.push(modulosMenu.slice(i, i + columnas));
 
   return (
     <SafeAreaView style={estilos.area} edges={['top']}>
@@ -49,13 +52,13 @@ export default function PantallaMenu() {
         subtitulo={`${usuario?.nombre ?? ''} · ${cargo}`}
       />
       <ScrollView
-        contentContainerStyle={estilos.contenido}
+        contentContainerStyle={[estilos.contenido, { paddingHorizontal: d.margen, maxWidth: d.anchoMaximo }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={recargando} onRefresh={recargar} colors={[colores.primario]} />
         }
       >
-        <Text style={estilos.titulo} accessibilityRole="header">
+        <Text style={[estilos.titulo, { fontSize: d.tituloPantalla + 2 }]} accessibilityRole="header">
           Menú Principal
         </Text>
         <Text style={estilos.subtitulo}>Accesos operativos</Text>
@@ -77,7 +80,9 @@ export default function PantallaMenu() {
                   onPress={() => abrir(m)}
                 />
               ))}
-              {fila.length === 1 && <View style={{ flex: 1 }} />}
+              {Array.from({ length: columnas - fila.length }, (_, k) => (
+                <View key={`hueco-${k}`} style={{ flex: 1 }} />
+              ))}
             </View>
           ))}
         </View>
@@ -85,7 +90,11 @@ export default function PantallaMenu() {
         {!cargando && !error && (
           <BannerProximoServicio
             servicio={resumen?.proximoServicio ?? null}
-            onPress={() => router.push('/servicios-programados')}
+            onPress={() =>
+              resumen?.proximoServicio
+                ? router.push({ pathname: '/detalle-servicio', params: { id: String(resumen.proximoServicio.idOs) } })
+                : router.push('/servicios-programados')
+            }
           />
         )}
       </ScrollView>

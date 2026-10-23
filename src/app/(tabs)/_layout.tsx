@@ -1,4 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useWindowDimensions } from 'react-native';
 import { usePathname } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { colores } from '@/tema/colores';
@@ -10,17 +11,23 @@ import { colores } from '@/tema/colores';
  */
 export default function LayoutPestanas() {
   const pathname = usePathname();
-  const enServicios = pathname === '/servicios-programados';
+  // En celulares angostos (320 dp) la etiqueta "Notificaciones" no entra a 11 pt.
+  const tamanoEtiqueta = useWindowDimensions().width < 360 ? 8.5 : 11;
+  // Pantallas de la ruta del técnico que no tienen botón propio: marcan la pestaña "Ruta".
+  const enServicios = ['/servicios-programados', '/detalle-servicio', '/checklist-salida'].includes(pathname);
 
   return (
     <Tabs
+      // "Volver" regresa a la pantalla anterior (agenda → detalle → checklist), no siempre al menú.
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colores.blanco,
         tabBarInactiveTintColor: colores.textoSecundario,
         tabBarActiveBackgroundColor: colores.primario,
         tabBarItemStyle: { borderRadius: 12, overflow: 'hidden', marginHorizontal: 3, marginVertical: 6 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600' },
+        tabBarAllowFontScaling: false,
         tabBarStyle: { height: 72, paddingHorizontal: 4, borderTopColor: colores.bordeSuave },
         sceneStyle: { backgroundColor: colores.fondo },
       }}
@@ -39,7 +46,7 @@ export default function LayoutPestanas() {
                   marginVertical: 6,
                   backgroundColor: colores.primario,
                 },
-                tabBarLabelStyle: { fontSize: 11, fontWeight: '600', color: colores.blanco },
+                tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600', color: colores.blanco },
               }
             : {}),
           tabBarIcon: ({ color, size }) => (
@@ -73,6 +80,15 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="servicios-programados"
         options={{ title: 'Servicios Programados', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-04: detalle del servicio y checklist de pre-salida (se entra desde la agenda). */}
+      <Tabs.Screen
+        name="detalle-servicio"
+        options={{ title: 'Servicio Programado', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="checklist-salida"
+        options={{ title: 'Validación antes de salir', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
   );

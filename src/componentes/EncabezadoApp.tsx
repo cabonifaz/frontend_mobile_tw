@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { colores } from '@/tema/colores';
 
 interface Props {
@@ -8,16 +9,29 @@ interface Props {
   subtitulo?: string;
 }
 
-/** Barra superior de la zona privada: iniciales del técnico y título (sin botón de refresh). */
+/**
+ * Barra superior de la zona privada: iniciales del técnico y título (sin botón de refresh).
+ * Tocar el círculo con las iniciales abre "Mi cuenta" (pestaña Perfil), con los datos de la cuenta
+ * y el botón "Salir de la app".
+ */
 export function EncabezadoApp({ nombre, apellido, subtitulo }: Props) {
   const iniciales = `${nombre.charAt(0)}${(apellido ?? '').charAt(0)}`.toUpperCase() || 'TW';
   return (
     <View style={estilos.barra}>
-      <View style={estilos.avatar} accessibilityElementsHidden>
+      <Pressable
+        onPress={() => router.navigate('/perfil')}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Mi cuenta"
+        testID="boton-mi-cuenta"
+        style={({ pressed }) => [estilos.avatar, pressed && { opacity: 0.8 }]}
+      >
         <Text style={estilos.iniciales}>{iniciales}</Text>
-      </View>
+      </Pressable>
       <View style={{ flex: 1 }}>
-        <Text style={estilos.titulo}>Servicio de Campo</Text>
+        <Text style={estilos.titulo} numberOfLines={1}>
+          Servicio de Campo
+        </Text>
         {!!subtitulo && (
           <Text style={estilos.subtitulo} numberOfLines={1}>
             {subtitulo}
@@ -33,8 +47,8 @@ const estilos = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: colores.tarjeta,
     borderBottomWidth: 1,
     borderBottomColor: colores.bordeSuave,

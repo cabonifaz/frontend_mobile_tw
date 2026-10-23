@@ -1,6 +1,6 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { obtenerMisDatos } from '@/api/usuario';
 import { Aviso } from '@/componentes/Aviso';
@@ -9,13 +9,13 @@ import { Pantalla } from '@/componentes/Pantalla';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { confirmar } from '@/utilidades/dialogos';
 
 /**
- * Perfil (pestaña). Datos del técnico tal como están en la BD (total_weight_stg):
+ * Mi cuenta (pestaña Perfil). Se abre también tocando el círculo con las iniciales del encabezado.
+ * Datos del técnico tal como están en la BD (total_weight_stg):
  *   - usuario ........ GET api/autenticacion/me
  *   - área y cargo ... catálogos AREA_USUARIO y CARGO_USUARIO de tabla_maestra
- * Deslizar hacia abajo vuelve a leerlos. Desde aquí se cambia la contraseña y se cierra sesión.
+ * "Salir de la app" cierra la sesión en el servidor y en el equipo, y lleva al login.
  */
 export default function PantallaPerfil() {
   const { sesion, cerrarSesion } = useSesion();
@@ -43,24 +43,32 @@ export default function PantallaPerfil() {
     hour12: false,
   });
 
-  async function confirmarCierre() {
-    if (await confirmar('Cerrar sesión', 'Se cerrará tu sesión en este equipo. ¿Continuar?', 'Cerrar sesión')) {
-      await cerrarSesion();
-    }
+  const [saliendo, setSaliendo] = useState(false);
+  const iniciales = `${(u?.nombre ?? sesion?.usuario.nombre ?? '').charAt(0)}${(u?.apellido ?? sesion?.usuario.apellido ?? '').charAt(0)}`.toUpperCase() || 'TW';
+
+  /** Cierra la sesión (servidor + equipo); la navegación pasa sola al login. */
+  async function salir() {
+    setSaliendo(true);
+    await cerrarSesion();
   }
 
   return (
     <Pantalla onRecargar={recargar} recargando={recargando} conPestanas>
+      <Text style={estilos.tituloPantalla} accessibilityRole="header">
+        Mi cuenta
+      </Text>
       <View style={estilos.cabecera}>
+        <View style={estilos.avatar} accessibilityElementsHidden>
+          <Text style={estilos.iniciales}>{iniciales}</Text>
+        </View>
         <View style={{ flex: 1 }}>
-          <Text style={estilos.saludo}>Hola, {nombre}</Text>
+          <Text style={estilos.saludo} numberOfLines={2}>
+            {`${u?.nombre ?? nombre} ${u?.apellido ?? sesion?.usuario.apellido ?? ''}`.trim()}
+          </Text>
           <Text style={estilos.detalle}>
             {cargo} · @{sesion?.usuario.usuario}
           </Text>
         </View>
-        <Pressable onPress={confirmarCierre} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cerrar sesión">
-          <Ionicons name="log-out-outline" size={26} color={colores.textoSecundario} />
-        </Pressable>
       </View>
 
       <View style={estilos.datos}>
@@ -71,6 +79,7 @@ export default function PantallaPerfil() {
           <Aviso tipo="error" mensaje={error} />
         ) : (
           <>
+            <Fila etiqueta="Usuario de la app" valor={sesion?.usuario.usuario ?? '—'} />
             <Fila etiqueta="Nombre" valor={`${u?.nombre ?? ''} ${u?.apellido ?? ''}`.trim()} />
             <Fila etiqueta="Cargo" valor={cargo} />
             <Fila etiqueta="Área" valor={area} />
@@ -88,7 +97,7 @@ export default function PantallaPerfil() {
 
       <View style={{ gap: 12 }}>
         <Boton titulo="Cambiar contraseña" variante="secundario" onPress={() => router.push('/cambiar-contrasena')} />
-        <Boton titulo="Cerrar sesión" variante="secundario" onPress={confirmarCierre} />
+        <Boton titulo="Salir de la app" onPress={salir} cargando={saliendo} />
       </View>
     </Pantalla>
   );
@@ -98,7 +107,7 @@ function Fila({ etiqueta, valor, ultima = false }: { etiqueta: string; valor: st
   return (
     <View style={[estilos.fila, ultima && { borderBottomWidth: 0 }]}>
       <Text style={estilos.filaEtiqueta}>{etiqueta}</Text>
-      <Text style={estilos.filaValor} numberOfLines={1}>
+      <Text style={estilos.filaValor} numberOfLines={2}>
         {valor || '—'}
       </Text>
     </View>
@@ -106,8 +115,18 @@ function Fila({ etiqueta, valor, ultima = false }: { etiqueta: string; valor: st
 }
 
 const estilos = StyleSheet.create({
-  cabecera: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  saludo: { fontSize: 24, fontWeight: '700', color: colores.titulo },
+  tituloPantalla: { fontSize: 26, fontWeight: '700', color: colores.titulo, marginBottom: 16 },
+  cabecera: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colores.primario,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iniciales: { color: colores.blanco, fontWeight: '700', fontSize: 22 },
+  saludo: { fontSize: 20, fontWeight: '700', color: colores.titulo },
   detalle: { fontSize: 14, color: colores.textoSecundario, marginTop: 4 },
   datos: {
     backgroundColor: colores.tarjeta,

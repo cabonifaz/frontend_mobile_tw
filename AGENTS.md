@@ -9,7 +9,10 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 - Sin modo offline ni sincronización en ninguna pantalla: no mostrar "Online · Sincronizado", "Disponible offline", "Pendiente sincronizar" ni botones de refresh. Los datos se recargan al **deslizar hacia abajo** (`Pantalla` con `onRecargar`).
 - Nombres de módulos iguales a los de la app actual de TW (Reloj Marcador, Servicios Programados, Procedimientos, Recepción Instrumentos OM, Ingreso de Equipos OS, Viáticos, Solicitud de Gastos, Configuraciones). Se definen en `src/menu/modulos.ts`; un módulo sin `ruta` abre "Próximamente".
 - Estructura de rutas (opción B, sin carpeta `(app)`): pantallas con barra inferior en `src/app/(tabs)/`, pantallas sin barra en `src/app/<nombre>.tsx` o `src/app/modulo/`. Las rutas privadas se protegen en `src/app/_layout.tsx` con `Stack.Protected`. Una pantalla en `(tabs)` que no es pestaña se oculta con `tabBarButton: () => null` y `tabBarItemStyle: { display: 'none' }` (no usar `href: null`).
-- Avance: HU-01 acceso, HU-02 menú principal, HU-03 agenda de servicios programados (`api/movil/servicios`).
+- Avance: HU-01 acceso, HU-02 menú principal, HU-03 agenda de servicios programados (`api/movil/servicios`), HU-04 detalle del servicio y checklist de pre-salida (`api/movil/servicios/{idOs}/…`).
+- Pantallas de la ruta del técnico: archivos planos en `src/app/(tabs)/` con el id por parámetro (`detalle-servicio?id=`), ocultos de la barra. Las pestañas usan `backBehavior="history"`; como quedan montadas, las pantallas releen sus datos con `useFocusEffect` al volver.
+- Diseño responsivo: usar `useDiseno()` (margen, ancho máximo, columnas, modo compacto < 360 dp) en vez de anchos fijos; revisar en 320, 360, 390, 412 y 768.
+- Reglas de negocio de la salida (checklist) solo en el back (`ReglasChecklistSalida`); la app muestra lo que responde y el back vuelve a validar al iniciar el traslado.
 - Cambios en la BD: migraciones y SPs idempotentes en el back, sin romper la intranet; entregar siempre los `.sql` para ejecutarlos en `total_weight_stg`.
 - No hacer commit, push, ramas ni PR: el dueño del repo sube los cambios.
 - Datos: la BD es una sola para la intranet y la app. No crear datos de prueba en la BD; usar los datos reales y avisar qué falta coordinar (`4_verificar_datos_reales.sql` en el paquete del back).

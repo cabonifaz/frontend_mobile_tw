@@ -12,6 +12,19 @@ App Android para los técnicos de campo de Total Weight. Usa el backend y la bas
 | HU-01 | Acceso seguro: login con usuario, recordar sesión, recuperar y cambiar contraseña, una sesión por equipo | ✅ |
 | HU-02 | Menú principal: cuadrícula de módulos, indicadores desde la BD, banner "Próximo Hit", pestañas Ruta / Notificaciones / Asistente / Perfil | ✅ |
 | HU-03 | Agenda de Servicios Programados: buscador, filtros Todos / Hoy / Pendientes / En ejecución, tarjetas LISTO / PENDIENTE / BLOQUEADO | ✅ |
+| HU-04 | Detalle del servicio y checklist de pre-salida: destino, contacto, documentos, riesgos, historial anterior/actual, solicitud de autorización e inicio de traslado | ✅ |
+
+### HU-04: decisiones sobre el mockup
+- **Sin "Zero-Device", sin botón de refresh y sin "Online · Sincronizado".** Los datos se recargan deslizando hacia abajo y al volver a la pantalla.
+- **Requisitos del detalle:** SSOMA, EPP y Materiales e insumos son obligatorios; la OC se muestra pero **no es obligatoria**. EPP y Materiales se marcan desde el detalle o desde el checklist.
+- **Checklist obligatorio:** expediente revisado, cliente confirmó visita, SSOMA, EPP, materiales e insumos, herramientas, pesas patrón (solo calibración y verificación metrológica), repuestos asignados y alertas predictivas resueltas.
+- **Visto bueno del encargado del área:** el área sale de la RQ del servicio (Servicio Técnico o Metrología). La solicitud le llega al Jefe de Servicio Técnico o al Jefe de Metrología (si la RQ no indica área, a ambos), y lo marca **desde la intranet**. En la app se ve como una casilla de solo lectura. Con el visto bueno, el técnico puede iniciar el traslado aunque queden pendientes, y queda registrado en la auditoría.
+- **"Solicitar autorización"** aparece solo si hay pendientes: avisa a los jefes o coordinadores de Operaciones (notificación) con los pendientes que calcula el back. Solo se permite una solicitud pendiente por OS.
+- **"Iniciar traslado"** solo se habilita sin pendientes o con visto bueno. El back vuelve a validar todo; la OS pasa a "en ruta" y se registra el evento "Salida desde base".
+- **Historial:** al tocar una modificación se ve el **valor anterior y el actual** (cambios del equipo y del servicio).
+- **Avatar (círculo con iniciales):** abre **Mi cuenta** con los datos de la cuenta y el botón **Salir de la app**, que lleva al login.
+- **Llamar y Mapa** abren el teléfono y Google Maps con los datos reales. Demora, Objetivos, "Marcar llegada" y la descarga de documentos llegan en las siguientes HU.
+- **Cualquier tamaño de celular:** las pantallas se adaptan a 320, 360, 390, 412 y a tablet (768): sin anchos fijos, columnas que se apilan en celulares angostos y ancho máximo en tablet.
 
 ### HU-03: decisiones sobre el mockup
 - **Sin "Disponible offline" ni "Pendiente sincronizar"**, porque el modo offline se quitó en la HU-01. Tampoco hay botón de refresh: se desliza hacia abajo.
@@ -71,6 +84,9 @@ src/
       asistente.tsx         (próximamente)
       perfil.tsx            Mis datos (de la BD), cambiar contraseña, cerrar sesión
       servicios-programados.tsx  HU-03 Agenda (sin botón propio en la barra; se entra desde el menú)
+      detalle-servicio.tsx       HU-04 Detalle del servicio (?id=)
+      checklist-salida.tsx       HU-04 Validación antes de salir (?id=)
+    +not-found.tsx          Enlace inválido o sin sesión: lleva al menú o al login
     modulo/[id].tsx         Módulos del menú aún no desarrollados ("Próximamente"), sin barra inferior
   api/                      Llamadas al backend, un archivo por módulo
     cliente.ts              URL, token, errores; un 401 cierra la sesión
@@ -78,7 +94,7 @@ src/
     usuario.ts              Datos del usuario (tabla usuario)
     catalogos.ts            Catálogos de tabla_maestra
     menu.ts                 Indicadores del menú (orden_servicio)
-    servicios.ts            Agenda de servicios programados (HU-03)
+    servicios.ts            Agenda (HU-03), detalle y checklist de pre-salida (HU-04)
     mock.ts                 Las mismas funciones con datos de prueba (modo demo)
   hooks/useConsulta.ts      Carga datos en una pantalla (cargando, error, recargar)
   menu/modulos.ts           Módulos del menú: título, ícono, indicador y ruta
@@ -129,7 +145,7 @@ Cada vez que cambies el `.env`, reinicia con `npx expo start --clear`.
 
 **Cada avance, sin reinstalar:**
 ```powershell
-npm run actualizar -- "HU-03 agenda de servicios"
+npm run actualizar -- "HU-04 detalle y checklist de salida"
 ```
 En el celular, cierra la app por completo y vuelve a abrirla. Al pie del login verás `Versión 0.1.0 · act. <fecha>`.
 
