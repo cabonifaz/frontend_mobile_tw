@@ -1,5 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { colores } from '@/tema/colores';
@@ -11,6 +12,9 @@ import { colores } from '@/tema/colores';
  */
 export default function LayoutPestanas() {
   const pathname = usePathname();
+  // Android (edge-to-edge) dibuja la app detrás de la barra de navegación del sistema
+  // (botones ◁ ○ ▢ o gestos): la barra de pestañas suma ese espacio para no quedar tapada.
+  const { bottom: margenInferior } = useSafeAreaInsets();
   // En celulares angostos (320 dp) la etiqueta "Notificaciones" no entra a 11 pt.
   const tamanoEtiqueta = useWindowDimensions().width < 360 ? 8.5 : 11;
   // Pantallas de la ruta del técnico que no tienen botón propio: marcan la pestaña "Ruta".
@@ -28,7 +32,12 @@ export default function LayoutPestanas() {
         tabBarItemStyle: { borderRadius: 12, overflow: 'hidden', marginHorizontal: 3, marginVertical: 6 },
         tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600' },
         tabBarAllowFontScaling: false,
-        tabBarStyle: { height: 72, paddingHorizontal: 4, borderTopColor: colores.bordeSuave },
+        tabBarStyle: {
+          height: 72 + margenInferior,
+          paddingBottom: margenInferior,
+          paddingHorizontal: 4,
+          borderTopColor: colores.bordeSuave,
+        },
         sceneStyle: { backgroundColor: colores.fondo },
       }}
     >
