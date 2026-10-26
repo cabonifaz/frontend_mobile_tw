@@ -27,7 +27,7 @@ const EAS_PROJECT_ID = '550fdce7-c8a4-473f-97c7-e301b92cd08e';
  * Súbela ('2', '3'...) SOLO cuando se agregue una librería nativa (cámara, GPS, etc.):
  * en ese caso hay que generar e instalar un APK nuevo con `npm run apk`.
  */
-const VERSION_NATIVA = '2';
+const VERSION_NATIVA = '3'; // 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07)
 
 /**
  * Variante de la app:
@@ -69,6 +69,23 @@ const config: ExpoConfig = {
     'expo-font',
     'expo-updates',
     'expo-dev-client',
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'La app usa la cámara para tomar fotos de evidencia y leer el código QR de los equipos.',
+        microphonePermission: false,
+        recordAudioAndroid: false,
+        barcodeScannerEnabled: true,
+      },
+    ],
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission: 'La app usa tu ubicación para registrar demoras y validar tu llegada a la planta del cliente.',
+        isAndroidBackgroundLocationEnabled: false,
+        isIosBackgroundLocationEnabled: false,
+      },
+    ],
     [
       'expo-splash-screen',
       {

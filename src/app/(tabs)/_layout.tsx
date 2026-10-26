@@ -18,7 +18,15 @@ export default function LayoutPestanas() {
   // En celulares angostos (320 dp) la etiqueta "Notificaciones" no entra a 11 pt.
   const tamanoEtiqueta = useWindowDimensions().width < 360 ? 8.5 : 11;
   // Pantallas de la ruta del técnico que no tienen botón propio: marcan la pestaña "Ruta".
-  const enServicios = ['/servicios-programados', '/detalle-servicio', '/checklist-salida'].includes(pathname);
+  const enServicios = [
+    '/servicios-programados',
+    '/detalle-servicio',
+    '/checklist-salida',
+    '/demoras',
+    '/llegada',
+    '/objetivos',
+    '/seleccionar-equipo',
+  ].includes(pathname);
 
   return (
     <Tabs
@@ -98,6 +106,22 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="checklist-salida"
         options={{ title: 'Validación antes de salir', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="demoras"
+        options={{ title: 'Registro de Demoras', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="llegada"
+        options={{ title: 'Registrar llegada', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="objetivos"
+        options={{ title: 'Objetivos de Hoy', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="seleccionar-equipo"
+        options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
   );

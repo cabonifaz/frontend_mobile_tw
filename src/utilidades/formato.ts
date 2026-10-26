@@ -28,3 +28,25 @@ export function telefonoMarcable(telefono: string | null): string | null {
   const limpio = (telefono ?? '').replace(/[^\d+]/g, '');
   return limpio.length >= 6 ? limpio : null;
 }
+
+/** "2026-10-26T08:45:00" → "08:45" (hora de Lima que envía el back). */
+export function horaDe(valor: string | null | undefined): string {
+  if (!valor) return '—';
+  const m = /T(\d{2}):(\d{2})/.exec(valor);
+  return m ? `${m[1]}:${m[2]}` : valor;
+}
+
+/** Suma minutos a una fecha del back ("yyyy-MM-ddTHH:mm:ss", hora de Lima) sin pasar por la zona del celular. */
+export function sumarMinutos(valor: string | null | undefined, minutos: number): string | null {
+  if (!valor) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(valor);
+  if (!m) return null;
+  const base = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) + Math.round(minutos) * 60_000;
+  return new Date(base).toISOString().slice(0, 19);
+}
+
+/** Hora actual de Lima "HH:mm" (sin depender de la zona horaria configurada en el celular). */
+export function horaLimaAhora(): string {
+  const lima = new Date(Date.now() - 5 * 3600_000);
+  return lima.toISOString().slice(11, 16);
+}

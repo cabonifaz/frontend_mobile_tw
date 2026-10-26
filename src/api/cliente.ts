@@ -56,6 +56,9 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
     throw new ErrorApi('La app no tiene configurada la URL del backend (EXPO_PUBLIC_API_URL).', 0);
   }
 
+  // FormData (fotos): el navegador / React Native arman el multipart y su boundary; no se fija Content-Type.
+  const esFormulario = typeof FormData !== 'undefined' && cuerpo instanceof FormData;
+
   const controlador = new AbortController();
   const temporizador = setTimeout(() => controlador.abort(), entorno.timeoutMs);
 
@@ -65,10 +68,10 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
       method: metodo,
       headers: {
         Accept: 'application/json',
-        ...(cuerpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(cuerpo !== undefined && !esFormulario ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
+      body: esFormulario ? (cuerpo as FormData) : cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
       signal: controlador.signal,
     });
   } catch (e) {

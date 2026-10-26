@@ -29,6 +29,7 @@ import { fechaCorta, fechaHora, telefonoMarcable } from '@/utilidades/formato';
  *  - Alertas predictivas, requisitos (SSOMA, EPP, Materiales e insumos; OC opcional),
  *    riesgos identificados, repuestos, historial (anterior → actual) y documentación.
  *  - "Validar salida" abre el checklist de pre-salida.
+ *  - En ruta: "Registrar llegada" (HU-06) y "Registrar demora" (HU-05). En planta: "Ver objetivos" (HU-07).
  *  Sin botón de refresh (se desliza hacia abajo), sin "Online · Sincronizado" y sin "Zero-Device".
  */
 type NombreIcono = ComponentProps<typeof Ionicons>['name'];
@@ -96,6 +97,7 @@ export default function PantallaDetalleServicio() {
   const item = (codigo: string) => items.find((i) => i.codigo === codigo);
   const programada = s ? ['programada', 'reprogramada'].includes(s.estadoOs) : false;
   const enRuta = s?.estadoOs === 'en_ruta';
+  const enPlanta = s ? ['en_ejecucion', 'pausada'].includes(s.estadoOs) : false;
 
   async function alternar(i: ItemChecklist) {
     if (!sesion || !i.editable || guardando) return;
@@ -121,13 +123,13 @@ export default function PantallaDetalleServicio() {
     if (lugar) void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lugar)}`);
   }
 
-  function proximamente(titulo: string) {
-    router.push({ pathname: '/modulo/[id]', params: { id: 'detalle', titulo } });
+  function ir(pathname: '/demoras' | '/objetivos' | '/llegada') {
+    router.push({ pathname, params: { id: String(idOs) } });
   }
 
   const accesos: { id: string; icono: NombreIcono; texto: string; onPress: () => void; activo: boolean }[] = [
-    { id: 'demora', icono: 'time-outline', texto: 'Demora', onPress: () => proximamente('Registrar demora'), activo: true },
-    { id: 'objetivos', icono: 'clipboard-outline', texto: 'Objetivos', onPress: () => proximamente('Objetivos del servicio'), activo: true },
+    { id: 'demora', icono: 'time-outline', texto: 'Demora', onPress: () => ir('/demoras'), activo: enRuta },
+    { id: 'objetivos', icono: 'clipboard-outline', texto: 'Objetivos', onPress: () => ir('/objetivos'), activo: true },
     { id: 'llamar', icono: 'call-outline', texto: 'Llamar', onPress: llamar, activo: !!telefonoMarcable(s?.contactoTelefono ?? null) },
     { id: 'mapa', icono: 'map-outline', texto: 'Mapa', onPress: abrirMapa, activo: !!(s?.direccion || s?.sede) },
   ];
@@ -393,7 +395,12 @@ export default function PantallaDetalleServicio() {
                   onPress={() => router.push({ pathname: '/checklist-salida', params: { id: String(idOs) } })}
                 />
               ) : enRuta ? (
-                <Boton titulo="Marcar llegada (próxima versión)" onPress={() => undefined} deshabilitado />
+                <>
+                  <Boton titulo="Registrar llegada" onPress={() => ir('/llegada')} />
+                  <Boton titulo="Registrar demora" variante="secundario" onPress={() => ir('/demoras')} />
+                </>
+              ) : enPlanta ? (
+                <Boton titulo="Ver objetivos" onPress={() => ir('/objetivos')} />
               ) : null}
               <Boton titulo="Consultar IA" variante="secundario" onPress={() => router.push('/asistente')} />
             </View>
