@@ -1,6 +1,7 @@
 import { entorno } from '@/config/entorno';
 import { solicitar } from './cliente';
 import { mockCatalogos } from './mock';
+import { conRespaldo } from './respaldo';
 
 /**
  * Catálogos de tabla_maestra (áreas, cargos, tipos de servicio, motivos, etc.).
@@ -16,7 +17,10 @@ export interface ItemCatalogo {
   string3?: string | null;
 }
 
-/** Los catálogos cambian poco: se guardan en memoria mientras la app está abierta. */
+/**
+ * Los catálogos cambian poco: se guardan en memoria mientras la app está abierta y, además,
+ * en el teléfono para poder mostrarlos sin conexión (HU-01 · modo offline).
+ */
 const cache = new Map<string, ItemCatalogo[]>();
 
 export async function obtenerCatalogo(token: string, nombre: string, forzar = false): Promise<ItemCatalogo[]> {
@@ -25,7 +29,11 @@ export async function obtenerCatalogo(token: string, nombre: string, forzar = fa
 
   const items = entorno.usarMock
     ? await mockCatalogos.obtener(clave)
-    : (await solicitar<ItemCatalogo[]>(`/api/maestros/catalogos/${encodeURIComponent(clave)}`, { token })).datos ?? [];
+    : (
+        await conRespaldo(0, `catalogo.${clave}`, async () =>
+          (await solicitar<ItemCatalogo[]>(`/api/maestros/catalogos/${encodeURIComponent(clave)}`, { token })).datos ?? [],
+        )
+      ).datos;
 
   cache.set(clave, items);
   return items;

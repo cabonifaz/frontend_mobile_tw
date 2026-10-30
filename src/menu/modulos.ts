@@ -7,8 +7,10 @@ import type { ResumenMenu } from '@/api/menu';
  * que ya usan los técnicos en la app actual de TW (menú lateral): Reloj Marcador,
  * Servicios Programados, Procedimientos, Recepción Instrumentos OM, Ingreso de
  * Equipos OS, Viáticos, Solicitud de Gastos y Configuraciones.
- * Nuevos respecto a la app actual: Ruta del Día y Asistente IA.
- * "Cerrar App" de la app actual está en la pestaña Perfil como "Cerrar sesión".
+ * Nuevos respecto a la app actual: Progreso Guardado y Asistente IA.
+ * "Cerrar App" de la app actual está en la pestaña Perfil como "Salir de la app".
+ * Los indicadores salen de GET api/movil/menu/resumen; los módulos que aún no tienen
+ * datos en el backend se muestran sin indicador.
  * Para habilitar un módulo: crea su pantalla y cambia `ruta` (mientras no tenga,
  * abre la pantalla "Próximamente").
  */
@@ -55,22 +57,13 @@ export const modulosMenu: ModuloMenu[] = [
   { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: null },
   { id: 'viaticos', titulo: 'Viáticos', icono: { familia: 'ion', nombre: 'wallet-outline' }, ruta: null },
   { id: 'solicitud-gastos', titulo: 'Solicitud de Gastos', icono: { familia: 'ion', nombre: 'receipt-outline' }, ruta: null },
+  { id: 'progreso-guardado', titulo: 'Progreso Guardado', icono: { familia: 'ion', nombre: 'save-outline' }, ruta: null },
   { id: 'configuracion', titulo: 'Configuraciones', icono: { familia: 'ion', nombre: 'settings-outline' }, ruta: null },
-  {
-    id: 'ruta-del-dia',
-    titulo: 'Ruta del Día',
-    icono: { familia: 'mci', nombre: 'map-marker-path' },
-    ruta: '/servicios-programados?filtro=hoy', // HU-03 (agenda filtrada en Hoy)
-    indicador: (r) => ({
-      texto: r.serviciosHoy > 0 ? plural(r.serviciosHoy, 'servicio', 'servicios') : 'Sin servicios hoy',
-      tono: r.serviciosHoy > 0 ? 'azul' : 'gris',
-    }),
-  },
   {
     id: 'asistente-ia',
     titulo: 'Asistente IA',
     icono: { familia: 'mci', nombre: 'robot-outline' },
-    ruta: null,
+    ruta: '/asistente', // misma pantalla que la pestaña Asistente
     destacado: true,
   },
 ];

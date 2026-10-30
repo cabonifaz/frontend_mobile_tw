@@ -1,153 +1,155 @@
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { obtenerMisDatos } from '@/api/usuario';
-import { Aviso } from '@/componentes/Aviso';
-import { Boton } from '@/componentes/Boton';
-import { Pantalla } from '@/componentes/Pantalla';
+import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
+import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 
 /**
- * Mi cuenta (pestaña Perfil). Se abre también tocando el círculo con las iniciales del encabezado.
- * Datos del técnico tal como están en la BD (total_weight_stg):
- *   - usuario ........ GET api/autenticacion/me
- *   - área y cargo ... catálogos AREA_USUARIO y CARGO_USUARIO de tabla_maestra
- * "Salir de la app" cierra la sesión en el servidor y en el equipo, y lleva al login.
+ * Pestaña Perfil (HU-02). Solo tres opciones:
+ *   - Mi cuenta ........ datos del técnico y cambio de contraseña (/mi-cuenta).
+ *   - Configuraciones .. módulo de configuraciones (próxima historia).
+ *   - Salir de la app .. cierra la sesión en el servidor y en el equipo; la navegación pasa sola al login.
+ * Progreso Guardado y Sincronización NO van aquí (Progreso Guardado se abre desde el Menú).
  */
 export default function PantallaPerfil() {
   const { sesion, cerrarSesion } = useSesion();
-
-  const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
-    const [usuario, areas, cargos] = await Promise.all([
-      obtenerMisDatos(token),
-      obtenerCatalogo(token, 'AREA_USUARIO'),
-      obtenerCatalogo(token, 'CARGO_USUARIO'),
-    ]);
-    return { usuario, areas, cargos };
-  });
-
-  const u = datos?.usuario;
-  const nombre = u?.nombre ?? sesion?.usuario.nombre ?? '';
-  const codigoCargo = sesion?.usuario.cargo ?? null;
-  const cargo = nombreDeCodigo(datos?.cargos, codigoCargo) ?? codigoCargo ?? 'Técnico de Campo';
-  const area = nombreDeCodigo(datos?.areas, u?.area) ?? u?.area ?? '—';
-
-  const vence = sesion?.expiraEn.toLocaleString('es-PE', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-
+  const usuario = sesion?.usuario;
+  const d = useDiseno();
   const [saliendo, setSaliendo] = useState(false);
-  const iniciales = `${(u?.nombre ?? sesion?.usuario.nombre ?? '').charAt(0)}${(u?.apellido ?? sesion?.usuario.apellido ?? '').charAt(0)}`.toUpperCase() || 'TW';
 
-  /** Cierra la sesión (servidor + equipo); la navegación pasa sola al login. */
+  // El cargo viene como código (CARGO_USUARIO); se muestra su nombre.
+  const { datos: cargos } = useConsulta((token) => obtenerCatalogo(token, 'CARGO_USUARIO'));
+  const cargo = nombreDeCodigo(cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
+  const nombreCompleto = `${usuario?.nombre ?? ''} ${usuario?.apellido ?? ''}`.trim();
+  const iniciales = `${(usuario?.nombre ?? '').charAt(0)}${(usuario?.apellido ?? '').charAt(0)}`.toUpperCase() || 'TW';
+
   async function salir() {
+    if (saliendo) return;
     setSaliendo(true);
     await cerrarSesion();
   }
 
   return (
-    <Pantalla onRecargar={recargar} recargando={recargando} conPestanas>
-      <Text style={estilos.tituloPantalla} accessibilityRole="header">
-        Mi cuenta
-      </Text>
-      <View style={estilos.cabecera}>
-        <View style={estilos.avatar} accessibilityElementsHidden>
-          <Text style={estilos.iniciales}>{iniciales}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={estilos.saludo} numberOfLines={2}>
-            {`${u?.nombre ?? nombre} ${u?.apellido ?? sesion?.usuario.apellido ?? ''}`.trim()}
-          </Text>
-          <Text style={estilos.detalle}>
-            {cargo} · @{sesion?.usuario.usuario}
-          </Text>
-        </View>
-      </View>
-
-      <View style={estilos.datos}>
-        <Text style={estilos.tituloSeccion}>Mis datos</Text>
-        {cargando ? (
-          <ActivityIndicator color={colores.primario} style={{ marginVertical: 16 }} />
-        ) : error ? (
-          <Aviso tipo="error" mensaje={error} />
-        ) : (
-          <>
-            <Fila etiqueta="Usuario de la app" valor={sesion?.usuario.usuario ?? '—'} />
-            <Fila etiqueta="Nombre" valor={`${u?.nombre ?? ''} ${u?.apellido ?? ''}`.trim()} />
-            <Fila etiqueta="Cargo" valor={cargo} />
-            <Fila etiqueta="Área" valor={area} />
-            <Fila etiqueta="Rol" valor={u?.rolSistemaLabel ?? '—'} />
-            <Fila etiqueta="Correo" valor={u?.correo ?? '—'} ultima />
-          </>
-        )}
-      </View>
-
-      <View style={estilos.info}>
-        <Text style={estilos.infoTexto}>
-          {vence ? `Sesión activa en este equipo hasta el ${vence} h` : 'Sesión activa en este equipo'}
+    <SafeAreaView style={estilos.area} edges={['top']}>
+      <EncabezadoApp nombre={usuario?.nombre ?? ''} apellido={usuario?.apellido} subtitulo={`${usuario?.nombre ?? ''} · ${cargo}`} />
+      <View style={[estilos.contenido, { paddingHorizontal: d.margen, maxWidth: d.tablet ? 560 : 480 }]}>
+        <Text style={estilos.titulo} accessibilityRole="header">
+          Perfil
         </Text>
-      </View>
 
-      <View style={{ gap: 12 }}>
-        <Boton titulo="Cambiar contraseña" variante="secundario" onPress={() => router.push('/cambiar-contrasena')} />
-        <Boton titulo="Salir de la app" onPress={salir} cargando={saliendo} />
+        <View style={estilos.tarjeta}>
+          <View style={estilos.avatar} accessibilityElementsHidden>
+            <Text style={estilos.iniciales}>{iniciales}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={estilos.nombre} numberOfLines={2}>
+              {nombreCompleto || usuario?.usuario}
+            </Text>
+            <Text style={estilos.detalle} numberOfLines={2}>
+              {cargo} · usuario {usuario?.usuario}
+            </Text>
+          </View>
+        </View>
+
+        <View style={estilos.lista}>
+          <Opcion icono="person-circle-outline" titulo="Mi cuenta" onPress={() => router.push('/mi-cuenta')} testID="perfil-mi-cuenta" />
+          <View style={estilos.separador} />
+          <Opcion
+            icono="settings-outline"
+            titulo="Configuraciones"
+            onPress={() => router.push({ pathname: '/modulo/[id]', params: { id: 'configuracion' } })}
+            testID="perfil-configuraciones"
+          />
+        </View>
+
+        <Pressable
+          onPress={salir}
+          disabled={saliendo}
+          accessibilityRole="button"
+          accessibilityState={{ busy: saliendo }}
+          testID="perfil-salir"
+          style={({ pressed }) => [estilos.salir, pressed && { opacity: 0.75 }]}
+        >
+          {saliendo ? (
+            <ActivityIndicator color={colores.rojo} />
+          ) : (
+            <>
+              <Ionicons name="log-out-outline" size={20} color={colores.rojo} />
+              <Text style={estilos.salirTexto}>Salir de la app</Text>
+            </>
+          )}
+        </Pressable>
       </View>
-    </Pantalla>
+    </SafeAreaView>
   );
 }
 
-function Fila({ etiqueta, valor, ultima = false }: { etiqueta: string; valor: string; ultima?: boolean }) {
+function Opcion({
+  icono,
+  titulo,
+  onPress,
+  testID,
+}: {
+  icono: 'person-circle-outline' | 'settings-outline';
+  titulo: string;
+  onPress: () => void;
+  testID: string;
+}) {
   return (
-    <View style={[estilos.fila, ultima && { borderBottomWidth: 0 }]}>
-      <Text style={estilos.filaEtiqueta}>{etiqueta}</Text>
-      <Text style={estilos.filaValor} numberOfLines={2}>
-        {valor || '—'}
-      </Text>
-    </View>
+    <Pressable onPress={onPress} accessibilityRole="button" testID={testID} style={({ pressed }) => [estilos.opcion, pressed && { opacity: 0.7 }]}>
+      <Ionicons name={icono} size={24} color={colores.primario} />
+      <Text style={estilos.opcionTexto}>{titulo}</Text>
+      <Ionicons name="chevron-forward" size={20} color={colores.textoTenue} />
+    </Pressable>
   );
 }
 
 const estilos = StyleSheet.create({
-  tituloPantalla: { fontSize: 26, fontWeight: '700', color: colores.titulo, marginBottom: 16 },
-  cabecera: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colores.primario,
+  area: { flex: 1, backgroundColor: colores.fondo },
+  contenido: { padding: 20, width: '100%', alignSelf: 'center' },
+  titulo: { fontSize: 26, fontWeight: '700', color: colores.titulo, marginBottom: 16 },
+  tarjeta: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iniciales: { color: colores.blanco, fontWeight: '700', fontSize: 22 },
-  saludo: { fontSize: 20, fontWeight: '700', color: colores.titulo },
-  detalle: { fontSize: 14, color: colores.textoSecundario, marginTop: 4 },
-  datos: {
+    gap: 14,
     backgroundColor: colores.tarjeta,
     borderRadius: radios.tarjeta,
     borderWidth: 1,
-    borderColor: '#E3E9F1',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    borderColor: colores.bordeSuave,
+    padding: 16,
+    marginBottom: 14,
+  },
+  avatar: { width: 58, height: 58, borderRadius: 29, backgroundColor: colores.primario, alignItems: 'center', justifyContent: 'center' },
+  iniciales: { color: colores.blanco, fontWeight: '700', fontSize: 20 },
+  nombre: { fontSize: 18, fontWeight: '700', color: colores.titulo },
+  detalle: { fontSize: 13.5, color: colores.textoSecundario, marginTop: 3 },
+  lista: {
+    backgroundColor: colores.tarjeta,
+    borderRadius: radios.tarjeta,
+    borderWidth: 1,
+    borderColor: colores.bordeSuave,
+    paddingHorizontal: 14,
     marginBottom: 16,
   },
-  tituloSeccion: { fontSize: 16, fontWeight: '700', color: colores.titulo, marginBottom: 6 },
-  fila: {
+  opcion: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 56 },
+  opcionTexto: { flex: 1, fontSize: 15.5, color: colores.texto },
+  separador: { height: 1, backgroundColor: '#EEF2F7' },
+  salir: {
+    minHeight: 50,
+    borderRadius: radios.boton,
+    borderWidth: 1.5,
+    borderColor: colores.rojo,
+    backgroundColor: colores.tarjeta,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF2F7',
-    gap: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
-  filaEtiqueta: { fontSize: 14, color: colores.textoSecundario },
-  filaValor: { fontSize: 14, color: colores.texto, fontWeight: '500', flexShrink: 1, textAlign: 'right' },
-  info: { backgroundColor: colores.primarioSuave, borderRadius: 10, padding: 12, marginBottom: 24 },
-  infoTexto: { fontSize: 13, color: colores.texto, textAlign: 'center' },
+  salirTexto: { color: colores.rojo, fontSize: 16, fontWeight: '700' },
 });

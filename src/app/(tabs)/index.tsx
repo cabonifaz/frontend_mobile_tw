@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { obtenerResumenMenu } from '@/api/menu';
+import { conRespaldo, horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { BannerProximoServicio } from '@/componentes/BannerProximoServicio';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
@@ -20,19 +22,34 @@ import { colores } from '@/tema/colores';
  *  - Banner "Próximo Hit" con el servicio en curso o el más cercano.
  *  Sin "Online · Sincronizado", sin tarjeta de sincronización y sin botón de refresh.
  *  Los indicadores se actualizan al abrir el menú y al deslizar hacia abajo.
+ *  Sin conexión (HU-01 · modo offline): se muestran los últimos indicadores guardados en el teléfono
+ *  con un aviso "Sin conexión" y la app reintenta sola cada 30 s hasta que vuelve la señal.
  */
+const REINTENTO_SIN_CONEXION_MS = 30000;
+
 export default function PantallaMenu() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
-    const [resumen, cargos] = await Promise.all([obtenerResumenMenu(token), obtenerCatalogo(token, 'CARGO_USUARIO')]);
-    return { resumen, cargos };
+    const [r, cargos] = await Promise.all([
+      conRespaldo(usuario?.idUsuario ?? 0, 'menu.resumen', () => obtenerResumenMenu(token)),
+      obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => null),
+    ]);
+    return { resumen: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
   });
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const resumen = datos?.resumen ?? null;
+  const sinConexion = !!datos?.sinConexion;
+
+  // Sin señal: se vuelve a intentar solo, sin botones.
+  useEffect(() => {
+    if (!sinConexion) return;
+    const id = setInterval(() => void recargar(), REINTENTO_SIN_CONEXION_MS);
+    return () => clearInterval(id);
+  }, [sinConexion, recargar]);
 
   function abrir(modulo: ModuloMenu) {
     if (modulo.ruta) router.push(modulo.ruta as never);
@@ -62,6 +79,15 @@ export default function PantallaMenu() {
           Menú Principal
         </Text>
         <Text style={estilos.subtitulo}>Accesos operativos</Text>
+
+        {sinConexion && datos?.guardadoEn && (
+          <View style={{ marginBottom: 16 }} testID="menu-sin-conexion">
+            <Aviso
+              tipo="info"
+              mensaje={`Sin conexión · se muestra lo guardado a las ${horaRespaldo(datos.guardadoEn)}. Se actualiza solo al volver la señal.`}
+            />
+          </View>
+        )}
 
         {!!error && (
           <View style={{ marginBottom: 16 }}>

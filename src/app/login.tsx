@@ -13,13 +13,12 @@ import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 
 /**
- * App Mobile HU-01 — Acceso Seguro.
- * Cambios pedidos sobre el mockup:
- *  1. Solo usuario (asignado por el jefe), no correo.
- *  2. Sin botón "Ingresar en modo offline".
- *  3. Sin indicador "Online · Sincronizado".
- *  4. 1 sesión a la vez: si el usuario ya está en otro equipo, el backend lo rechaza
+ * App Mobile HU-01 — Acceso Seguro y Modo Offline.
+ *  1. Solo usuario (asignado por el jefe), no correo; mostrar u ocultar la contraseña.
+ *  2. 1 sesión a la vez: si el usuario ya está en otro equipo, el backend lo rechaza
  *     y aquí se muestra el mensaje con el equipo donde está abierta.
+ *  3. Modo offline: no hay botón "Ingresar en modo offline". El primer ingreso necesita internet;
+ *     con "Recordar sesión" la app abre sola sin conexión (SesionContext) y muestra lo guardado.
  */
 export default function PantallaLogin() {
   const { iniciarSesion, aviso, limpiarAviso, ultimoUsuario } = useSesion();
@@ -52,7 +51,13 @@ export default function PantallaLogin() {
       await iniciarSesion(usuario, contrasena, recordar);
       // La navegación cambia sola al existir sesión (rutas protegidas en _layout).
     } catch (e) {
-      setErrorGeneral(e instanceof ErrorApi ? e.message : 'No se pudo iniciar sesión. Inténtalo de nuevo.');
+      setErrorGeneral(
+        e instanceof ErrorApi && e.estadoHttp === 0
+          ? `${e.message} Para ingresar necesitas conexión; si marcas "Recordar sesión", la próxima vez la app abrirá aunque no tengas señal.`
+          : e instanceof ErrorApi
+            ? e.message
+            : 'No se pudo iniciar sesión. Inténtalo de nuevo.',
+      );
       setContrasena('');
     } finally {
       setEnviando(false);

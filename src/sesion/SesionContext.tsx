@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as api from '@/api/autenticacion';
+import { limpiarCacheCatalogos } from '@/api/catalogos';
 import { ErrorApi, registrarManejadorSesionInvalida } from '@/api/cliente';
+import { borrarRespaldos } from '@/api/respaldo';
 import { borrar, guardar, leer } from './almacenamiento';
 import { obtenerIdDispositivo, obtenerNombreDispositivo } from './dispositivo';
 
@@ -11,6 +13,9 @@ import { obtenerIdDispositivo, obtenerNombreDispositivo } from './dispositivo';
  *  - Sin marcar: la sesión vive solo mientras la app esté abierta.
  *  - Si el servidor responde 401 (sesión vencida, liberada por el jefe o usuario
  *    desactivado) se vuelve al login con un aviso.
+ *  - Modo offline: con "Recordar sesión", la app abre aunque no haya conexión y muestra lo
+ *    último guardado en el teléfono (src/api/respaldo.ts). El primer ingreso sí necesita internet.
+ *  - Al salir de la app o terminar la sesión se borra todo lo guardado en el teléfono.
  */
 
 const CLAVE_SESION = 'tw.sesion';
@@ -47,7 +52,9 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     setSesion(null);
     setAviso(mensaje);
     recordarRef.current = false;
+    limpiarCacheCatalogos();
     await borrar(CLAVE_SESION);
+    await borrarRespaldos();
   }, []);
 
   // 401 desde cualquier endpoint → vuelve al login.

@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
@@ -6,9 +6,10 @@ import { Tabs } from 'expo-router/js-tabs';
 import { colores } from '@/tema/colores';
 
 /**
- * Pestañas inferiores (HU-02): Ruta (menú principal), Notificaciones, Asistente y Perfil.
- * "Servicios Programados" (HU-03) vive aquí como pantalla sin botón propio, para que la
- * barra inferior se siga viendo; mientras está abierta, la pestaña "Ruta" queda marcada.
+ * Pestañas inferiores (HU-02): Menú, Notificaciones, Asistente y Perfil.
+ * Las pantallas de la ruta del técnico (HU-03 en adelante) viven aquí sin botón propio, para que la
+ * barra inferior se siga viendo; mientras están abiertas, la pestaña "Menú" queda marcada.
+ * "Mi cuenta" también vive aquí sin botón y marca la pestaña "Perfil".
  */
 export default function LayoutPestanas() {
   const pathname = usePathname();
@@ -17,7 +18,7 @@ export default function LayoutPestanas() {
   const { bottom: margenInferior } = useSafeAreaInsets();
   // En celulares angostos (320 dp) la etiqueta "Notificaciones" no entra a 11 pt.
   const tamanoEtiqueta = useWindowDimensions().width < 360 ? 8.5 : 11;
-  // Pantallas de la ruta del técnico que no tienen botón propio: marcan la pestaña "Ruta".
+  // Pantallas de la ruta del técnico que no tienen botón propio: marcan la pestaña "Menú".
   const enServicios = [
     '/servicios-programados',
     '/detalle-servicio',
@@ -27,6 +28,14 @@ export default function LayoutPestanas() {
     '/objetivos',
     '/seleccionar-equipo',
   ].includes(pathname);
+  const enCuenta = pathname === '/mi-cuenta';
+  const itemActivo = {
+    borderRadius: 12,
+    overflow: 'hidden' as const,
+    marginHorizontal: 3,
+    marginVertical: 6,
+    backgroundColor: colores.primario,
+  };
 
   return (
     <Tabs
@@ -52,22 +61,16 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Ruta',
-          // En "Servicios Programados" la pestaña Ruta se pinta como activa
+          title: 'Menú',
+          // En las pantallas de la ruta del técnico la pestaña Menú se pinta como activa
           ...(enServicios
             ? {
-                tabBarItemStyle: {
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                  marginHorizontal: 3,
-                  marginVertical: 6,
-                  backgroundColor: colores.primario,
-                },
+                tabBarItemStyle: itemActivo,
                 tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600', color: colores.blanco },
               }
             : {}),
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="map-marker-path" color={enServicios ? colores.blanco : (color as string)} size={size} />
+            <Ionicons name="grid-outline" color={enServicios ? colores.blanco : (color as string)} size={size} />
           ),
         }}
       />
@@ -89,8 +92,22 @@ export default function LayoutPestanas() {
         name="perfil"
         options={{
           title: 'Perfil',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color as string} size={size} />,
+          // En "Mi cuenta" la pestaña Perfil se pinta como activa
+          ...(enCuenta
+            ? {
+                tabBarItemStyle: itemActivo,
+                tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600', color: colores.blanco },
+              }
+            : {}),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" color={enCuenta ? colores.blanco : (color as string)} size={size} />
+          ),
         }}
+      />
+      {/* HU-02: Mi cuenta (datos del técnico y cambio de contraseña), se entra desde Perfil. */}
+      <Tabs.Screen
+        name="mi-cuenta"
+        options={{ title: 'Mi cuenta', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-03: sin botón propio en la barra (se entra desde el menú).
           No se usa href: null porque en SDK 58 eso deja la pantalla inaccesible. */}
