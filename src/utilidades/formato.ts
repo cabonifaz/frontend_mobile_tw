@@ -7,6 +7,13 @@ export function fechaHora(fecha: string | null, hora: string | null): string {
   return texto;
 }
 
+/** "2026-10-26" + "08:30" → "26/10/2026 · 08:30" (formato de la tarjeta de la agenda, HU-03). */
+export function fechaHoraAgenda(fecha: string | null, hora: string | null): string {
+  if (!fecha) return '';
+  const [a, m, d] = fecha.slice(0, 10).split('-');
+  return hora ? `${d}/${m}/${a} · ${hora.slice(0, 5)}` : `${d}/${m}/${a}`;
+}
+
 /** "08:30" → "08:30 AM" */
 export function hora12(hora: string | null): string {
   if (!hora) return '';

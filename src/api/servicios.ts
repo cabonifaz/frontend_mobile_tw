@@ -32,6 +32,11 @@ export interface ServicioProgramado {
   clienteConfirmado: boolean;
   estadoSsoma: EstadoSsoma;
   alertasPredictivas: number;
+  /**
+   * Texto de la alerta predictiva más reciente ("Tráfico alto en ruta"). Opcional: el back hoy solo envía la cantidad;
+   * cuando envíe el texto la tarjeta lo muestra sin cambios en la app.
+   */
+  alertaPredictiva?: string | null;
   estadoGeneral: EstadoGeneralServicio;
   motivoBloqueo: string | null;
 }

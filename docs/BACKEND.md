@@ -114,14 +114,16 @@ EXPO_PUBLIC_USE_MOCK=false
 
 **No se crean datos de prueba**: la BD es la misma de la intranet. `4_verificar_datos_reales.sql` (solo lectura) muestra, HU por HU, qué datos reales existen y qué falta coordinar.
 
-### Datos que la intranet todavía no registra (coordinar con el equipo)
+### De dónde sale lo que muestra la agenda (y qué registra la intranet)
 
 | Lo que muestra la app | Sale de | Situación hoy |
 |---|---|---|
-| Servicios del técnico (menú, Ruta del Día, Próximo Hit, agenda) | `orden_servicio` + `os_personal` | **La intranet no crea OS**: el flujo llega al expediente en etapa *Programación*, pero no hay pantalla ni SP que registre la OS con fecha, hora, sede y técnico. Sin OS, la app muestra "Sin asignar" y la agenda vacía. |
-| Usuario de la app | `usuario.nombre_usuario` | El back ya tiene `PUT api/maestros/usuarios/{id}/acceso-movil`, pero la ficha de usuario de la intranet no tiene el campo. Mientras tanto: `3_asignar_usuario_app.sql`. |
-| Etiqueta LISTO | `orden_servicio.confirmacion_cliente` + `os_personal.estado_ssoma` | Nadie marca la confirmación del cliente ni valida SSOMA: las tarjetas quedan PENDIENTE. |
-| Objetivos | `os_equipo` + `informe_tecnico` | Equipos por OS: los registraría la programación. Informes: HU siguientes de la app. |
-| Alerta predictiva / N° OM | `alerta_predictiva` / `orden_metrologia.id_os` | Sin proceso que las genere o vincule todavía. |
+| Servicios del técnico (menú, Ruta del Día, Próximo Hit, agenda) | `orden_servicio` + `os_personal` | La OS se emite en el módulo OS/OM y se **programa en Programación Operativa** (HU-36, `SP_CrearProgramacion`): queda `programada` con técnico, fecha, hora y personal. Si se **reprograma** (HU-38) cambia la fecha/hora y vuelve a PENDIENTE; si se **cancela**, la OS vuelve a `emitida` sin técnico y **desaparece de la agenda**. |
+| Usuario de la app | `usuario.nombre_usuario` | Ya se asigna desde la ficha de usuario de la intranet (HU-83). |
+| Etiqueta LISTO | `orden_servicio.confirmacion_cliente` + `os_personal.estado_ssoma` | `confirmacion_cliente` lo marca la intranet al registrar la respuesta del cliente (HU-37, `SP_RegistrarRespuestaClienteProgramacion`). `estado_ssoma` lo deja la programación en `habilitado` si pasó la validación SSOMA al programar. |
+| Objetivos | `os_equipo` + `informe_tecnico` | Cuenta **todos** los equipos de la OS. La intranet guarda los equipos elegidos al programar en `programacion_equipo`, que la app todavía no usa: si se programa solo una parte, el número puede ser mayor al programado. Informes: HU siguientes de la app. |
+| Alerta predictiva / N° OM | `alerta_predictiva` / `orden_metrologia.id_os` | Sin proceso que las genere o vincule todavía. La tarjeta muestra el texto si el back envía `alertaPredictiva`; hoy solo envía la cantidad. |
+
+**Filtros de la agenda (HU-03):** la app pide la lista completa (`filtro=todos`) y calcula Todos / Hoy / Pendientes y sus contadores en `src/utilidades/agenda.ts`, con la fecha de Lima. El back sigue aceptando `filtro` y `busqueda`.
 
 Cualquier cambio en la BD (una OS nueva para el técnico, su área o nombre) se ve en la app al **deslizar hacia abajo**. No hay botón de actualizar.

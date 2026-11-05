@@ -148,7 +148,8 @@ const serviciosDemo = (): ServicioProgramado[] => [
     idOs: 791, numeroOs: 'OS-000791', numeroRq: 'RQ-000245', numeroOm: null, cliente: 'Alicorp S.A.A.',
     fechaEjecucion: fechaRelativa(0), horaInicio: '08:30', estadoOs: 'programada', sede: 'Planta Cliente',
     responsable: 'Jhonny Iparraguirre', objetivosTotal: 8, objetivosCompletados: 0, clienteConfirmado: true,
-    estadoSsoma: 'habilitado', alertasPredictivas: 1, estadoGeneral: 'LISTO', motivoBloqueo: null,
+    estadoSsoma: 'habilitado', alertasPredictivas: 1, alertaPredictiva: 'Tráfico alto en ruta',
+    estadoGeneral: 'LISTO', motivoBloqueo: null,
   },
   {
     idOs: 799, numeroOs: 'OS-000799', numeroRq: 'RQ-000250', numeroOm: 'OM-000332', cliente: 'Aceros Arequipa',
@@ -160,7 +161,7 @@ const serviciosDemo = (): ServicioProgramado[] => [
     idOs: 812, numeroOs: 'OS-000812', numeroRq: 'RQ-000251', numeroOm: null, cliente: 'Machu Picchu Foods',
     fechaEjecucion: fechaRelativa(0), horaInicio: '15:00', estadoOs: 'programada', sede: 'Planta Principal',
     responsable: 'Carlos Quispe', objetivosTotal: 3, objetivosCompletados: 0, clienteConfirmado: true,
-    estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'BLOQUEADO', motivoBloqueo: 'Expediente incompleto',
+    estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'BLOQUEADO', motivoBloqueo: 'Falta el visto bueno del Jefe de Servicio Técnico.',
   },
   {
     idOs: 820, numeroOs: 'OS-000820', numeroRq: 'RQ-000260', numeroOm: null, cliente: 'Las Bambas',
