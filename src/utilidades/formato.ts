@@ -7,11 +7,27 @@ export function fechaHora(fecha: string | null, hora: string | null): string {
   return texto;
 }
 
-/** "2026-10-26" + "08:30" → "26/10/2026 · 08:30" (formato de la tarjeta de la agenda, HU-03). */
-export function fechaHoraAgenda(fecha: string | null, hora: string | null): string {
+/** "08:30" + "12:30" → "08:30 – 12:30" (sin hora de fin, solo el inicio; sin inicio, vacío). */
+export function horario(inicio: string | null | undefined, fin?: string | null): string {
+  if (!inicio) return '';
+  const desde = inicio.slice(0, 5);
+  const hasta = fin ? fin.slice(0, 5) : '';
+  return hasta && hasta !== desde ? `${desde} – ${hasta}` : desde;
+}
+
+/** "2026-10-26" + "08:30" (+ "12:30") → "26/10/2026 · 08:30 – 12:30" (formato de la tarjeta de la agenda, HU-03). */
+export function fechaHoraAgenda(fecha: string | null, hora: string | null, horaFin?: string | null): string {
   if (!fecha) return '';
   const [a, m, d] = fecha.slice(0, 10).split('-');
-  return hora ? `${d}/${m}/${a} · ${hora.slice(0, 5)}` : `${d}/${m}/${a}`;
+  const h = horario(hora, horaFin);
+  return h ? `${d}/${m}/${a} · ${h}` : `${d}/${m}/${a}`;
+}
+
+/** 4 → "4 h"; 1.5 → "1,5 h"; nulo o no positivo → "". */
+export function textoDuracion(horas: number | null | undefined): string {
+  if (horas == null || !Number.isFinite(horas) || horas <= 0) return '';
+  const redondeado = Math.round(horas * 100) / 100;
+  return `${String(redondeado).replace('.', ',')} h`;
 }
 
 /** "08:30" → "08:30 AM" */

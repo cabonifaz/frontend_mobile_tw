@@ -37,12 +37,12 @@ docs/
 | Cerrar sesión | `POST api/movil/autenticacion/cerrar-sesion` | `SP_CerrarSesionMovil` | `sesion_usuario` |
 | Cambiar contraseña | `POST api/autenticacion/cambiar-contrasena` | `SP_CambiarContrasenaUsuario` | `usuario` |
 | Menú (Ruta) · indicadores y Próximo Hit | `GET api/movil/menu/resumen` | `SP_ObtenerResumenMenuMovil` | `orden_servicio`, `os_personal`, `cliente`, `sede_cliente`, `tabla_maestra` |
-| Detalle del servicio (HU-04) | `GET api/movil/servicios/{idOs}` | `SP_ObtenerDetalleServicioMovil` | `orden_servicio`, `cliente`, `sede_cliente`, `contacto_cliente`, `contacto_sede`, `requerimiento`, `orden_metrologia`, `alerta_predictiva`, `os_riesgo`, `item_presalida`, `equipo_historial`, `auditoria_evento`, `documento_adjunto` |
+| Detalle del servicio (HU-04) | `GET api/movil/servicios/{idOs}` | `SP_ObtenerDetalleServicioMovil` | `orden_servicio`, `cliente`, `sede_cliente`, `contacto_cliente`, `contacto_sede`, `requerimiento`, `orden_metrologia`, `alerta_predictiva`, `os_riesgo`, `item_presalida`, `equipo_historial`, `auditoria_evento`, `documento_adjunto`, `programacion`, `programacion_tecnico`, `programacion_equipo`, `programacion_confirmacion`, `os_concepto`, `equipo_cliente` |
 | Checklist de pre-salida (HU-04) | `GET api/movil/servicios/{idOs}/checklist` · `PUT …/checklist/{codigo}` | `SP_ObtenerChecklistSalidaMovil`, `SP_MarcarChecklistSalidaMovil` | `checklist_presalida_os`, `os_personal`, `expediente_digital`, `item_presalida`, `alerta_predictiva`, `autorizacion_salida_os` |
 | Solicitar autorización (HU-04) | `POST api/movil/servicios/{idOs}/solicitar-autorizacion` | `SP_SolicitarAutorizacionSalidaMovil` | `autorizacion_salida_os`, `requerimiento`, `area_servicio_rq`, `notificacion`, `auditoria_evento` (notifica al Jefe de Servicio Técnico o al Jefe de Metrología según el área de la RQ) |
 | Iniciar traslado (HU-04) | `POST api/movil/servicios/{idOs}/iniciar-traslado` | `SP_IniciarTrasladoMovil` | `orden_servicio`, `evento_campo`, `auditoria_evento` |
 | Intranet · visto bueno de salida (HU-04) | `GET api/operaciones/autorizaciones-salida` · `PUT api/operaciones/ordenes-servicio/{idOs}/visto-bueno-salida` | `SP_ObtenerAutorizacionesSalida`, `SP_ResolverAutorizacionSalida` | `autorizacion_salida_os`, `area_servicio_rq`, `notificacion`, `auditoria_evento` (cada encargado ve y resuelve solo su área) |
-| Servicios Programados (agenda) | `GET api/movil/servicios?filtro=&busqueda=` | `SP_ObtenerServiciosProgramadosMovil` | `orden_servicio`, `os_personal`, `os_equipo`, `informe_tecnico`, `alerta_predictiva`, `expediente_digital`, `expediente_bloqueador`, `requerimiento`, `orden_metrologia`, `cliente`, `sede_cliente`, `usuario` |
+| Servicios Programados (agenda) | `GET api/movil/servicios?filtro=&busqueda=` | `SP_ObtenerServiciosProgramadosMovil` | `orden_servicio`, `os_personal`, `os_equipo`, `programacion`, `programacion_equipo`, `informe_tecnico`, `alerta_predictiva`, `expediente_digital`, `expediente_bloqueador`, `requerimiento`, `orden_metrologia`, `cliente`, `sede_cliente`, `usuario` |
 | Menú · cargo del encabezado | `GET api/maestros/catalogos/CARGO_USUARIO` | `SP_ObtenerCatalogo` | `tabla_maestra` |
 | Perfil · Mis datos | `GET api/autenticacion/me` | `SP_ObtenerUsuarioPorId` | `usuario` |
 | Perfil · Área / Cargo | `GET api/maestros/catalogos/{AREA_USUARIO \| CARGO_USUARIO}` | `SP_ObtenerCatalogo` | `tabla_maestra` |
@@ -121,8 +121,27 @@ EXPO_PUBLIC_USE_MOCK=false
 | Servicios del técnico (menú, Ruta del Día, Próximo Hit, agenda) | `orden_servicio` + `os_personal` | La OS se emite en el módulo OS/OM y se **programa en Programación Operativa** (HU-36, `SP_CrearProgramacion`): queda `programada` con técnico, fecha, hora y personal. Si se **reprograma** (HU-38) cambia la fecha/hora y vuelve a PENDIENTE; si se **cancela**, la OS vuelve a `emitida` sin técnico y **desaparece de la agenda**. |
 | Usuario de la app | `usuario.nombre_usuario` | Ya se asigna desde la ficha de usuario de la intranet (HU-83). |
 | Etiqueta LISTO | `orden_servicio.confirmacion_cliente` + `os_personal.estado_ssoma` | `confirmacion_cliente` lo marca la intranet al registrar la respuesta del cliente (HU-37, `SP_RegistrarRespuestaClienteProgramacion`). `estado_ssoma` lo deja la programación en `habilitado` si pasó la validación SSOMA al programar. |
-| Objetivos | `os_equipo` + `informe_tecnico` | Cuenta **todos** los equipos de la OS. La intranet guarda los equipos elegidos al programar en `programacion_equipo`, que la app todavía no usa: si se programa solo una parte, el número puede ser mayor al programado. Informes: HU siguientes de la app. |
-| Alerta predictiva / N° OM | `alerta_predictiva` / `orden_metrologia.id_os` | Sin proceso que las genere o vincule todavía. La tarjeta muestra el texto si el back envía `alertaPredictiva`; hoy solo envía la cantidad. |
+| Objetivos | `os_equipo` + `programacion_equipo` + `informe_tecnico` | Son los equipos de la OS que se **confirmaron en la programación vigente** (lo que se elige en la ficha de Programar/Reprogramar). Si la programación no eligió equipos (o la OS es anterior a la programación operativa), cuenta todos los de la OS. Informes: HU siguientes de la app. |
+| Horario, tipo de servicio, equipo de trabajo | `orden_servicio.hora_inicio/hora_fin_estimada`, `tabla_maestra`, `os_personal` | La OS refleja la programación (hora inicio y fin). La tarjeta muestra `26/10/2026 · 08:30 – 12:30`, el tipo de servicio y cuántos técnicos van. |
+| Alerta predictiva / N° OM | `alerta_predictiva` / `orden_metrologia.id_os` | Sin proceso que las genere o vincule todavía. La tarjeta muestra el texto de la alerta de mayor prioridad (`alertaPredictiva`, máx. 120 caracteres) o, si no hay, la cantidad. |
+
+### Detalle del servicio = modal "Detalle de la Programación" de la intranet
+
+Al pulsar **Ver detalle**, la app muestra lo que el coordinador ve en Programación Operativa → Detalle de la Programación (HU-37), pensado para el técnico:
+
+| Modal de la intranet | En la app (Servicio Programado) | Notas |
+|---|---|---|
+| Cliente, fecha, horario, técnico ppal., sede, ubicación, tipo de servicio, duración | Tarjeta de destino (fecha/hora con duración, dirección, lugar, tipo) | `horaFin` y `duracionHoras` salen de la OS. |
+| Código y observaciones de la programación | Sección **Programación** (`PRG-…`, estado, observaciones) | `programacion` viene vacío en OS anteriores a la programación operativa. |
+| Técnicos asignados (+ SSOMA) | Sección **Equipo de trabajo**: nombre, cargo, principal/apoyo, "(tú)" y etiqueta SSOMA de hoy | El **motivo** SSOMA solo se ve en el propio técnico; de los compañeros solo el estado. |
+| Equipos | Sección **Equipos** (marca, modelo, N° de serie, código TW) | Los confirmados en la programación (mismos que cuenta *Objetivos*). |
+| Conceptos | Sección **Conceptos del servicio** | `os_concepto`. |
+| Respuestas del cliente | Sección **Respuestas del cliente** (resultado, canal, quién, cuándo, comentario) | Las registra la intranet (HU-37). |
+| Timeline | **Historial reciente** (programación creada, respuesta del cliente, reprogramación, cancelación, con anterior → actual) | Mismos títulos que la intranet. |
+| Alertas SSOMA sobrevenidas | Etiqueta SSOMA del técnico y su motivo en *Equipo de trabajo* | Misma regla que la intranet (`SP_EvaluarSsomaProgramacion`). |
+| Checklist de validación, Viáticos, "Creada por", "Próximo paso" y los botones Reprogramar / Cancelar / Registrar respuesta | **No se muestran** | Son de gestión del coordinador (la app ya tiene su propio checklist de salida) o datos de otros técnicos (viáticos). |
+
+**Servicio BLOQUEADO (HU-03):** la tarjeta muestra el motivo y el botón *Detalle bloqueado*. Además, el back no entrega el detalle (`SP_ObtenerDetalleServicioMovil` responde `IdTipoMensaje 1` con el motivo) hasta que se levante. La regla vive en `SP_ObtenerBloqueoServicioMovil`.
 
 **Filtros de la agenda (HU-03):** la app pide la lista completa (`filtro=todos`) y calcula Todos / Hoy / Pendientes y sus contadores en `src/utilidades/agenda.ts`, con la fecha de Lima. El back sigue aceptando `filtro` y `busqueda`.
 

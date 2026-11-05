@@ -65,6 +65,8 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
   const documentos = [s.numeroRq, s.numeroOs, s.numeroOm].filter(Boolean).join(' · ');
   const objetivos = s.objetivosTotal > 0 ? `${s.objetivosCompletados} de ${s.objetivosTotal}` : 'Sin equipos asignados';
   const responsableLugar = [s.responsable, s.sede].filter(Boolean).join(' · ') || '—';
+  const tecnicos = s.numeroTecnicos ?? 0;
+  const equipoTrabajo = tecnicos > 0 ? `${tecnicos} ${tecnicos === 1 ? 'técnico' : 'técnicos'}` : null;
 
   return (
     <View style={estilos.tarjeta} testID={`servicio-${s.numeroOs}`}>
@@ -78,7 +80,7 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
       </View>
       <View style={estilos.fecha}>
         <Ionicons name="calendar-outline" size={15} color={colores.textoSecundario} />
-        <Text style={estilos.fechaTexto}>{fechaHoraAgenda(s.fechaEjecucion, s.horaInicio)}</Text>
+        <Text style={estilos.fechaTexto}>{fechaHoraAgenda(s.fechaEjecucion, s.horaInicio, s.horaFin)}</Text>
       </View>
 
       <View style={estilos.separador} />
@@ -95,6 +97,22 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
       </View>
       <Text style={[estilos.rotulo, { marginTop: 12 }]}>RESPONSABLE / LUGAR</Text>
       <Text style={estilos.valor}>{responsableLugar}</Text>
+      {(!!s.tipoServicio || !!equipoTrabajo) && (
+        <View style={[estilos.fila, { marginTop: 12 }]}>
+          {!!s.tipoServicio && (
+            <View style={estilos.columna}>
+              <Text style={estilos.rotulo}>TIPO DE SERVICIO</Text>
+              <Text style={estilos.valor}>{s.tipoServicio}</Text>
+            </View>
+          )}
+          {!!equipoTrabajo && (
+            <View style={estilos.columna}>
+              <Text style={estilos.rotulo}>EQUIPO DE TRABAJO</Text>
+              <Text style={estilos.valor}>{equipoTrabajo}</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {bloqueado && (
         <View style={estilos.recuadroBloqueo} accessibilityRole="alert">

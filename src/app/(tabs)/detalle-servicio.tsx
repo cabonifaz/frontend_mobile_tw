@@ -12,16 +12,17 @@ import {
   type CodigoManual,
   type HistorialServicio,
   type ItemChecklist,
+  type SituacionSsoma,
 } from '@/api/servicios';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
-import { EtiquetaEstado, TituloSeccion } from '@/componentes/EtiquetaEstado';
+import { EtiquetaEstado, TituloSeccion, type EstadoEtiqueta } from '@/componentes/EtiquetaEstado';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { fechaCorta, fechaHora, telefonoMarcable } from '@/utilidades/formato';
+import { fechaCorta, fechaHoraAgenda, telefonoMarcable, textoDuracion } from '@/utilidades/formato';
 
 /**
  * HU-04 — Detalle del servicio.
@@ -94,6 +95,11 @@ export default function PantallaDetalleServicio() {
   const detalle = datos?.detalle ?? null;
   const s = detalle?.servicio ?? null;
   const items = datos?.checklist.items ?? [];
+  const programacion = detalle?.programacion ?? null;
+  const equipoTrabajo = detalle?.equipoTrabajo ?? [];
+  const equipos = detalle?.equipos ?? [];
+  const conceptos = detalle?.conceptos ?? [];
+  const respuestas = detalle?.respuestas ?? [];
   const item = (codigo: string) => items.find((i) => i.codigo === codigo);
   const programada = s ? ['programada', 'reprogramada'].includes(s.estadoOs) : false;
   const enRuta = s?.estadoOs === 'en_ruta';
@@ -185,7 +191,12 @@ export default function PantallaDetalleServicio() {
               />
               <View style={[estilos.dosColumnas, (d.compacto || d.letraGrande) && { flexDirection: 'column', gap: 0 }]}>
                 <View style={{ flex: 1 }}>
-                  <Dato icono="calendar-outline" titulo="Fecha/Hora" valor={fechaHora(s.fechaEjecucion, s.horaInicio) || '—'} />
+                  <Dato
+                    icono="calendar-outline"
+                    titulo="Fecha/Hora"
+                    valor={fechaHoraAgenda(s.fechaEjecucion, s.horaInicio, s.horaFin) || '—'}
+                    nota={textoDuracion(s.duracionHoras) ? `Duración: ${textoDuracion(s.duracionHoras)}` : null}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Dato icono="business-outline" titulo="Lugar" valor={s.sede ?? '—'} />
@@ -253,6 +264,94 @@ export default function PantallaDetalleServicio() {
               <View style={{ marginTop: 14 }}>
                 <Aviso tipo={mensaje.tipo} mensaje={mensaje.texto} />
               </View>
+            )}
+
+            {/* Programación: lo que se registró en la intranet (Programación Operativa) */}
+            {!!programacion && (
+              <>
+                <TituloSeccion texto="PROGRAMACIÓN" />
+                <View style={estilos.tarjeta} testID="detalle-programacion">
+                  <View style={estilos.programacionFila}>
+                    <Text style={estilos.programacionCodigo}>{programacion.codigo}</Text>
+                    <View style={estilos.pildora}>
+                      <Text style={estilos.pildoraTexto}>{programacion.estadoLabel}</Text>
+                    </View>
+                  </View>
+                  {!!programacion.observaciones && (
+                    <View style={estilos.observaciones}>
+                      <Text style={estilos.etiqueta}>OBSERVACIONES</Text>
+                      <Text style={estilos.datoValor}>{programacion.observaciones}</Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
+
+            {equipoTrabajo.length > 0 && (
+              <>
+                <TituloSeccion texto="EQUIPO DE TRABAJO" />
+                <View style={estilos.lista} testID="detalle-equipo-trabajo">
+                  {equipoTrabajo.map((m, idx) => {
+                    const ssoma = etiquetaSsoma(m.ssomaActual);
+                    return (
+                      <View key={`${m.nombre}-${idx}`} style={[estilos.filaLista, estilos.filaArriba, idx > 0 && estilos.filaBorde]}>
+                        <Ionicons
+                          name={m.rol === 'principal' ? 'person-circle' : 'person-circle-outline'}
+                          size={26}
+                          color={m.rol === 'principal' ? colores.primario : colores.textoSecundario}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={estilos.filaTexto}>
+                            {m.nombre}
+                            {m.esUsuario ? <Text style={estilos.opcional}>  (tú)</Text> : null}
+                          </Text>
+                          <Text style={estilos.filaNota}>
+                            {[m.cargo, m.rol === 'principal' ? 'Principal' : 'Apoyo'].filter(Boolean).join(' · ')}
+                          </Text>
+                          {!!m.motivoSsoma && <Text style={estilos.filaNotaRoja}>{m.motivoSsoma}</Text>}
+                        </View>
+                        <EtiquetaEstado estado={ssoma.estado} texto={`SSOMA: ${ssoma.texto}`} />
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {equipos.length > 0 && (
+              <>
+                <TituloSeccion texto="EQUIPOS" />
+                <View style={estilos.lista} testID="detalle-equipos">
+                  {equipos.map((e, idx) => (
+                    <View key={e.idEquipo} style={[estilos.filaLista, idx > 0 && estilos.filaBorde]}>
+                      <MaterialCommunityIcons name="scale-balance" size={22} color={colores.textoSecundario} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={estilos.filaTexto}>{[e.marca, e.modelo].filter(Boolean).join(' ') || 'Equipo'}</Text>
+                        <Text style={estilos.filaNota}>
+                          {`N° ${e.numeroSerie ?? '—'}${e.codigoTw ? ` · ${e.codigoTw}` : ''}`}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {conceptos.length > 0 && (
+              <>
+                <TituloSeccion texto="CONCEPTOS DEL SERVICIO" />
+                <View style={estilos.lista} testID="detalle-conceptos">
+                  {conceptos.map((c, idx) => (
+                    <View key={c.idConcepto} style={[estilos.filaLista, idx > 0 && estilos.filaBorde]}>
+                      <MaterialCommunityIcons name="receipt-text-outline" size={22} color={colores.textoSecundario} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={estilos.filaTexto}>{c.descripcion}</Text>
+                        {!!c.alcance && <Text style={estilos.filaNota}>Alcance: {c.alcance}</Text>}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
             )}
 
             {/* Requisitos */}
@@ -324,6 +423,33 @@ export default function PantallaDetalleServicio() {
                   </View>
                 ))}
               </View>
+            )}
+
+            {/* Respuestas del cliente (registradas desde la intranet) */}
+            {respuestas.length > 0 && (
+              <>
+                <TituloSeccion texto="RESPUESTAS DEL CLIENTE" />
+                <View style={estilos.lista} testID="detalle-respuestas">
+                  {respuestas.map((r, idx) => (
+                    <View key={r.id} style={[estilos.filaLista, estilos.filaArriba, idx > 0 && estilos.filaBorde]}>
+                      <Ionicons
+                        name={r.resultado === 'acepto' ? 'checkmark-circle' : r.resultado === 'cancelo' ? 'close-circle' : 'time'}
+                        size={22}
+                        color={r.resultado === 'acepto' ? colores.verde : r.resultado === 'cancelo' ? colores.rojo : colores.naranja}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={estilos.filaTexto}>{r.resultadoLabel}</Text>
+                        <Text style={estilos.filaNota}>
+                          {[`Canal: ${r.canalLabel}`, r.registradoPor ? `por ${r.registradoPor}` : null, r.fechaRegistro ? fechaCorta(r.fechaRegistro) : null]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                        {!!r.comentario && <Text style={estilos.comentario}>“{r.comentario}”</Text>}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
             )}
 
             {/* Historial */}
@@ -422,6 +548,24 @@ function Dato({ icono, titulo, valor, nota }: { icono: NombreIcono; titulo: stri
       </View>
     </View>
   );
+}
+
+/** Situación SSOMA de un integrante → etiqueta (mismos colores que la intranet: rojo bloquea, ámbar avisa). */
+function etiquetaSsoma(situacion: SituacionSsoma | null): { estado: EstadoEtiqueta; texto: string } {
+  switch (situacion) {
+    case 'conforme':
+      return { estado: 'conforme', texto: 'CONFORME' };
+    case 'por_vencer':
+      return { estado: 'pendiente', texto: 'POR VENCER' };
+    case 'incompleto':
+      return { estado: 'pendiente', texto: 'INCOMPLETO' };
+    case 'pendiente':
+      return { estado: 'bloqueado', texto: 'PENDIENTE' };
+    case 'bloqueado':
+      return { estado: 'bloqueado', texto: 'BLOQUEADO' };
+    default:
+      return { estado: 'no_aplica', texto: 'SIN DATO' };
+  }
 }
 
 function Documento({ etiqueta, valor }: { etiqueta: string; valor: string | null }) {
@@ -564,6 +708,12 @@ const estilos = StyleSheet.create({
   },
   filaLista: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, minHeight: 52 },
   filaBorde: { borderTopWidth: 1, borderTopColor: colores.bordeSuave },
+  filaArriba: { alignItems: 'flex-start' },
+  filaNotaRoja: { fontSize: 12.5, color: colores.rojoEtiquetaTexto, marginTop: 2 },
+  comentario: { fontSize: 13, color: colores.texto, fontStyle: 'italic', marginTop: 4 },
+  programacionFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  programacionCodigo: { fontSize: 16, fontWeight: '700', color: colores.primarioOscuro, flexShrink: 1 },
+  observaciones: { backgroundColor: colores.grisFondo, borderRadius: 10, padding: 12, gap: 4 },
   filaTexto: { fontSize: 15, color: colores.texto },
   filaNota: { fontSize: 12.5, color: colores.textoSecundario, marginTop: 2 },
   opcional: { fontSize: 12.5, color: colores.textoTenue },

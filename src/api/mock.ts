@@ -150,24 +150,28 @@ const serviciosDemo = (): ServicioProgramado[] => [
     responsable: 'Jhonny Iparraguirre', objetivosTotal: 8, objetivosCompletados: 0, clienteConfirmado: true,
     estadoSsoma: 'habilitado', alertasPredictivas: 1, alertaPredictiva: 'Tráfico alto en ruta',
     estadoGeneral: 'LISTO', motivoBloqueo: null,
+    horaFin: '12:30', tipoServicio: 'Calibración', numeroTecnicos: 2,
   },
   {
     idOs: 799, numeroOs: 'OS-000799', numeroRq: 'RQ-000250', numeroOm: 'OM-000332', cliente: 'Aceros Arequipa',
     fechaEjecucion: fechaRelativa(0), horaInicio: '11:00', estadoOs: 'programada', sede: 'Planta Cliente',
     responsable: 'Carlos Medina', objetivosTotal: 5, objetivosCompletados: 0, clienteConfirmado: false,
     estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'PENDIENTE', motivoBloqueo: null,
+    horaFin: '14:00', tipoServicio: 'Mantenimiento Preventivo', numeroTecnicos: 1,
   },
   {
     idOs: 812, numeroOs: 'OS-000812', numeroRq: 'RQ-000251', numeroOm: null, cliente: 'Machu Picchu Foods',
     fechaEjecucion: fechaRelativa(0), horaInicio: '15:00', estadoOs: 'programada', sede: 'Planta Principal',
     responsable: 'Carlos Quispe', objetivosTotal: 3, objetivosCompletados: 0, clienteConfirmado: true,
     estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'BLOQUEADO', motivoBloqueo: 'Falta el visto bueno del Jefe de Servicio Técnico.',
+    horaFin: '17:00', tipoServicio: 'Calibración', numeroTecnicos: 2,
   },
   {
     idOs: 820, numeroOs: 'OS-000820', numeroRq: 'RQ-000260', numeroOm: null, cliente: 'Las Bambas',
     fechaEjecucion: fechaRelativa(1), horaInicio: '09:00', estadoOs: 'programada', sede: 'Planta Norte',
     responsable: 'Carlos Quispe', objetivosTotal: 4, objetivosCompletados: 0, clienteConfirmado: false,
     estadoSsoma: 'habilitado', alertasPredictivas: 0, estadoGeneral: 'PENDIENTE', motivoBloqueo: null,
+    horaFin: '12:00', tipoServicio: 'Verificación', numeroTecnicos: 1,
   },
 ];
 
@@ -267,11 +271,19 @@ export const mockPresalida = {
   async detalle(idOs: number): Promise<DetalleServicio> {
     await esperar(400);
     const s = serviciosDemo().find((x) => x.idOs === idOs) ?? serviciosDemo()[0];
+    // Igual que el back (HU-03): el detalle de un servicio BLOQUEADO no se entrega hasta que se levante el motivo.
+    if (s.estadoGeneral === 'BLOQUEADO') {
+      throw new ErrorApi(
+        `Servicio bloqueado: ${s.motivoBloqueo ?? 'Servicio bloqueado'}. El detalle se habilita cuando se levante el motivo.`,
+        400,
+        1,
+      );
+    }
     return {
       servicio: {
         idOs: s.idOs, numeroOs: s.numeroOs, numeroRq: s.numeroRq, numeroOm: s.numeroOm, cliente: s.cliente,
-        idTipoServicio: 1, tipoServicio: 'Mantenimiento Preventivo', fechaEjecucion: s.fechaEjecucion,
-        horaInicio: s.horaInicio, estadoOs: estadoDemo(idOs).estadoOs, sede: s.sede, direccion: 'Av. Argentina 4793, Callao',
+        idTipoServicio: 1, tipoServicio: s.tipoServicio ?? null, fechaEjecucion: s.fechaEjecucion,
+        horaInicio: s.horaInicio, horaFin: s.horaFin ?? null, duracionHoras: 4, estadoOs: estadoDemo(idOs).estadoOs, sede: s.sede, direccion: 'Av. Argentina 4793, Callao',
         contactoNombre: 'Carlos Mendoza', contactoCargo: 'Jefe de Mantenimiento', contactoTelefono: '+51 987 654 321',
         responsable: s.responsable, clienteConfirmado: s.clienteConfirmado, estadoSsoma: s.estadoSsoma,
         objetivosTotal: s.objetivosTotal, notasOperativas: null,
@@ -290,6 +302,8 @@ export const mockPresalida = {
         { idItem: 2, descripcion: 'Celda de carga PDX 30t', asignado: false },
       ],
       historial: [
+        { fecha: '2026-10-22T10:15:00', origen: 'servicio', titulo: 'Respuesta del cliente', referencia: null,
+          valorAnterior: 'pendiente_confirmacion', valorNuevo: 'confirmada', detalle: 'Aceptó la programación', usuario: 'Mónica Paredes' },
         { fecha: '2026-03-03T15:30:00', origen: 'equipo', titulo: 'Celda de carga', referencia: 'EQ-1001 · Mettler Toledo IND780',
           valorAnterior: 'PDX 30t (serie A1)', valorNuevo: 'PDX 30t (serie B7)', detalle: 'Cambio de celda', usuario: 'Admin TW' },
         { fecha: '2025-10-15T10:00:00', origen: 'equipo', titulo: 'Calibración', referencia: 'EQ-1001 · Mettler Toledo IND780',
@@ -298,6 +312,32 @@ export const mockPresalida = {
       documentos: [
         { idDocumento: 1, nombreArchivo: 'Mettler Toledo IND780 - Manual Técnico v2.4.pdf', tipo: 'Manual', version: 1, fechaCarga: null },
       ],
+      // Lo que se registró en la intranet (Programación Operativa)
+      programacion: {
+        codigo: 'PRG-2026-0012', estado: s.clienteConfirmado ? 'confirmada' : 'pendiente_confirmacion',
+        estadoLabel: s.clienteConfirmado ? 'Programado' : 'Pendiente confirmación cliente',
+        observaciones: 'Ingresar por la puerta 3 y coordinar con seguridad industrial.',
+      },
+      equipoTrabajo: [
+        { nombre: s.responsable ?? 'Técnico', cargo: 'Técnico de Campo', rol: 'principal', esUsuario: true,
+          ssomaActual: s.estadoSsoma === 'habilitado' ? 'conforme' : 'por_vencer',
+          motivoSsoma: s.estadoSsoma === 'habilitado' ? null : 'El SCTR vence el 30/11/2026; coordina su renovación con SSOMA.' },
+        ...(s.numeroTecnicos && s.numeroTecnicos > 1
+          ? [{ nombre: 'Luis Rojas', cargo: 'Técnico de Campo', rol: 'apoyo', esUsuario: false, ssomaActual: 'conforme' as const, motivoSsoma: null }]
+          : []),
+      ],
+      equipos: [
+        { idEquipo: 1001, codigoTw: 'EQ-1001', marca: 'Mettler Toledo', modelo: 'IND780', numeroSerie: 'B7-2210' },
+        { idEquipo: 1002, codigoTw: 'EQ-1002', marca: 'Mettler Toledo', modelo: 'PBK989', numeroSerie: 'C4-8815' },
+      ],
+      conceptos: [
+        { idConcepto: 1, codigo: 'CAL-001', descripcion: 'Calibración de balanza de plataforma', alcance: '0 – 30 t' },
+        { idConcepto: 2, codigo: 'MAN-002', descripcion: 'Mantenimiento preventivo de celdas de carga', alcance: null },
+      ],
+      respuestas: s.clienteConfirmado
+        ? [{ id: 1, canal: 'correo', canalLabel: 'Correo', resultado: 'acepto', resultadoLabel: 'Aceptó la programación',
+             comentario: 'Confirma la visita y el horario.', fechaRegistro: '2026-10-22T10:15:00', registradoPor: 'Mónica Paredes' }]
+        : [],
     };
   },
   async checklist(idOs: number): Promise<ChecklistSalida> {

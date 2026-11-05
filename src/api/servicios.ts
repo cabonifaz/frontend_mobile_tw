@@ -39,6 +39,12 @@ export interface ServicioProgramado {
   alertaPredictiva?: string | null;
   estadoGeneral: EstadoGeneralServicio;
   motivoBloqueo: string | null;
+  // Lo que la intranet registra en Programación Operativa (opcionales: no vienen si el back aún no tiene el SP actualizado).
+  /** "HH:mm" — fin del horario del servicio. */
+  horaFin?: string | null;
+  tipoServicio?: string | null;
+  /** Equipo de trabajo: técnico principal + apoyo. */
+  numeroTecnicos?: number;
 }
 
 export async function obtenerServiciosProgramados(
@@ -57,6 +63,7 @@ export async function obtenerServiciosProgramados(
 /**
  * Backend (todas validan que la OS sea del técnico del token):
  *   GET  api/movil/servicios/{idOs}                          → SP_ObtenerDetalleServicioMovil
+ *        (un servicio BLOQUEADO responde error con el motivo: el detalle no se entrega hasta que se levante)
  *   GET  api/movil/servicios/{idOs}/checklist                → SP_ObtenerChecklistSalidaMovil
  *   PUT  api/movil/servicios/{idOs}/checklist/{codigo}       → SP_MarcarChecklistSalidaMovil
  *   POST api/movil/servicios/{idOs}/solicitar-autorizacion   → SP_SolicitarAutorizacionSalidaMovil
@@ -74,6 +81,10 @@ export interface ServicioDetalle {
   tipoServicio: string | null;
   fechaEjecucion: string | null;
   horaInicio: string | null;
+  /** "HH:mm" — fin del horario (lo registra la intranet al programar). */
+  horaFin?: string | null;
+  /** Horas entre inicio y fin (ej. 4 o 1.5). */
+  duracionHoras?: number | null;
   estadoOs: string;
   sede: string | null;
   direccion: string | null;
@@ -130,6 +141,54 @@ export interface DocumentoServicio {
   fechaCarga: string | null;
 }
 
+/** Programación vigente de la OS (la que se arma en la intranet → Programación Operativa). */
+export interface ProgramacionServicio {
+  /** "PRG-2026-0012". */
+  codigo: string;
+  estado: 'pendiente_confirmacion' | 'confirmada' | string;
+  estadoLabel: string;
+  observaciones: string | null;
+}
+
+export type SituacionSsoma = 'conforme' | 'por_vencer' | 'incompleto' | 'pendiente' | 'bloqueado';
+
+/** Integrante del equipo de trabajo. El motivo SSOMA solo viene para el propio técnico (esUsuario). */
+export interface MiembroEquipoTrabajo {
+  nombre: string;
+  cargo: string | null;
+  rol: 'principal' | 'apoyo' | string;
+  esUsuario: boolean;
+  ssomaActual: SituacionSsoma | null;
+  motivoSsoma: string | null;
+}
+
+export interface EquipoServicio {
+  idEquipo: number;
+  codigoTw: string | null;
+  marca: string | null;
+  modelo: string | null;
+  numeroSerie: string | null;
+}
+
+export interface ConceptoServicio {
+  idConcepto: number;
+  codigo: string | null;
+  descripcion: string;
+  alcance: string | null;
+}
+
+/** Respuesta del cliente a la programación, registrada desde la intranet. */
+export interface RespuestaClienteServicio {
+  id: number;
+  canal: string;
+  canalLabel: string;
+  resultado: 'acepto' | 'pidio_reprogramar' | 'cancelo' | string;
+  resultadoLabel: string;
+  comentario: string | null;
+  fechaRegistro: string | null;
+  registradoPor: string | null;
+}
+
 export interface DetalleServicio {
   servicio: ServicioDetalle;
   alertas: AlertaServicio[];
@@ -137,6 +196,12 @@ export interface DetalleServicio {
   repuestos: RepuestoServicio[];
   historial: HistorialServicio[];
   documentos: DocumentoServicio[];
+  // Datos de Programación Operativa (opcionales: no vienen si el back aún no tiene el SP actualizado).
+  programacion?: ProgramacionServicio | null;
+  equipoTrabajo?: MiembroEquipoTrabajo[];
+  equipos?: EquipoServicio[];
+  conceptos?: ConceptoServicio[];
+  respuestas?: RespuestaClienteServicio[];
 }
 
 export type CodigoManual = 'expediente' | 'epp' | 'materiales' | 'herramientas' | 'pesas_patron';
