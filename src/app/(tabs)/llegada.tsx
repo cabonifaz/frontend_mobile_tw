@@ -322,7 +322,13 @@ function Mapa({ referencia, ubicacion }: { referencia: ReferenciaGps | null; ubi
           </View>
         )}
       </View>
-      {referencia && <Text style={estilos.mapaNota}>Radio permitido: {referencia.radioMetros} m</Text>}
+      {referencia ? (
+        <Text style={estilos.mapaNota}>Radio permitido: {referencia.radioMetros} m</Text>
+      ) : (
+        <Text style={[estilos.mapaNota, { textAlign: 'center', paddingHorizontal: 16 }]}>
+          La planta no tiene coordenadas registradas en la intranet: tu llegada se registra sin validar la distancia.
+        </Text>
+      )}
     </View>
   );
 }

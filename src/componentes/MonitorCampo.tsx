@@ -9,6 +9,7 @@ import { enviarUbicacion, type ExtrasUbicacion } from '@/api/ubicacion';
 import { entorno } from '@/config/entorno';
 import { useSesion } from '@/sesion/SesionContext';
 import { perfilDe } from '@/utilidades/perfil';
+import { olvidarPosicion, recordarPosicion } from '@/utilidades/posicionActual';
 
 /** Estados de la OS en los que el back acepta la posición del técnico (SP_RegistrarUbicacionMovil). */
 const ESTADOS_EN_CURSO = ['en_ruta', 'en_ejecucion', 'pausada'];
@@ -94,12 +95,14 @@ export function MonitorCampo() {
           { accuracy: Location.Accuracy.Balanced, timeInterval: 30_000, distanceInterval: 15 },
           (p) => {
             if (p.mocked) return; // GPS falso: se ignora (igual que al registrar demoras y llegada)
+            const u: Ubicacion = {
+              latitud: p.coords.latitude,
+              longitud: p.coords.longitude,
+              precisionMetros: Math.max(0, Math.round((p.coords.accuracy ?? 999) * 10) / 10),
+            };
+            recordarPosicion(u); // respaldo para las pantallas que piden el GPS (llegada, demoras)
             posicion.current = {
-              u: {
-                latitud: p.coords.latitude,
-                longitud: p.coords.longitude,
-                precisionMetros: Math.max(0, Math.round((p.coords.accuracy ?? 999) * 10) / 10),
-              },
+              u,
               // Velocidad (m/s → km/h) y altitud, si el teléfono las da: el panel GPS de la intranet las muestra
               extras: {
                 velocidadKmh: p.coords.speed != null && p.coords.speed >= 0 ? Math.round(p.coords.speed * 3.6 * 10) / 10 : null,
@@ -130,6 +133,7 @@ export function MonitorCampo() {
       clearInterval(reloj);
       estadoApp.remove();
       pausarGps();
+      olvidarPosicion();
     };
   }, [activo, token]);
 

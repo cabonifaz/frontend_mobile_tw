@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import type { Ubicacion } from '@/api/ruta';
+import { conTope, posicionReciente } from '@/utilidades/posicionActual';
 
 export type EstadoGps = 'buscando' | 'activo' | 'sin_permiso' | 'error';
 
 /**
  * Ubicación GPS del celular (HU-05 y HU-06).
  *  - Pide el permiso de ubicación "mientras se usa la app" (nunca en segundo plano).
- *  - Alta precisión y la precisión (± m) que informa el sistema.
+ *  - Alta precisión y la precisión (± m) que informa el sistema. Si el GPS no da posición en 10 s (interiores, señal débil) prueba con
+ *    precisión equilibrada y, si tampoco, usa la posición que ya seguía la app (máx. 60 s); si no hay ninguna, avisa en vez de quedarse en "Buscando…".
  *  - Rechaza ubicaciones simuladas (apps de "GPS falso" en Android).
  *  - `capturar()` vuelve a tomar la ubicación (p. ej. al acercarse a la planta).
  */
@@ -33,7 +35,14 @@ export function useUbicacion(automatico = true, alObtener?: (u: Ubicacion) => vo
         }
         return null;
       }
-      const p = Platform.OS === 'web' ? await posicionWeb() : await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const p = Platform.OS === 'web' ? await posicionWeb() : await posicionNativa();
+      if (!p) {
+        if (vigente.current) {
+          setEstado('error');
+          setMensaje('Aún no hay señal de GPS. Sal a un lugar abierto, revisa que el GPS esté encendido y toca "Volver a capturar ubicación".');
+        }
+        return null;
+      }
       if (p.mocked) {
         if (vigente.current) {
           setEstado('error');
@@ -79,6 +88,22 @@ export function useUbicacion(automatico = true, alObtener?: (u: Ubicacion) => vo
   }, [automatico, leer]);
 
   return { ubicacion, estado, mensaje, capturar };
+}
+
+type PosicionGps = { coords: { latitude: number; longitude: number; accuracy: number | null }; mocked?: boolean };
+
+/**
+ * GPS de alta precisión (10 s) → precisión equilibrada (8 s) → posición que ya seguía la app (≤ 60 s) → última conocida del sistema (≤ 60 s).
+ * Sin ninguna, null. Así la pantalla nunca se queda esperando: o hay posición (con su precisión real, que el back valida) o hay un aviso.
+ */
+async function posicionNativa(): Promise<PosicionGps | null> {
+  const alta = await conTope(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }), 10_000);
+  if (alta) return alta;
+  const media = await conTope(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), 8_000);
+  if (media) return media;
+  const seguida = posicionReciente(60_000);
+  if (seguida) return { coords: { latitude: seguida.latitud, longitude: seguida.longitud, accuracy: seguida.precisionMetros } };
+  return conTope(Location.getLastKnownPositionAsync({ maxAge: 60_000 }), 3_000);
 }
 
 /** En web expo-location reutiliza la última posición (maximumAge infinito); aquí se pide una lectura nueva. */
