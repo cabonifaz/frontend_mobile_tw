@@ -189,6 +189,19 @@ export interface Llegada {
   llegada: LlegadaRegistrada | null;
   puedeRegistrar: boolean;
   precisionMaximaMetros: number;
+  /** Por qué no se puede registrar (cuando `puedeRegistrar` es falso). */
+  motivoNoRegistra?: string | null;
+}
+
+/** La llegada ya quedó registrada (o ya lo estaba: reintento, `yaRegistrada`). `diferida` = se guardó sin conexión y llegó después. */
+export interface ResultadoLlegada {
+  idEvento: number;
+  llegadaEn: string | null;
+  distanciaMetros: number | null;
+  precisionMetros: number | null;
+  resultado: string;
+  yaRegistrada: boolean;
+  diferida: boolean;
 }
 
 export type ResultadoValidacion = 'valida' | 'fuera_rango' | 'sin_referencia' | 'precision_baja';
@@ -212,9 +225,28 @@ export async function validarLlegada(token: string, idOs: number, u: Ubicacion):
   return (await solicitar<ValidacionLlegada>(`${ruta(idOs)}/llegada/validar`, { token, metodo: 'POST', cuerpo: u })).datos!;
 }
 
-export async function registrarLlegada(token: string, idOs: number, u: Ubicacion): Promise<string> {
+/**
+ * Igual que `obtenerLlegada`, pero sin conexión devuelve lo último guardado en el teléfono (la planta esperada, el radio y la precisión máxima)
+ * para poder validar y confirmar la llegada igual: se envía sola cuando vuelva la señal.
+ */
+export async function obtenerLlegadaConRespaldo(token: string, idUsuario: number, idOs: number): Promise<ConRespaldo<Llegada>> {
+  if (entorno.usarMock) return { datos: await mockRuta.llegada(idOs), sinConexion: false, guardadoEn: new Date() };
+  return conRespaldo(idUsuario, `llegada.${idOs}`, () => obtenerLlegada(token, idOs));
+}
+
+/**
+ * Confirma la llegada. `capturadoEn` = hora (ISO 8601, UTC) en que el técnico tocó "Confirmar llegada": el back la usa si la llegada se guardó
+ * sin conexión y llega después, y reconoce un envío repetido (no duplica).
+ */
+export async function registrarLlegada(
+  token: string,
+  idOs: number,
+  u: Ubicacion,
+  capturadoEn: string,
+): Promise<{ mensaje: string; datos: ResultadoLlegada | null }> {
   if (entorno.usarMock) return mockRuta.registrarLlegada(idOs);
-  return (await solicitar<ValidacionLlegada>(`${ruta(idOs)}/llegada`, { token, metodo: 'POST', cuerpo: u })).mensaje;
+  const r = await solicitar<ResultadoLlegada>(`${ruta(idOs)}/llegada`, { token, metodo: 'POST', cuerpo: { ...u, capturadoEn } });
+  return { mensaje: r.mensaje, datos: r.datos ?? null };
 }
 
 // ── HU-07 · Objetivos y equipos ─────────────────────────────────────────────

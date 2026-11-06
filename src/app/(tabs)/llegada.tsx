@@ -5,23 +5,30 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { obtenerLlegada, registrarLlegada, validarLlegada, type ReferenciaGps, type Ubicacion, type ValidacionLlegada } from '@/api/ruta';
+import { registrarLlegadaOEncolar } from '@/api/colaLlegadas';
+import { horaRespaldo } from '@/api/respaldo';
+import { obtenerLlegadaConRespaldo, validarLlegada, type ReferenciaGps, type Ubicacion, type ValidacionLlegada } from '@/api/ruta';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
+import { useLlegadaPendiente } from '@/hooks/useLlegadaPendiente';
 import { useUbicacion } from '@/hooks/useUbicacion';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { horaDe, horaLimaAhora } from '@/utilidades/formato';
+import { evaluarLlegadaLocal, tituloValidacion } from '@/utilidades/llegada';
+
+const coordenadas = (latitud: number, longitud: number) => `${latitud.toFixed(4)}, ${longitud.toFixed(4)}`;
 
 /**
- * HU-06 — Registrar llegada.
- *  - Captura el GPS y su precisión (± m) y la compara con la coordenada de la planta del cliente.
- *  - Dentro del rango: validación verde y "Confirmar llegada". Fuera: rojo y no deja confirmar.
- *  - La comparación la hace el back (aquí solo se muestra); al confirmar el back vuelve a validar.
- *  - Con la llegada registrada se habilitan los objetivos (se levanta el Hard Stop).
+ * HU-06 — Registrar llegada y Hard Stop.
+ *  - Captura solo el GPS, su precisión (± m) y la hora, y los compara con la coordenada de la planta del cliente.
+ *  - Dentro del rango: validación verde y "Confirmar llegada". Fuera del rango (o con GPS muy débil): rojo, el botón queda bloqueado y se puede volver a capturar.
+ *  - La comparación la hace el back (aquí solo se muestra); al confirmar el back vuelve a evaluar el mismo GPS.
+ *  - Con la llegada registrada se pasa a los objetivos (se levanta el Hard Stop: sin llegada, los objetivos quedan bloqueados con un candado rojo).
+ *  - Sin conexión funciona igual: se valida en el teléfono con la última planta guardada y la llegada se guarda y se envía sola (api/colaLlegadas.ts).
  */
 export default function PantallaLlegada() {
   const { sesion } = useSesion();
@@ -32,20 +39,27 @@ export default function PantallaLlegada() {
   const idValido = Number.isInteger(idOs) && idOs > 0;
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     if (!idValido) throw new ErrorApi('Servicio no válido.', 400, 1);
-    const [llegada, cargos] = await Promise.all([obtenerLlegada(token, idOs), obtenerCatalogo(token, 'CARGO_USUARIO')]);
-    return { llegada, cargos };
+    const [respuesta, cargos] = await Promise.all([
+      obtenerLlegadaConRespaldo(token, usuario?.idUsuario ?? 0, idOs),
+      obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined), // el cargo del encabezado no debe impedir registrar la llegada
+    ]);
+    return { llegada: respuesta.datos, sinConexion: respuesta.sinConexion, guardadoEn: respuesta.guardadoEn, cargos };
   }, params.id ?? '');
 
-  const [validacion, setValidacion] = useState<ValidacionLlegada | null>(null);
+  // Llegada confirmada sin conexión que aún no se envió: cuenta como registrada
+  const pendiente = useLlegadaPendiente(usuario?.idUsuario, idOs);
+
+  const [validacion, setValidacion] = useState<{ v: ValidacionLlegada; local: boolean } | null>(null);
   const [validando, setValidando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [horaCaptura, setHoraCaptura] = useState<string | null>(null);
+  const [guardadaSinSenal, setGuardadaSinSenal] = useState<boolean | null>(null); // conConexion de la llegada que quedó guardada
 
   const l = datos?.llegada ?? null;
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
 
-  // Cada vez que llega una ubicación nueva, el back la compara con la de la planta
+  // Cada vez que llega una ubicación nueva, el back la compara con la de la planta (sin conexión, el teléfono con la última guardada)
   const validar = useCallback(
     (u: Ubicacion) => {
       if (!sesion) return;
@@ -53,23 +67,30 @@ export default function PantallaLlegada() {
       setHoraCaptura(horaLimaAhora());
       validarLlegada(sesion.token, idOs, u)
         .then((v) => {
-          setValidacion(v);
+          setValidacion({ v, local: false });
           setMensaje(null);
         })
-        .catch((e) => setMensaje(e instanceof Error ? e.message : 'No se pudo validar la ubicación.'))
+        .catch((e) => {
+          if (e instanceof ErrorApi && e.estadoHttp === 0 && l) {
+            setValidacion({ v: evaluarLlegadaLocal(l.referencia, u, l.precisionMaximaMetros), local: true });
+            setMensaje(null);
+          } else setMensaje(e instanceof Error ? e.message : 'No se pudo validar la ubicación.');
+        })
         .finally(() => setValidando(false));
     },
-    [sesion, idOs],
+    [sesion, idOs, l],
   );
   const gps = useUbicacion(true, validar);
 
   async function confirmar() {
-    if (!sesion || !gps.ubicacion || enviando) return;
+    if (!sesion || !l || !gps.ubicacion || enviando) return;
     setEnviando(true);
     setMensaje(null);
+    const capturadoEn = new Date().toISOString(); // la hora de la llegada es la de este toque, aunque se envíe después
     try {
-      await registrarLlegada(sesion.token, idOs, gps.ubicacion);
-      router.replace({ pathname: '/objetivos', params: { id: String(idOs) } });
+      const r = await registrarLlegadaOEncolar(sesion.token, idOs, { idUsuario: sesion.usuario.idUsuario, numeroOs: l.numeroOs }, gps.ubicacion, capturadoEn);
+      if (r.estado === 'enviada') router.replace({ pathname: '/objetivos', params: { id: String(idOs) } });
+      else setGuardadaSinSenal(r.conConexion);
     } catch (e) {
       setMensaje(e instanceof Error ? e.message : 'No se pudo registrar la llegada.');
       await recargar();
@@ -78,13 +99,9 @@ export default function PantallaLlegada() {
     }
   }
 
-  const tono = !validacion
-    ? null
-    : validacion.resultado === 'valida'
-      ? 'ok'
-      : validacion.resultado === 'sin_referencia'
-        ? 'aviso'
-        : 'error';
+  const v = validacion?.v ?? null;
+  const tono = !v ? null : v.resultado === 'valida' ? 'ok' : v.resultado === 'sin_referencia' ? 'aviso' : 'error';
+  const verObjetivos = () => router.replace({ pathname: '/objetivos', params: { id: String(idOs) } });
 
   return (
     <SafeAreaView style={estilos.area} edges={['top']}>
@@ -108,28 +125,64 @@ export default function PantallaLlegada() {
           <Aviso tipo="error" mensaje={error ?? 'No se encontró el servicio.'} />
         ) : l.llegada ? (
           <>
-            <View style={[estilos.validacion, estilos.validacionOk]}>
+            <Text style={estilos.subtitulo}>{l.numeroOs}</Text>
+            <View style={[estilos.validacion, estilos.validacionOk]} testID="llegada-registrada">
               <Ionicons name="checkmark-circle" size={22} color={colores.verde} />
               <View style={{ flex: 1 }}>
                 <Text style={[estilos.validacionTitulo, { color: colores.verdeEtiquetaTexto }]}>Llegada registrada a las {horaDe(l.llegada.en)}</Text>
                 <Text style={estilos.nota}>
-                  {l.llegada.distanciaMetros !== null ? `A ${Math.round(l.llegada.distanciaMetros)} m de la planta · ` : ''}
+                  {l.llegada.distanciaMetros !== null ? `A ${Math.round(l.llegada.distanciaMetros)} m de la planta · ` : 'Sin validar la distancia · '}
                   precisión ± {Math.round(l.llegada.precisionMetros ?? 0)} m
                 </Text>
               </View>
             </View>
             <View style={{ marginTop: 16 }}>
-              <Boton titulo="Ver objetivos →" onPress={() => router.replace({ pathname: '/objetivos', params: { id: String(idOs) } })} />
+              <Boton titulo="Ver objetivos →" onPress={verObjetivos} />
+            </View>
+          </>
+        ) : pendiente || guardadaSinSenal !== null ? (
+          <>
+            <Text style={estilos.subtitulo}>{l.numeroOs}</Text>
+            <View style={[estilos.validacion, estilos.validacionAviso]} testID="llegada-guardada">
+              <Ionicons name="cloud-upload-outline" size={22} color={colores.amarilloTexto} />
+              <View style={{ flex: 1 }}>
+                <Text style={[estilos.validacionTitulo, { color: colores.amarilloTexto }]}>
+                  Llegada guardada{pendiente && horaLimaDe(pendiente.capturadoEn) ? ` a las ${horaLimaDe(pendiente.capturadoEn)}` : ''}
+                </Text>
+                <Text style={estilos.nota}>
+                  {guardadaSinSenal === true
+                    ? 'No se pudo enviar ahora (revisa la señal). Quedó guardada con su hora y GPS y se reintenta sola.'
+                    : 'Sin conexión: quedó guardada con su hora y GPS. Se enviará sola cuando recuperes la señal.'}
+                </Text>
+              </View>
+            </View>
+            <View style={{ marginTop: 16 }}>
+              <Boton titulo="Ver objetivos →" onPress={verObjetivos} />
             </View>
           </>
         ) : (
           <>
+            <Text style={estilos.subtitulo}>{l.numeroOs}</Text>
+
+            {datos?.sinConexion && (
+              <View style={{ marginBottom: 12 }} testID="aviso-sin-conexion">
+                <Aviso
+                  tipo="info"
+                  mensaje={`Sin conexión: ves la planta guardada a las ${horaRespaldo(datos.guardadoEn)}. Puedes confirmar la llegada igual: se envía sola cuando vuelva la señal.`}
+                />
+              </View>
+            )}
+
             <View style={estilos.tarjeta} testID="llegada-destino">
               <Text style={estilos.etiqueta}>CLIENTE</Text>
               <Text style={estilos.valorFuerte}>{l.cliente ?? '—'}</Text>
               <Text style={[estilos.etiqueta, { marginTop: 12 }]}>UBICACIÓN ESPERADA</Text>
               <Text style={estilos.valor}>{l.sede ?? '—'}</Text>
-              {!!l.direccion && <Text style={estilos.nota}>{l.direccion}</Text>}
+              {!!(l.direccion || l.referencia) && (
+                <Text style={estilos.nota}>
+                  {[l.direccion, l.referencia ? coordenadas(l.referencia.latitud, l.referencia.longitud) : null].filter(Boolean).join(' · ')}
+                </Text>
+              )}
               <View style={estilos.separador} />
               <View style={estilos.dosColumnas}>
                 <View style={{ flex: 1 }}>
@@ -149,8 +202,12 @@ export default function PantallaLlegada() {
                   size={16}
                   color={gps.estado === 'activo' ? colores.primario : colores.rojo}
                 />
-                <Text style={[estilos.gpsTexto, gps.estado !== 'activo' && { color: colores.textoSecundario }]}>
-                  {gps.estado === 'activo' ? 'GPS: Capturado' : gps.estado === 'buscando' ? 'GPS: Buscando…' : 'GPS: Sin ubicación'}
+                <Text style={[estilos.gpsTexto, gps.estado !== 'activo' && { color: colores.textoSecundario }]} testID="tu-ubicacion">
+                  {gps.ubicacion
+                    ? `Tu ubicación: ${coordenadas(gps.ubicacion.latitud, gps.ubicacion.longitud)}`
+                    : gps.estado === 'buscando'
+                      ? 'GPS: Buscando…'
+                      : 'GPS: Sin ubicación'}
                 </Text>
               </View>
             </View>
@@ -165,7 +222,7 @@ export default function PantallaLlegada() {
 
             {validando ? (
               <ActivityIndicator color={colores.primario} style={{ marginTop: 16 }} />
-            ) : validacion ? (
+            ) : v ? (
               <View
                 style={[estilos.validacion, tono === 'ok' ? estilos.validacionOk : tono === 'aviso' ? estilos.validacionAviso : estilos.validacionError]}
                 testID="validacion-llegada"
@@ -182,9 +239,10 @@ export default function PantallaLlegada() {
                       { color: tono === 'ok' ? colores.verdeEtiquetaTexto : tono === 'aviso' ? colores.amarilloTexto : colores.rojo },
                     ]}
                   >
-                    {tono === 'ok' ? 'Ubicación válida' : tono === 'aviso' ? 'Sin coordenada de la planta' : 'Fuera del rango permitido'}
+                    {tituloValidacion(v.resultado)}
                   </Text>
-                  <Text style={estilos.nota}>{validacion.mensaje}</Text>
+                  <Text style={estilos.nota}>{v.mensaje}</Text>
+                  {validacion?.local && <Text style={estilos.nota}>Validada en tu teléfono (sin conexión); el servidor la confirma al enviarla.</Text>}
                 </View>
               </View>
             ) : null}
@@ -200,13 +258,13 @@ export default function PantallaLlegada() {
                 titulo="Confirmar llegada →"
                 onPress={() => void confirmar()}
                 cargando={enviando}
-                deshabilitado={!validacion?.registrable || enviando || validando || !l.puedeRegistrar}
+                deshabilitado={!v?.registrable || enviando || validando || !l.puedeRegistrar}
               />
               <Boton titulo="Volver a capturar ubicación" variante="secundario" onPress={() => void gps.capturar()} deshabilitado={gps.estado === 'buscando'} />
             </View>
             {!l.puedeRegistrar && (
               <View style={{ marginTop: 12 }}>
-                <Aviso mensaje="Primero inicia el traslado desde la validación antes de salir." />
+                <Aviso mensaje={l.motivoNoRegistra || 'Primero inicia el traslado desde la validación antes de salir.'} />
               </View>
             )}
           </>
@@ -214,6 +272,12 @@ export default function PantallaLlegada() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+/** "2026-11-06T17:43:10.000Z" → "12:43" (hora de Lima, sin depender de la zona configurada en el celular). */
+function horaLimaDe(isoUtc: string): string {
+  const t = Date.parse(isoUtc);
+  return Number.isNaN(t) ? '' : new Date(t - 5 * 3600_000).toISOString().slice(11, 16);
 }
 
 /**
@@ -266,8 +330,9 @@ function Mapa({ referencia, ubicacion }: { referencia: ReferenciaGps | null; ubi
 const estilos = StyleSheet.create({
   area: { flex: 1, backgroundColor: colores.fondo },
   contenido: { paddingTop: 18, paddingBottom: 28, width: '100%', alignSelf: 'center' },
-  tituloFila: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  tituloFila: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
   titulo: { fontWeight: '700', color: colores.titulo, flexShrink: 1 },
+  subtitulo: { color: colores.textoSecundario, fontSize: 14, marginBottom: 12 },
   tarjeta: { backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, padding: 18 },
   etiqueta: { fontSize: 11.5, fontWeight: '600', letterSpacing: 0.8, color: colores.textoSecundario },
   valorFuerte: { fontSize: 17, fontWeight: '700', color: colores.titulo, marginTop: 2 },
@@ -276,7 +341,7 @@ const estilos = StyleSheet.create({
   separador: { height: 1, backgroundColor: colores.bordeSuave, marginVertical: 12 },
   dosColumnas: { flexDirection: 'row', gap: 12 },
   gpsFila: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
-  gpsTexto: { color: colores.primario, fontWeight: '600', fontSize: 14 },
+  gpsTexto: { color: colores.primario, fontWeight: '600', fontSize: 14, flexShrink: 1 },
   mapa: {
     marginTop: 14,
     backgroundColor: '#E5E9F0',

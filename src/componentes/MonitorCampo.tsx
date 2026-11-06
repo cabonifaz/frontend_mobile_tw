@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { pendientesLlegadas, sincronizarLlegadas } from '@/api/colaLlegadas';
 import { pendientesDe, sincronizarPendientes } from '@/api/colaDemoras';
 import type { Ubicacion } from '@/api/ruta';
 import { obtenerServiciosProgramados } from '@/api/servicios';
-import { enviarUbicacion } from '@/api/ubicacion';
+import { enviarUbicacion, type ExtrasUbicacion } from '@/api/ubicacion';
 import { entorno } from '@/config/entorno';
 import { useSesion } from '@/sesion/SesionContext';
 import { perfilDe } from '@/utilidades/perfil';
@@ -23,7 +24,8 @@ const POSICION_VIGENTE_MS = 3 * 60_000;
  *     está en primer plano (se pausa al salir, para cuidar la batería, y se retoma al volver).
  *  2. Seguimiento (HU-51): mientras el técnico tiene un servicio en curso (en ruta, en ejecución o en pausa) envía su posición al
  *     back cada ~45 s para el Seguimiento Operativo de la intranet. Sin servicio en curso no se envía nada; sin conexión se omite.
- *  3. Demoras guardadas sin conexión (HU-05): las envía al abrir la app, al volver a ella y cada 30 s mientras haya pendientes.
+ *  3. Llegadas (HU-06) y demoras (HU-05) guardadas sin conexión: las envía al abrir la app, al volver a ella y cada 30 s mientras haya
+ *     pendientes. Primero las llegadas: una demora de ingreso a planta necesita la llegada registrada.
  * El perfil de Jefatura no sale a ruta: no se le pide ubicación.
  */
 export function MonitorCampo() {
@@ -33,7 +35,7 @@ export function MonitorCampo() {
   const esTecnico = !!sesion && perfilDe(sesion.usuario) !== 'jefatura';
   const activo = !!token && esTecnico && !entorno.usarMock && Platform.OS !== 'web';
 
-  const posicion = useRef<{ u: Ubicacion; en: number } | null>(null);
+  const posicion = useRef<{ u: Ubicacion; extras: ExtrasUbicacion; en: number } | null>(null);
   const servicios = useRef<{ ids: number[]; en: number }>({ ids: [], en: 0 });
   const ultimoLatido = useRef(0);
   const avisoGps = useRef(false);
@@ -68,7 +70,7 @@ export function MonitorCampo() {
           servicios.current = { ids: lista.filter((s) => ESTADOS_EN_CURSO.includes(s.estadoOs)).map((s) => s.idOs), en: Date.now() };
         }
         ultimoLatido.current = Date.now();
-        for (const idOs of servicios.current.ids) await enviarUbicacion(token, idOs, pos.u).catch(() => undefined);
+        for (const idOs of servicios.current.ids) await enviarUbicacion(token, idOs, pos.u, pos.extras).catch(() => undefined);
       } catch {
         // sin conexión: se intenta en el siguiente latido
       } finally {
@@ -97,6 +99,11 @@ export function MonitorCampo() {
                 latitud: p.coords.latitude,
                 longitud: p.coords.longitude,
                 precisionMetros: Math.max(0, Math.round((p.coords.accuracy ?? 999) * 10) / 10),
+              },
+              // Velocidad (m/s → km/h) y altitud, si el teléfono las da: el panel GPS de la intranet las muestra
+              extras: {
+                velocidadKmh: p.coords.speed != null && p.coords.speed >= 0 ? Math.round(p.coords.speed * 3.6 * 10) / 10 : null,
+                altitudM: p.coords.altitude != null ? Math.round(p.coords.altitude * 10) / 10 : null,
               },
               en: Date.now(),
             };
@@ -132,14 +139,18 @@ export function MonitorCampo() {
     const mostrados = new Set<string>();
     let vigente = true;
 
+    function avisar(avisos: string[]) {
+      const nuevos = avisos.filter((a) => !mostrados.has(a));
+      nuevos.forEach((a) => mostrados.add(a));
+      if (vigente && nuevos.length > 0) Alert.alert('Registros guardados', nuevos.join('\n\n'));
+    }
+
     async function enviar() {
       if (!token || AppState.currentState !== 'active') return;
       try {
-        if ((await pendientesDe(idUsuario)).length === 0) return;
-        const r = await sincronizarPendientes(token, idUsuario);
-        const nuevos = r.avisos.filter((a) => !mostrados.has(a));
-        nuevos.forEach((a) => mostrados.add(a));
-        if (vigente && nuevos.length > 0) Alert.alert('Demoras guardadas', nuevos.join('\n\n'));
+        // Primero las llegadas (una demora de ingreso a planta necesita la llegada registrada)
+        if ((await pendientesLlegadas(idUsuario)).length > 0) avisar((await sincronizarLlegadas(token, idUsuario)).avisos);
+        if ((await pendientesDe(idUsuario)).length > 0) avisar((await sincronizarPendientes(token, idUsuario)).avisos);
       } catch {
         // se reintenta en el siguiente ciclo
       }

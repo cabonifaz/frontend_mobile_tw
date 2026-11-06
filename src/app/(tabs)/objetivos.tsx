@@ -5,7 +5,8 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { cambiarEstadoEquipo, obtenerObjetivos, type AccionEquipo, type ObjetivoEquipo, type Objetivos } from '@/api/ruta';
+import { llegadaPendiente } from '@/api/colaLlegadas';
+import { cambiarEstadoEquipo, obtenerLlegadaConRespaldo, obtenerObjetivos, type AccionEquipo, type ObjetivoEquipo, type Objetivos } from '@/api/ruta';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { CambiosEquipo, EtiquetaAvance } from '@/componentes/CambiosEquipo';
@@ -23,7 +24,8 @@ import { horaDe } from '@/utilidades/formato';
  *  - Equipos de la OS con su estado (EN EJECUCIÓN, POR INICIAR, PAUSADO…), T. estimado vs T. real.
  *  - "Ver detalles": la modificación anterior y la actual de cada equipo.
  *  - Pausa por supervisión: "Esperando aprobación de supervisor · Motivo: …" (no se puede reanudar).
- *  - HU-06 Hard Stop: sin llegada registrada, un candado rojo bloquea los objetivos (también en el back).
+ *  - HU-06 Hard Stop: sin llegada registrada, un candado rojo bloquea los objetivos. Se decide con la llegada de HU-06 (la registrada en el servidor
+ *    o la confirmada sin conexión que aún no se envió), antes de pedir los objetivos.
  */
 export default function PantallaObjetivos() {
   const { sesion } = useSesion();
@@ -35,8 +37,13 @@ export default function PantallaObjetivos() {
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     if (!idValido) throw new ErrorApi('Servicio no válido.', 400, 1);
-    const [objetivos, cargos] = await Promise.all([obtenerObjetivos(token, idOs), obtenerCatalogo(token, 'CARGO_USUARIO')]);
-    return { objetivos, cargos };
+    // Hard Stop: sin llegada (ni registrada ni guardada en el teléfono) no se piden los objetivos
+    const idUsuario = usuario?.idUsuario ?? 0;
+    const llegada = await obtenerLlegadaConRespaldo(token, idUsuario, idOs);
+    const conLlegada = !!llegada.datos.llegada || !!(await llegadaPendiente(idUsuario, idOs));
+    if (!conLlegada) return { objetivos: null, cargos: undefined, sinLlegada: true, estadoOs: llegada.datos.estadoOs };
+    const [objetivos, cargos] = await Promise.all([obtenerObjetivos(token, idOs), obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined)]);
+    return { objetivos, cargos, sinLlegada: false, estadoOs: llegada.datos.estadoOs };
   }, `${params.id ?? ''}|${params.v ?? ''}`);
 
   // Al volver de "Seleccionar equipo" se relee. El Hard Stop solo se muestra con la pantalla enfocada
@@ -59,7 +66,8 @@ export default function PantallaObjetivos() {
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'info'; texto: string } | null>(null);
 
-  const o = actualizados && datos && actualizados.resumen.idOs === datos.objetivos.resumen.idOs && !recargando ? actualizados : datos?.objetivos ?? null;
+  const sinLlegada = datos?.sinLlegada === true;
+  const o = actualizados && datos?.objetivos && actualizados.resumen.idOs === datos.objetivos.resumen.idOs && !recargando ? actualizados : datos?.objetivos ?? null;
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const hardStop = !!o && !o.resumen.llegadaRegistrada;
 
@@ -109,6 +117,8 @@ export default function PantallaObjetivos() {
 
         {cargando ? (
           <ActivityIndicator color={colores.primario} style={{ marginTop: 40 }} />
+        ) : sinLlegada ? (
+          <Text style={estilos.subtitulo}>Registra tu llegada a la planta para ver los objetivos del servicio.</Text>
         ) : error || !o ? (
           <Aviso tipo="error" mensaje={error ?? 'No se encontró el servicio.'} />
         ) : (
@@ -181,8 +191,8 @@ export default function PantallaObjetivos() {
       </ScrollView>
 
       <HardStop
-        visible={hardStop && !cargando && enfocada}
-        enRuta={o?.resumen.estadoOs === 'en_ruta'}
+        visible={(hardStop || sinLlegada) && !cargando && enfocada}
+        enRuta={(o?.resumen.estadoOs ?? datos?.estadoOs) === 'en_ruta'}
         onVolver={() => router.back()}
         onRegistrar={() => router.replace({ pathname: '/llegada', params: { id: String(idOs) } })}
       />
@@ -334,12 +344,14 @@ function HardStop({ visible, enRuta, onVolver, onRegistrar }: { visible: boolean
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onVolver}>
       <View style={estilos.velo}>
         <View style={estilos.modal} testID="hard-stop">
-          <Ionicons name="lock-closed-outline" size={44} color={colores.rojo} />
-          <Text style={estilos.modalTitulo}>No puedes continuar</Text>
-          <Text style={estilos.modalTexto}>Primero debes registrar tu llegada a planta antes de acceder a los objetivos.</Text>
+          <View style={estilos.candado}>
+            <Ionicons name="lock-closed" size={30} color={colores.rojo} />
+          </View>
+          <Text style={[estilos.modalTitulo, { color: colores.rojoEtiquetaTexto }]}>Sin marca de llegada</Text>
+          <Text style={estilos.modalTexto}>Primero registra tu llegada a planta antes de acceder a los objetivos.</Text>
           <View style={{ alignSelf: 'stretch', gap: 10, marginTop: 16 }}>
-            <Boton titulo="Volver al servicio" onPress={onVolver} />
-            {enRuta && <Boton titulo="Registrar llegada" variante="secundario" onPress={onRegistrar} />}
+            {enRuta && <Boton titulo="Registrar llegada" onPress={onRegistrar} />}
+            <Boton titulo="Volver al servicio" variante="secundario" onPress={onVolver} />
           </View>
         </View>
       </View>
@@ -349,6 +361,7 @@ function HardStop({ visible, enRuta, onVolver, onRegistrar }: { visible: boolean
 
 const estilos = StyleSheet.create({
   area: { flex: 1, backgroundColor: colores.fondo },
+  candado: { width: 64, height: 64, borderRadius: 32, backgroundColor: colores.rojoEtiquetaFondo, alignItems: 'center', justifyContent: 'center' },
   contenido: { paddingTop: 18, paddingBottom: 28, width: '100%', alignSelf: 'center' },
   tituloFila: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
   titulo: { fontWeight: '700', color: colores.titulo, flexShrink: 1 },

@@ -6,9 +6,11 @@ import type {
   ObjetivoEquipo,
   Objetivos,
   ResultadoDemora,
+  ResultadoLlegada,
   Ubicacion,
   ValidacionLlegada,
 } from './ruta';
+import { evaluarLlegadaLocal } from '@/utilidades/llegada';
 
 /**
  * Modo demo (EXPO_PUBLIC_USE_MOCK=true) de las HU-05, HU-06 y HU-07: la app funciona sin backend
@@ -129,13 +131,16 @@ export const mockRuta = {
   },
   async validar(u: Ubicacion): Promise<ValidacionLlegada> {
     await esperar(300);
-    // Modo demo: siempre dentro del rango
-    return { resultado: 'valida', registrable: true, distanciaMetros: 12, radioMetros: 200, precisionMetros: u.precisionMetros, mensaje: 'Te encuentras dentro del rango permitido (a 12 m de la planta).' };
+    // Modo demo: las mismas reglas del back sobre la planta de prueba (Planta Callao, radio de 200 m, precisión máxima de 100 m)
+    return evaluarLlegadaLocal(REFERENCIA, u, 100);
   },
-  async registrarLlegada(_idOs: number): Promise<string> {
+  async registrarLlegada(_idOs: number): Promise<{ mensaje: string; datos: ResultadoLlegada | null }> {
     await esperar(300);
     estado.llegada = true;
-    return 'Llegada registrada. Ya puedes ver tus objetivos.';
+    return {
+      mensaje: 'Llegada registrada. Ya puedes ver tus objetivos.',
+      datos: { idEvento: 1, llegadaEn: ahoraIso(), distanciaMetros: 12, precisionMetros: 7, resultado: 'valida', yaRegistrada: false, diferida: false },
+    };
   },
   async objetivos(idOs: number, buscar = ''): Promise<Objetivos> {
     await esperar(300);
