@@ -156,7 +156,7 @@ const serviciosDemo = (): ServicioProgramado[] => [
     idOs: 799, numeroOs: 'OS-000799', numeroRq: 'RQ-000250', numeroOm: 'OM-000332', cliente: 'Aceros Arequipa',
     fechaEjecucion: fechaRelativa(0), horaInicio: '11:00', estadoOs: 'programada', sede: 'Planta Cliente',
     responsable: 'Carlos Medina', objetivosTotal: 5, objetivosCompletados: 0, clienteConfirmado: false,
-    estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'PENDIENTE', motivoBloqueo: null,
+    estadoSsoma: 'pendiente', alertasPredictivas: 0, estadoGeneral: 'LISTO', motivoBloqueo: null,
     horaFin: '14:00', tipoServicio: 'Mantenimiento Preventivo', numeroTecnicos: 1,
   },
   {
