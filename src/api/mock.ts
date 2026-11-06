@@ -18,7 +18,7 @@ import type {
  * pantallas en un APK. Reproduce las reglas reales del login:
  *   - usuario de prueba: tecnico.demo / Demo1234
  *   - usuario con cambio obligatorio: tecnico.nuevo / Temporal1
- *   - Jefe de Metrología: jefe.met / Demo1234 (menú de Jefatura, HU-28)
+ *   - Jefe de Metrología: jefe.met / Demo1234 · Jefe de Operaciones: jefe.ops / Demo1234 (menú de Jefatura, HU-28)
  *   - con correo: se rechaza (solo usuario)
  */
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -29,6 +29,7 @@ const usuarios: Record<
 > = {
   'tecnico.demo': { contrasena: 'Demo1234', nombre: 'Carlos', apellido: 'Quispe', forzar: false, cargo: 'tecnico_campo', area: 'servicio_tecnico' },
   'tecnico.nuevo': { contrasena: 'Temporal1', nombre: 'Lucía', apellido: 'Huamán', forzar: true, cargo: 'tecnico_campo', area: 'servicio_tecnico' },
+  'jefe.ops': { contrasena: 'Demo1234', nombre: 'Manuel', apellido: 'Rojas', forzar: false, cargo: 'Jefe de Operaciones', area: 'operaciones', rol: 'supervisor' },
   'jefe.met': { contrasena: 'Demo1234', nombre: 'Ana', apellido: 'Torres', forzar: false, cargo: 'Jefe de Metrología', area: 'metrologia', rol: 'supervisor' },
 };
 
@@ -47,7 +48,7 @@ export const mockAutenticacion = {
       token: `mock-${usuario}-${Date.now()}`,
       expiraEn: new Date(Date.now() + 12 * 3600 * 1000),
       usuario: {
-        idUsuario: usuario === 'tecnico.demo' ? 101 : usuario === 'jefe.met' ? 202 : 102,
+        idUsuario: usuario === 'tecnico.demo' ? 101 : usuario === 'jefe.met' ? 202 : usuario === 'jefe.ops' ? 203 : 102,
         usuario,
         nombre: u.nombre,
         apellido: u.apellido,

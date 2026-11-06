@@ -1,18 +1,18 @@
 import { entorno } from '@/config/entorno';
-import type { AreaJefatura } from '@/utilidades/perfil';
 import { solicitar } from './cliente';
 import { mockJefatura } from './mockJefatura';
 
 /**
- * HU-28 — Menú de Jefatura (Jefe de Metrología; el Jefe de Servicio Técnico usa el menú de campo).
+ * HU-28 — Menú de Jefatura (supervisores y administradores de cualquier área menos Servicio Técnico).
  * Backend: GET api/movil/jefatura/menu → SP_ObtenerMenuJefaturaMovil
  * Tablas: usuario (rol_sistema + area), tabla_maestra (AREA_USUARIO, SEDE_OPERATIVA_TW), orden_servicio, expediente_digital,
  *   requerimiento, area_servicio_rq, demora_registro, autorizacion_salida_os.
- * Todo se filtra por el área del jefe según la RQ de cada servicio. Los contadores son de HOY (hora de Lima).
+ * Metrología se filtra por el área de la RQ de cada servicio; las demás áreas ven todos los servicios. Contadores de HOY (hora de Lima).
  */
 export interface MenuJefatura {
-  areaCodigo: AreaJefatura;
-  /** "Servicio Técnico" | "Metrología" */
+  /** Área del usuario ('metrologia', 'operaciones', 'ti'…). */
+  areaCodigo: string;
+  /** "Metrología", "Operaciones", "TI"… */
   areaNombre: string | null;
   /** "Lima Central" */
   sede: string | null;
@@ -26,7 +26,7 @@ export interface MenuJefatura {
 }
 
 export async function obtenerMenuJefatura(token: string): Promise<MenuJefatura> {
-  if (entorno.usarMock) return mockJefatura.menu();
+  if (entorno.usarMock) return mockJefatura.menu(token);
   const r = await solicitar<MenuJefatura>('/api/movil/jefatura/menu', { token });
   return r.datos!;
 }

@@ -1,13 +1,13 @@
 /**
  * Perfil de la app según el ROL y el ÁREA del usuario (HU-28): define el menú.
- *   - campo ....... técnicos de Servicio Técnico y Metrología, el Jefe de Servicio Técnico y cualquier otro usuario (menú de campo, HU-02).
- *   - jefatura .... el supervisor del área Metrología = Jefe de Metrología (menú de Jefatura, HU-28).
- * No se usa el cargo porque en la ficha de usuario es texto libre ("Jefe de Metrología", "Metrólogo"…): el rol (Supervisor) y el
- * área sí son catálogos. Otras áreas se suman agregándolas a AREA_CON_JEFATURA (y su lista de tarjetas en modulosJefatura).
+ *   - jefatura .... usuarios con rol Supervisor o Administrador de CUALQUIER área excepto Servicio Técnico (menú de Jefatura, HU-28).
+ *   - campo ....... todos los demás: técnicos, metrólogos y usuarios comunes, y el personal de Servicio Técnico (menú de campo, HU-02).
+ * No se usa el cargo porque en la ficha de usuario es texto libre ("Jefe de Operaciones", "Metrólogo"…): el rol y el área sí son
+ * catálogos. Servicio Técnico queda fuera de Jefatura por decisión del negocio; para cambiarlo, quitar 'servicio_tecnico' de
+ * AREAS_SIN_JEFATURA (y el mismo cambio en SP_ObtenerMenuJefaturaMovil).
  * La app solo decide qué pantalla mostrar; el back vuelve a validar el rol y el área en cada consulta de Jefatura.
  */
 export type PerfilApp = 'campo' | 'jefatura';
-export type AreaJefatura = 'metrologia';
 
 /** Datos de la sesión que definen el perfil (los envía el login). */
 export interface DatosPerfil {
@@ -15,13 +15,14 @@ export interface DatosPerfil {
   rolSistema?: string | null;
 }
 
-/** Áreas cuyo supervisor tiene menú de Jefatura. Map y no un objeto: "constructor" no debe resolver a una propiedad heredada. */
-const AREA_CON_JEFATURA = new Map<string, AreaJefatura>([['metrologia', 'metrologia']]);
+const ROLES_CON_JEFATURA = new Set(['supervisor', 'administrador']);
+const AREAS_SIN_JEFATURA = new Set(['', 'servicio_tecnico']);
 
-/** Área que dirige el usuario (si es el supervisor de un área con Jefatura), o null. */
-export function areaDeJefatura(usuario: DatosPerfil | null | undefined): AreaJefatura | null {
-  if ((usuario?.rolSistema ?? '').trim().toLowerCase() !== 'supervisor') return null;
-  return AREA_CON_JEFATURA.get((usuario?.area ?? '').trim().toLowerCase()) ?? null;
+/** Código del área del usuario si tiene menú de Jefatura (Metrología, Operaciones, TI, Gerencia…), o null. */
+export function areaDeJefatura(usuario: DatosPerfil | null | undefined): string | null {
+  const rol = (usuario?.rolSistema ?? '').trim().toLowerCase();
+  const area = (usuario?.area ?? '').trim().toLowerCase();
+  return ROLES_CON_JEFATURA.has(rol) && !AREAS_SIN_JEFATURA.has(area) ? area : null;
 }
 
 export function perfilDe(usuario: DatosPerfil | null | undefined): PerfilApp {

@@ -1,14 +1,14 @@
 import type { MenuJefatura } from '@/api/jefatura';
-import type { AreaJefatura } from '@/utilidades/perfil';
 import type { Indicador, ModuloMenu } from './modulos';
 
 /**
- * Módulos del menú de Jefatura (HU-28), en el orden del mockup. Hoy solo el Jefe de Metrología (supervisor del área Metrología) tiene menú de Jefatura:
- *   Metrología: Panel de Campo, Aprobaciones, Correlativos, Mi Equipo, Certificados por Revisar, Recepción en Taller,
- *               Agenda del Área, Viáticos y Gastos y Procedimientos. (Correlativos y Recepción en Taller son solo de Metrología.)
- * El Jefe de Servicio Técnico usa el menú de campo. Para sumar otra área: agregarla en utilidades/perfil.ts y su lista aquí.
- * Las pantallas que todavía no existen abren "Próximamente" y no muestran contador (ruta null). Se van habilitando de a una
- * cambiando `ruta`. Las que existen: Aprobaciones (HU-31).
+ * Módulos del menú de Jefatura (HU-28), en el orden del mockup.
+ *   Metrología (mockup propio): Panel de Campo, Aprobaciones, Correlativos, Mi Equipo, Certificados por Revisar, Recepción en
+ *                               Taller, Agenda del Área, Viáticos y Gastos y Procedimientos.
+ *   Demás áreas (Operaciones, TI, Gerencia, Comercial…) no tienen mockup propio: reciben las tarjetas comunes (Panel de Campo,
+ *   Aprobaciones, Mi Equipo, Agenda del Área, Viáticos y Gastos, Procedimientos) y el Asistente IA. Sin las de Metrología.
+ * Servicio Técnico no tiene menú de Jefatura. Las pantallas que todavía no existen abren "Próximamente" y no muestran contador
+ * (ruta null); se van habilitando de a una cambiando `ruta`. Las que existen: Aprobaciones (HU-31).
  */
 export interface ModuloJefatura extends Pick<ModuloMenu, 'id' | 'titulo' | 'icono' | 'ruta' | 'destacado'> {
   indicadores?: (m: MenuJefatura) => Indicador[];
@@ -43,13 +43,22 @@ const metrologia: ModuloJefatura[] = [
   procedimientos,
 ];
 
-const porArea: Record<AreaJefatura, ModuloJefatura[]> = { metrologia };
+const asistenteIa: ModuloJefatura = {
+  id: 'jefe-asistente-ia',
+  titulo: 'Asistente IA',
+  icono: { familia: 'mci', nombre: 'robot-outline' },
+  ruta: '/asistente',
+  destacado: true,
+};
 
-export function modulosJefatura(area: AreaJefatura): ModuloJefatura[] {
-  return porArea[area] ?? [];
+const general: ModuloJefatura[] = [panelCampo, aprobaciones, miEquipo, agendaArea, viaticos, procedimientos, asistenteIa];
+
+/** Tarjetas del menú de Jefatura según el área del usuario ('metrologia' tiene las suyas; las demás, las comunes). */
+export function modulosJefatura(area: string): ModuloJefatura[] {
+  return area === 'metrologia' ? metrologia : general;
 }
 
 /** Busca un módulo de Jefatura por id (para la pantalla "Próximamente"). */
 export function moduloJefaturaPorId(id: string | undefined): ModuloJefatura | undefined {
-  return metrologia.find((m) => m.id === id);
+  return [...metrologia, ...general].find((m) => m.id === id);
 }

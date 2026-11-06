@@ -30,8 +30,14 @@ const pendientes = (): Aprobacion[] =>
   ].filter((a) => !resueltas.has(a.id));
 
 export const mockJefatura = {
-  async menu(): Promise<MenuJefatura> {
+  /** `token` solo sirve en el modo demo: el usuario jefe.ops entra como Operaciones; los demás, como Metrología. */
+  async menu(token: string = ''): Promise<MenuJefatura> {
     await esperar(400);
+    if (token.includes('jefe.ops'))
+      return {
+        areaCodigo: 'operaciones', areaNombre: 'Operaciones', sede: 'Lima Central',
+        programados: 15, enRuta: 7, enEjecucion: 5, conDemora: 1, aprobacionesPendientes: pendientes().length,
+      };
     return {
       areaCodigo: 'metrologia', areaNombre: 'Metrología', sede: 'Laboratorio Lima',
       programados: 6, enRuta: 2, enEjecucion: 2, conDemora: 0, aprobacionesPendientes: pendientes().length,

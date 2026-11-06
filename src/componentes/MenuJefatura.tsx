@@ -16,9 +16,10 @@ import { areaDeJefatura } from '@/utilidades/perfil';
 
 /**
  * HU-28 — Menú de Jefatura (Jefe de Metrología; el Jefe de Servicio Técnico usa el menú de campo).
- *  - El rol y el área del usuario definen el menú: este es el del Jefe de Metrología (supervisor del área); el resto ve el menú de campo (HU-02).
+ *  - El rol y el área del usuario definen el menú: este es el de Jefatura (supervisores y administradores de cualquier área menos
+ *    Servicio Técnico); el resto ve el menú de campo (HU-02).
  *  - Resumen del día del área (programados, en ruta, en ejecución y con demora), filtrado por el área según la RQ de cada servicio.
- *  - Tarjetas del área: Panel de Campo, Aprobaciones, Correlativos, Mi Equipo, Certificados por Revisar, Recepción en Taller, etc.
+ *  - Tarjetas: Metrología tiene las suyas (Correlativos, Certificados por Revisar, Recepción en Taller…); las demás áreas, las comunes.
  *    Aprobaciones muestra cuántas solicitudes esperan su decisión; las pantallas que aún no existen abren "Próximamente".
  *  - Barra inferior: Menú · Aprobaciones · Notificaciones · Perfil (la arma el layout de las pestañas).
  * Los números se actualizan al abrir el menú y al deslizar hacia abajo.
@@ -37,8 +38,8 @@ export function MenuJefatura() {
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Jefe de Área';
   const menu = datos?.menu ?? null;
   // El área sale del back (rol + área + RQ); mientras carga, de lo que ya conoce la sesión.
-  const area = menu?.areaCodigo ?? areaCargo ?? 'metrologia';
-  const nombreArea = menu?.areaNombre ?? 'Metrología';
+  const area = menu?.areaCodigo ?? areaCargo ?? '';
+  const nombreArea = menu?.areaNombre ?? 'tu área';
   const modulos = useMemo(() => modulosJefatura(area), [area]);
 
   function abrir(m: ModuloJefatura) {
