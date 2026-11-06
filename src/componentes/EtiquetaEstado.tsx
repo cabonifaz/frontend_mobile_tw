@@ -2,10 +2,11 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colores } from '@/tema/colores';
 
-export type EstadoEtiqueta = 'conforme' | 'pendiente' | 'bloqueado' | 'no_aplica' | 'opcional' | 'asignado' | 'info' | 'observado';
+export type EstadoEtiqueta = 'conforme' | 'aprobado' | 'pendiente' | 'bloqueado' | 'no_aplica' | 'opcional' | 'asignado' | 'info' | 'observado';
 
 const estilosPorEstado: Record<EstadoEtiqueta, { texto: string; fondo: string; color: string }> = {
   conforme: { texto: 'CONFORME', fondo: colores.verdeEtiquetaFondo, color: colores.verdeEtiquetaTexto },
+  aprobado: { texto: 'APROBADO', fondo: colores.verdeEtiquetaFondo, color: colores.verdeEtiquetaTexto },
   asignado: { texto: 'ASIGNADO', fondo: colores.verdeEtiquetaFondo, color: colores.verdeEtiquetaTexto },
   pendiente: { texto: 'PENDIENTE', fondo: colores.amarilloFondo, color: colores.amarilloTexto },
   bloqueado: { texto: 'BLOQUEADO', fondo: colores.rojoEtiquetaFondo, color: colores.rojoEtiquetaTexto },

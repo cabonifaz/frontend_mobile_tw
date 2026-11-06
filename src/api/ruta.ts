@@ -18,20 +18,37 @@ import { mockRuta } from './mockRuta';
 
 // ── HU-05 · Demoras ──────────────────────────────────────────────────────────
 
+/**
+ * Tipos de demora:
+ *  - llegada: durante el traslado (OS en ruta, aún sin llegada). Recalcula la ETA de llegada a planta.
+ *  - ingreso: ya llegó a planta y espera ingresar (llegada registrada, trabajo sin iniciar). Recalcula el inicio del trabajo.
+ */
+export type TipoDemora = 'llegada' | 'ingreso';
+
+/** Ámbito del motivo en el catálogo: solo traslado, solo ingreso a planta o ambos. */
+export type AmbitoMotivo = 'traslado' | 'ingreso' | 'ambos';
+
 export interface MotivoDemora {
   idMotivo: number;
   nombre: string;
   codigo: string | null;
+  /** Opcional: un back anterior no lo envía y el motivo vale para ambos tipos. */
+  ambito?: AmbitoMotivo | string | null;
 }
 
 export interface DemoraRegistrada {
   idDemora: number;
+  /** Opcional: un back anterior solo registraba demoras de llegada. */
+  tipo?: TipoDemora | string;
   motivo: string | null;
   duracionMinutos: number;
   descripcion: string | null;
   fechaRegistro: string | null;
+  etaAnterior?: string | null;
   etaRecalculada: string | null;
   tieneFoto: boolean;
+  latitud?: number | null;
+  longitud?: number | null;
 }
 
 export interface ContextoDemoras {
@@ -42,11 +59,24 @@ export interface ContextoDemoras {
   sede: string | null;
   salidaEn: string | null;
   enRutaMinutos: number | null;
+  /** Llegada a planta (HU-06), si ya se registró. */
+  llegadaEn?: string | null;
+  enPlantaMinutos?: number | null;
+  /** Hora programada del servicio. */
   etaOriginal: string | null;
+  /** Minutos acumulados de las demoras de llegada. */
   minutosDemora: number;
+  /** ETA original + demoras de llegada. */
   etaVigente: string | null;
+  /** Inicio del trabajo previsto para las demoras de ingreso (nunca antes de "ahora"). */
+  inicioPrevisto?: string | null;
   ahora: string;
   puedeRegistrar: boolean;
+  /** Qué tipos se pueden registrar ahora (son excluyentes: antes de llegar solo "llegada"; ya en planta, solo "ingreso"). */
+  puedeLlegada?: boolean;
+  puedeIngreso?: boolean;
+  /** Por qué no se puede registrar ninguna (cuando `puedeRegistrar` es falso). */
+  motivoNoRegistra?: string | null;
   motivos: MotivoDemora[];
   demoras: DemoraRegistrada[];
 }
@@ -58,6 +88,7 @@ export interface Ubicacion {
 }
 
 export interface NuevaDemora {
+  tipo: TipoDemora;
   idMotivo: number;
   duracionMinutos: number;
   descripcion: string;
@@ -68,8 +99,12 @@ export interface NuevaDemora {
 
 export interface ResultadoDemora {
   idDemora: number;
+  tipo?: TipoDemora | string;
+  /** Hora programada del servicio. */
   etaOriginal: string | null;
+  /** Llegada: ETA antes de esta demora. Ingreso: inicio previsto antes de esta demora. */
   etaAnterior: string | null;
+  /** Llegada: nueva ETA. Ingreso: nuevo inicio previsto del trabajo. */
   etaRecalculada: string | null;
   notificados: number;
 }
@@ -84,6 +119,7 @@ export async function obtenerDemoras(token: string, idOs: number): Promise<Conte
 export async function registrarDemora(token: string, idOs: number, d: NuevaDemora): Promise<{ mensaje: string; datos: ResultadoDemora | null }> {
   if (entorno.usarMock) return mockRuta.registrarDemora(idOs, d);
   const form = new FormData();
+  form.append('tipo', d.tipo);
   form.append('idMotivo', String(d.idMotivo));
   form.append('duracionMinutos', String(d.duracionMinutos));
   if (d.descripcion.trim()) form.append('descripcion', d.descripcion.trim());

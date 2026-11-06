@@ -205,7 +205,8 @@ export interface DetalleServicio {
 }
 
 export type CodigoManual = 'expediente' | 'epp' | 'materiales' | 'herramientas' | 'pesas_patron';
-export type EstadoItemChecklist = 'conforme' | 'pendiente' | 'bloqueado' | 'no_aplica' | 'opcional';
+/** `aprobado` = pendiente que el jefe del área autorizó con su visto bueno ("Autorizado por el Jefe …"). */
+export type EstadoItemChecklist = 'conforme' | 'aprobado' | 'pendiente' | 'bloqueado' | 'no_aplica' | 'opcional';
 
 export interface ItemChecklist {
   codigo: string;
@@ -244,6 +245,8 @@ export interface ChecklistSalida {
   items: ItemChecklist[];
   faltantes: string[];
   puedeIniciar: boolean;
+  /** Todo cumplido o con el visto bueno vigente: "Todo conforme · Ya puedes iniciar el traslado a planta". Opcional: un back anterior no lo envía. */
+  todoConforme?: boolean;
   saleConVistoBueno: boolean;
   puedeSolicitarAutorizacion: boolean;
   trasladoIniciado: boolean;

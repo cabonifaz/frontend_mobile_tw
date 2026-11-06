@@ -213,14 +213,12 @@ export default function PantallaChecklistSalida() {
                   <Text style={estilos.recuadroTexto}>Faltan: {c.faltantes.join(', ')}.</Text>
                 </View>
               </View>
-            ) : c.saleConVistoBueno ? (
-              <View style={[estilos.recuadro, estilos.recuadroOk]}>
-                <Ionicons name="ribbon-outline" size={22} color={colores.verdeEtiquetaTexto} />
+            ) : (c.todoConforme ?? c.puedeIniciar) ? (
+              <View style={[estilos.recuadro, estilos.recuadroOk]} testID="todo-conforme">
+                <Ionicons name="checkmark-circle" size={24} color={colores.verde} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[estilos.recuadroTitulo, { color: colores.verdeEtiquetaTexto }]}>SALIDA AUTORIZADA</Text>
-                  <Text style={estilos.recuadroTexto}>
-                    El {c.areaAutoriza?.cargo ?? 'encargado del área'} dio el visto bueno: puedes salir aunque queden pendientes ({c.faltantes.join(', ')}).
-                  </Text>
+                  <Text style={[estilos.recuadroTitulo, { color: colores.titulo, fontSize: 16 }]}>Todo conforme</Text>
+                  <Text style={estilos.recuadroTexto}>Ya puedes iniciar el traslado a planta.</Text>
                 </View>
               </View>
             ) : null}
@@ -318,9 +316,10 @@ function FilaChecklist({
   onAlternar: () => void;
   onRevisar: () => void;
 }) {
-  const pendienteRevisable = i.tipo === 'automatico' && (i.codigo === 'repuestos' || i.codigo === 'alerta') && i.estado !== 'conforme' && i.estado !== 'no_aplica';
+  const pendienteRevisable = i.tipo === 'automatico' && (i.codigo === 'repuestos' || i.codigo === 'alerta') && i.estado !== 'conforme' && i.estado !== 'aprobado' && i.estado !== 'no_aplica';
+  const vistoBuenoDado = i.codigo === 'visto_bueno' && i.estado === 'conforme';
   const borde =
-    i.estado === 'bloqueado' ? '#FCA5A5' : i.estado === 'pendiente' && i.obligatorio ? '#FCD34D' : colores.bordeSuave;
+    i.estado === 'bloqueado' ? '#FCA5A5' : i.estado === 'pendiente' && i.obligatorio ? '#FCD34D' : vistoBuenoDado ? colores.verdeBorde : colores.bordeSuave;
   const esCasilla = (i.tipo === 'manual' || i.tipo === 'autorizacion') && i.estado !== 'no_aplica';
 
   return (
@@ -328,23 +327,23 @@ function FilaChecklist({
       onPress={i.editable ? onAlternar : undefined}
       disabled={!i.editable || ocupado}
       accessibilityRole={esCasilla ? 'checkbox' : 'text'}
-      accessibilityState={{ checked: i.estado === 'conforme', disabled: !i.editable }}
+      accessibilityState={{ checked: i.estado === 'conforme' || i.estado === 'aprobado', disabled: !i.editable }}
       accessibilityLabel={`${i.nombre}: ${i.estado.replace('_', ' ')}`}
       testID={`item-${i.codigo}`}
-      style={[estilos.fila, { borderColor: borde }]}
+      style={[estilos.fila, { borderColor: borde }, vistoBuenoDado && { backgroundColor: colores.verdeFondo }]}
     >
       <View style={estilos.filaPrincipal}>
         <Ionicons
           name={iconos[i.codigo] ?? 'ellipse-outline'}
           size={22}
-          color={i.estado === 'conforme' ? colores.verde : i.estado === 'bloqueado' ? colores.rojo : i.estado === 'pendiente' ? colores.naranja : colores.textoTenue}
+          color={i.estado === 'conforme' || i.estado === 'aprobado' ? colores.verde : i.estado === 'bloqueado' ? colores.rojo : i.estado === 'pendiente' ? colores.naranja : colores.textoTenue}
         />
         <View style={{ flex: 1 }}>
           <Text style={estilos.filaNombre}>{i.nombre}</Text>
           {!!i.detalle && i.estado !== 'conforme' && <Text style={estilos.filaDetalle}>{i.detalle}</Text>}
           {i.codigo === 'visto_bueno' && i.estado === 'conforme' && !!i.detalle && <Text style={estilos.filaDetalle}>{i.detalle}</Text>}
         </View>
-        {!compacto && <EtiquetaEstado estado={i.estado} />}
+        {!compacto && <EtiquetaEstado estado={vistoBuenoDado ? 'aprobado' : i.estado} />}
         {ocupado ? (
           <ActivityIndicator color={colores.primario} />
         ) : esCasilla ? (
@@ -357,7 +356,7 @@ function FilaChecklist({
       </View>
       {(compacto || pendienteRevisable) && (
         <View style={estilos.filaPie}>
-          {compacto && <EtiquetaEstado estado={i.estado} />}
+          {compacto && <EtiquetaEstado estado={vistoBuenoDado ? 'aprobado' : i.estado} />}
           {pendienteRevisable && (
             <Pressable onPress={onRevisar} style={estilos.revisar} accessibilityRole="button" hitSlop={6}>
               <Text style={estilos.revisarTexto}>{i.codigo === 'alerta' ? 'Ver alerta' : 'Revisar'}</Text>

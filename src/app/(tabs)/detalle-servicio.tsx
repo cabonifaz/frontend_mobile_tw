@@ -5,6 +5,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
+import { obtenerDemoras } from '@/api/ruta';
 import {
   marcarItemChecklist,
   obtenerChecklistSalida,
@@ -22,7 +23,7 @@ import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { fechaCorta, fechaHoraAgenda, telefonoMarcable, textoDuracion } from '@/utilidades/formato';
+import { fechaCorta, fechaHoraAgenda, horaDe, telefonoMarcable, textoDuracion } from '@/utilidades/formato';
 
 /**
  * HU-04 — Detalle del servicio.
@@ -69,7 +70,9 @@ export default function PantallaDetalleServicio() {
         obtenerChecklistSalida(token, idOs),
         obtenerCatalogo(token, 'CARGO_USUARIO'),
       ]);
-      return { detalle, checklist, cargos };
+      // Traslado en curso: la salida y la ETA vigente (con las demoras ya registradas) salen del contexto de demoras.
+      const demoras = detalle.servicio.estadoOs === 'en_ruta' ? await obtenerDemoras(token, idOs).catch(() => null) : null;
+      return { detalle, checklist, cargos, demoras };
     },
     `${params.id ?? ''}|${params.v ?? ''}`,
   );
@@ -104,6 +107,12 @@ export default function PantallaDetalleServicio() {
   const programada = s ? ['programada', 'reprogramada'].includes(s.estadoOs) : false;
   const enRuta = s?.estadoOs === 'en_ruta';
   const enPlanta = s ? ['en_ejecucion', 'pausada'].includes(s.estadoOs) : false;
+  const demorasCtx = datos?.demoras ?? null;
+  const textoTraslado = !demorasCtx
+    ? 'El servicio está en ruta hacia el cliente.'
+    : demorasCtx.llegadaEn
+      ? `Llegaste a planta ${horaDe(demorasCtx.llegadaEn)}`
+      : `${demorasCtx.salidaEn ? `Salida ${horaDe(demorasCtx.salidaEn)}` : 'En ruta'}${demorasCtx.etaVigente ? ` · ETA ${horaDe(demorasCtx.etaVigente)}` : ''}`;
   // Antes del día programado el detalle se ve completo, pero la salida aún no se puede validar (HU-04).
   const salidaPendiente = programada && datos?.checklist.salidaHabilitada === false;
   const textoSalidaPendiente = datos?.checklist.salidaMensaje || 'Aún no es el día del servicio: podrás validar la salida ese día.';
@@ -157,7 +166,7 @@ export default function PantallaDetalleServicio() {
             <Ionicons name="arrow-back" size={24} color={colores.titulo} />
           </Pressable>
           <Text style={[estilos.titulo, { fontSize: d.tituloPantalla }]} accessibilityRole="header">
-            Servicio Programado
+            {enRuta ? 'Servicio en ruta' : 'Servicio Programado'}
           </Text>
         </View>
 
@@ -230,8 +239,15 @@ export default function PantallaDetalleServicio() {
             </View>
 
             {enRuta && (
-              <View style={{ marginTop: 14 }}>
-                <Aviso tipo="info" mensaje="Traslado en curso: el servicio está en ruta hacia el cliente." />
+              <View style={estilos.traslado} testID="traslado-en-curso">
+                <Ionicons name="navigate-circle-outline" size={26} color={colores.primario} />
+                <View style={{ flex: 1 }}>
+                  <Text style={estilos.trasladoTitulo}>Traslado en curso</Text>
+                  <Text style={estilos.trasladoTexto}>{textoTraslado}</Text>
+                  {!!demorasCtx && demorasCtx.minutosDemora > 0 && (
+                    <Text style={estilos.trasladoNota}>Demoras registradas: +{demorasCtx.minutosDemora} min</Text>
+                  )}
+                </View>
               </View>
             )}
 
@@ -534,7 +550,7 @@ export default function PantallaDetalleServicio() {
               ) : enRuta ? (
                 <>
                   <Boton titulo="Registrar llegada" onPress={() => ir('/llegada')} />
-                  <Boton titulo="Registrar demora" variante="secundario" onPress={() => ir('/demoras')} />
+                  <Boton titulo="Registrar demora" variante="alerta" onPress={() => ir('/demoras')} />
                 </>
               ) : enPlanta ? (
                 <Boton titulo="Ver objetivos" onPress={() => ir('/objetivos')} />
@@ -652,6 +668,20 @@ function ItemHistorial({
 
 const estilos = StyleSheet.create({
   area: { flex: 1, backgroundColor: colores.fondo },
+  traslado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    backgroundColor: colores.primarioSuave,
+    borderWidth: 1,
+    borderColor: colores.azulFondo,
+    borderRadius: radios.tarjeta,
+    padding: 14,
+  },
+  trasladoTitulo: { fontSize: 16, fontWeight: '700', color: colores.titulo },
+  trasladoTexto: { fontSize: 14, color: colores.texto, marginTop: 2 },
+  trasladoNota: { fontSize: 12.5, color: colores.textoSecundario, marginTop: 2 },
   contenido: { paddingTop: 18, paddingBottom: 32, width: '100%', alignSelf: 'center' },
   tituloFila: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   titulo: { fontWeight: '600', color: colores.titulo, flexShrink: 1 },

@@ -4,7 +4,8 @@ import { colores, radios } from '@/tema/colores';
 interface Props {
   titulo: string;
   onPress: () => void;
-  variante?: 'primario' | 'secundario';
+  /** `alerta` = contorno rojo (acciones de incidencia, como registrar una demora). */
+  variante?: 'primario' | 'secundario' | 'alerta';
   cargando?: boolean;
   deshabilitado?: boolean;
 }
@@ -12,6 +13,7 @@ interface Props {
 export function Boton({ titulo, onPress, variante = 'primario', cargando = false, deshabilitado = false }: Props) {
   const inactivo = deshabilitado || cargando;
   const esPrimario = variante === 'primario';
+  const esAlerta = variante === 'alerta';
 
   return (
     <Pressable
@@ -21,15 +23,15 @@ export function Boton({ titulo, onPress, variante = 'primario', cargando = false
       accessibilityState={{ disabled: inactivo, busy: cargando }}
       style={({ pressed }) => [
         estilos.base,
-        esPrimario ? estilos.primario : estilos.secundario,
-        pressed && (esPrimario ? estilos.primarioPresionado : estilos.secundarioPresionado),
+        esPrimario ? estilos.primario : esAlerta ? estilos.alerta : estilos.secundario,
+        pressed && (esPrimario ? estilos.primarioPresionado : esAlerta ? estilos.alertaPresionado : estilos.secundarioPresionado),
         inactivo && estilos.inactivo,
       ]}
     >
       {cargando ? (
         <ActivityIndicator color={esPrimario ? colores.blanco : colores.primario} />
       ) : (
-        <Text style={[estilos.texto, esPrimario ? estilos.textoPrimario : estilos.textoSecundario]}>{titulo}</Text>
+        <Text style={[estilos.texto, esPrimario ? estilos.textoPrimario : esAlerta ? estilos.textoAlerta : estilos.textoSecundario]}>{titulo}</Text>
       )}
     </Pressable>
   );
@@ -47,8 +49,11 @@ const estilos = StyleSheet.create({
   primarioPresionado: { backgroundColor: colores.primarioPresionado },
   secundario: { backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.borde },
   secundarioPresionado: { backgroundColor: colores.primarioSuave },
+  alerta: { backgroundColor: colores.blanco, borderWidth: 1.5, borderColor: colores.rojo },
+  alertaPresionado: { backgroundColor: colores.errorFondo },
   inactivo: { opacity: 0.6 },
   texto: { fontSize: 16, fontWeight: '600' },
   textoPrimario: { color: colores.blanco },
   textoSecundario: { color: colores.titulo },
+  textoAlerta: { color: colores.rojo },
 });

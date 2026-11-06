@@ -244,6 +244,11 @@ function salidaDemo(idOs: number): { habilitada: boolean; mensaje: string | null
   return { habilitada: false, mensaje: `Aún no es el día del servicio. Podrás validar la salida el ${d}/${m}/${a}.` };
 }
 
+function horaDemo(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function checklistDemo(idOs: number): ChecklistSalida {
   const s = serviciosDemo().find((x) => x.idOs === idOs) ?? serviciosDemo()[0];
   const e = estadoDemo(idOs);
@@ -270,16 +275,26 @@ function checklistDemo(idOs: number): ChecklistSalida {
       estado: s.alertasPredictivas > 0 ? 'bloqueado' : 'conforme', detalle: null, editable: false },
     { codigo: 'visto_bueno', nombre: `Visto bueno ${area.cargo}`, tipo: 'autorizacion', obligatorio: false,
       estado: e.autorizacion === 'aprobada' ? 'conforme' : e.autorizacion === 'pendiente' ? 'pendiente' : 'opcional',
-      detalle: e.autorizacion === 'aprobada' ? `Aprobado por ${area.encargado}.` : e.autorizacion === 'pendiente'
+      detalle: e.autorizacion === 'aprobada' ? `${area.encargado} · ${horaDemo()} · Condición: revisar repuestos en planta` : e.autorizacion === 'pendiente'
         ? `Solicitud enviada al ${area.cargo} (${area.encargado}): esperando respuesta.`
         : `Lo marca el ${area.cargo} desde la intranet. Solo hace falta si quedan pendientes.`,
       editable: false },
   ];
   const faltantes = items.filter((i) => i.obligatorio && (i.estado === 'pendiente' || i.estado === 'bloqueado')).map((i) => i.nombre);
   const puedeIniciar = editable && (faltantes.length === 0 || e.autorizacion === 'aprobada');
+  // Con el visto bueno vigente, lo obligatorio que seguía pendiente/bloqueado pasa a APROBADO ("Autorizado por el Jefe …").
+  if (e.autorizacion === 'aprobada') {
+    for (const i of items) {
+      if (i.obligatorio && (i.estado === 'pendiente' || i.estado === 'bloqueado')) {
+        i.estado = 'aprobado';
+        i.detalle = `Autorizado por ${area.cargo}`;
+      }
+    }
+  }
   return {
     idOs, numeroOs: s.numeroOs, cliente: s.cliente, fechaEjecucion: s.fechaEjecucion, horaInicio: s.horaInicio,
     tecnico: s.responsable, estadoOs: e.estadoOs, items, faltantes, puedeIniciar,
+    todoConforme: puedeIniciar,
     saleConVistoBueno: puedeIniciar && faltantes.length > 0,
     puedeSolicitarAutorizacion: editable && faltantes.length > 0 && e.autorizacion === null,
     trasladoIniciado: e.estadoOs === 'en_ruta',

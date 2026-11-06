@@ -75,19 +75,28 @@ export const mockRuta = {
   async demoras(idOs: number): Promise<ContextoDemoras> {
     await esperar(300);
     const eta = `${hoy()}T08:30:00`;
-    const min = estado.demoras.reduce((a, d) => a + d.duracionMinutos, 0);
+    const min = estado.demoras.filter((x) => x.tipo === 'llegada').reduce((a, d) => a + d.duracionMinutos, 0);
+    const ultimoIngreso = estado.demoras.find((x) => x.tipo === 'ingreso')?.etaRecalculada ?? null;
+    const ahora = ahoraIso();
+    // Igual que el back: las demoras son excluyentes. Antes de llegar solo "llegada"; ya en planta, y sin trabajo iniciado, solo "ingreso".
+    const trabajoIniciado = [...estado.equipos.values()].some((e) => e.estado === 'en_ejecucion' || e.estado === 'completado');
+    const puedeLlegada = !estado.llegada;
+    const puedeIngreso = estado.llegada && !trabajoIniciado;
     return {
       idOs, numeroOs: 'OS-000791', estadoOs: estado.llegada ? 'en_ejecucion' : 'en_ruta', cliente: 'Alicorp S.A.A.', sede: 'Planta Callao',
-      salidaEn: `${hoy()}T07:45:00`, enRutaMinutos: 67, etaOriginal: eta, minutosDemora: min, etaVigente: sumar(eta, min), ahora: ahoraIso(),
-      puedeRegistrar: !estado.llegada,
+      salidaEn: `${hoy()}T07:45:00`, enRutaMinutos: 67, llegadaEn: estado.llegada ? `${hoy()}T08:42:00` : null,
+      enPlantaMinutos: estado.llegada ? 18 : null, etaOriginal: eta, minutosDemora: min, etaVigente: sumar(eta, min),
+      inicioPrevisto: ultimoIngreso && ultimoIngreso > ahora ? ultimoIngreso : ahora, ahora,
+      puedeRegistrar: puedeLlegada || puedeIngreso, puedeLlegada, puedeIngreso,
+      motivoNoRegistra: puedeLlegada || puedeIngreso ? null : 'Las demoras se registran durante el traslado o al ingresar a la planta, antes de iniciar el trabajo.',
       motivos: [
-        { idMotivo: 1, nombre: 'Tráfico', codigo: 'TRAFICO' },
-        { idMotivo: 2, nombre: 'Accidente en ruta', codigo: 'ACCIDENTE_RUTA' },
-        { idMotivo: 3, nombre: 'Problema mecánico del vehículo', codigo: 'PROBLEMA_VEHICULO' },
-        { idMotivo: 4, nombre: 'Acceso denegado en planta', codigo: 'ACCESO_DENEGADO' },
-        { idMotivo: 5, nombre: 'Esperando coordinación del cliente', codigo: 'ESPERA_CLIENTE' },
-        { idMotivo: 6, nombre: 'Condición climática', codigo: 'CLIMA' },
-        { idMotivo: 7, nombre: 'Otro motivo', codigo: 'OTRO' },
+        { idMotivo: 1, nombre: 'Tráfico', codigo: 'TRAFICO', ambito: 'traslado' },
+        { idMotivo: 2, nombre: 'Accidente en ruta', codigo: 'ACCIDENTE_RUTA', ambito: 'traslado' },
+        { idMotivo: 3, nombre: 'Problema mecánico del vehículo', codigo: 'PROBLEMA_VEHICULO', ambito: 'traslado' },
+        { idMotivo: 4, nombre: 'Acceso denegado en planta', codigo: 'ACCESO_DENEGADO', ambito: 'ingreso' },
+        { idMotivo: 5, nombre: 'Esperando coordinación del cliente', codigo: 'ESPERA_CLIENTE', ambito: 'ingreso' },
+        { idMotivo: 6, nombre: 'Condición climática', codigo: 'CLIMA', ambito: 'traslado' },
+        { idMotivo: 7, nombre: 'Otro motivo', codigo: 'OTRO', ambito: 'ambos' },
       ],
       demoras: estado.demoras,
     };
@@ -95,14 +104,18 @@ export const mockRuta = {
   async registrarDemora(idOs: number, d: NuevaDemora): Promise<{ mensaje: string; datos: ResultadoDemora }> {
     await esperar(400);
     const ctx = await mockRuta.demoras(idOs);
-    const nueva = sumar(ctx.etaVigente!, d.duracionMinutos);
+    const anterior = d.tipo === 'ingreso' ? ctx.inicioPrevisto! : ctx.etaVigente!;
+    const nueva = sumar(anterior, d.duracionMinutos);
     estado.demoras.unshift({
-      idDemora: estado.demoras.length + 1, motivo: ctx.motivos.find((m) => m.idMotivo === d.idMotivo)?.nombre ?? null,
-      duracionMinutos: d.duracionMinutos, descripcion: d.descripcion || null, fechaRegistro: ahoraIso(), etaRecalculada: nueva, tieneFoto: !!d.fotoUri,
+      idDemora: estado.demoras.length + 1, tipo: d.tipo, motivo: ctx.motivos.find((m) => m.idMotivo === d.idMotivo)?.nombre ?? null,
+      duracionMinutos: d.duracionMinutos, descripcion: d.descripcion || null, fechaRegistro: ahoraIso(), etaAnterior: anterior,
+      etaRecalculada: nueva, tieneFoto: !!d.fotoUri, latitud: d.ubicacion.latitud, longitud: d.ubicacion.longitud,
     });
     return {
-      mensaje: `Demora registrada. ETA recalculada: ${nueva.slice(11, 16)}. Se avisó a Operaciones.`,
-      datos: { idDemora: estado.demoras.length, etaOriginal: ctx.etaOriginal, etaAnterior: ctx.etaVigente, etaRecalculada: nueva, notificados: 1 },
+      mensaje: d.tipo === 'ingreso'
+        ? `Demora registrada. Inicio del trabajo previsto: ${nueva.slice(11, 16)}. Se avisó a Operaciones.`
+        : `Demora registrada. ETA recalculada: ${nueva.slice(11, 16)}. Se avisó a Operaciones.`,
+      datos: { idDemora: estado.demoras.length, tipo: d.tipo, etaOriginal: ctx.etaOriginal, etaAnterior: anterior, etaRecalculada: nueva, notificados: 1 },
     };
   },
   async llegada(idOs: number): Promise<Llegada> {
