@@ -27,7 +27,7 @@ export function estaEnCurso(s: ServicioProgramado): boolean {
   return ESTADOS_EN_CURSO.includes(s.estadoOs);
 }
 
-/** Pendiente = falta la confirmación del cliente o la aprobación SSOMA (los bloqueados no cuentan). */
+/** Pendiente = programado para una fecha posterior a hoy (los bloqueados no cuentan; desde su día pasa a Listo). */
 export function filtrarServicios(
   servicios: readonly ServicioProgramado[],
   filtro: FiltroServicios,

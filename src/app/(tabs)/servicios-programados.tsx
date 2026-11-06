@@ -22,8 +22,8 @@ import { contarServicios, etiquetaDia, fechaLimaHoy, filtrarServicios, textoServ
  *    Si hay un servicio en campo (en ruta, en ejecución o pausado) aparece además el filtro "En curso".
  *  - Tarjetas con cliente, fecha/hora, RQ y OS, objetivos, responsable/lugar, estado LISTO / PENDIENTE / BLOQUEADO e
  *    indicadores (cliente confirmado, SSOMA, alerta predictiva). El detalle de un servicio BLOQUEADO queda deshabilitado.
- *  - El estado sale de lo que registra la intranet: la programación (HU-36) deja la OS programada con su personal, y la
- *    respuesta del cliente (HU-37) la pasa a LISTO. Si se reprograma la fecha, vuelve a PENDIENTE hasta que el cliente confirme.
+ *  - El estado sale de la fecha programada en la intranet (HU-36/38): LISTO desde el día del servicio, PENDIENTE si es de una
+ *    fecha posterior y BLOQUEADO si hay un bloqueo. Si se reprograma la fecha, cambia solo.
  * Se abre desde el menú: "Servicios Programados", "Ruta del Día" (filtro Hoy) o el banner "Próximo Hit".
  */
 const filtrosBase: { id: FiltroServicios; texto: string }[] = [
@@ -41,7 +41,7 @@ const vacios: Record<FiltroServicios, { titulo: string; texto: string }> = {
   hoy: { titulo: 'No tienes servicios para hoy', texto: 'Los servicios programados para hoy aparecerán aquí.' },
   pendientes: {
     titulo: 'No tienes servicios pendientes',
-    texto: 'Aquí verás los servicios que esperan la confirmación del cliente o la aprobación SSOMA.',
+    texto: 'Aquí verás los servicios programados para una fecha posterior a hoy.',
   },
   en_ejecucion: { titulo: 'No tienes servicios en curso', texto: 'Cuando salgas a un servicio aparecerá aquí.' },
 };
@@ -183,7 +183,7 @@ export default function PantallaServiciosProgramados() {
             {filtro === 'pendientes' && (
               <View style={estilos.nota} testID="nota-pendientes">
                 <Ionicons name="information-circle-outline" size={20} color={colores.azulTexto} />
-                <Text style={estilos.notaTexto}>Pendiente: falta la confirmación del cliente o la aprobación SSOMA.</Text>
+                <Text style={estilos.notaTexto}>Pendiente: el servicio está programado para una fecha posterior. Desde su día pasa a Listo.</Text>
               </View>
             )}
           </View>

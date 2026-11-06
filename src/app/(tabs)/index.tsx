@@ -18,7 +18,7 @@ import { colores } from '@/tema/colores';
 /**
  * HU-02 — Menú principal y accesos operativos.
  *  - Cuadrícula de módulos con íconos.
- *  - Indicadores dinámicos desde la BD: servicios asignados y servicios de hoy.
+ *  - Indicadores dinámicos desde la BD: servicios asignados, y en Viáticos y Gastos el saldo por rendir y los gastos en revisión.
  *  - Banner "Próximo Hit" con el servicio en curso o el más cercano.
  *  Sin "Online · Sincronizado", sin tarjeta de sincronización y sin botón de refresh.
  *  Los indicadores se actualizan al abrir el menú y al deslizar hacia abajo.
@@ -102,7 +102,7 @@ export default function PantallaMenu() {
                 <TarjetaModulo
                   key={m.id}
                   modulo={m}
-                  indicador={m.indicador && resumen ? m.indicador(resumen) : null}
+                  indicadores={m.indicadores && resumen ? m.indicadores(resumen) : []}
                   onPress={() => abrir(m)}
                 />
               ))}

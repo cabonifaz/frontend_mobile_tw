@@ -6,7 +6,7 @@ import { IconoModulo } from './IconoModulo';
 
 interface Props {
   modulo: ModuloMenu;
-  indicador?: Indicador | null;
+  indicadores?: Indicador[];
   onPress: () => void;
 }
 
@@ -17,7 +17,7 @@ const tonos = {
 } as const;
 
 /** Tarjeta de la cuadrícula del menú principal (HU-02). */
-export function TarjetaModulo({ modulo, indicador, onPress }: Props) {
+export function TarjetaModulo({ modulo, indicadores = [], onPress }: Props) {
   const destacado = !!modulo.destacado;
   // En celulares angostos se achica la letra para que "Procedimientos" no se corte a la mitad.
   const { compacto } = useDiseno();
@@ -25,17 +25,17 @@ export function TarjetaModulo({ modulo, indicador, onPress }: Props) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={indicador ? `${modulo.titulo}, ${indicador.texto}` : modulo.titulo}
+      accessibilityLabel={indicadores.length > 0 ? `${modulo.titulo}, ${indicadores.map((i) => i.texto).join(', ')}` : modulo.titulo}
       style={({ pressed }) => [estilos.tarjeta, compacto && estilos.tarjetaCompacta, destacado && estilos.destacada, pressed && estilos.presionada]}
       testID={`modulo-${modulo.id}`}
     >
       <IconoModulo icono={modulo.icono} color={destacado ? colores.verde : colores.primario} />
       <Text style={[estilos.titulo, compacto && estilos.tituloCompacto]}>{modulo.titulo}</Text>
-      {indicador && (
-        <View style={[estilos.indicador, { backgroundColor: tonos[indicador.tono].fondo }]}>
+      {indicadores.map((indicador) => (
+        <View key={indicador.texto} style={[estilos.indicador, { backgroundColor: tonos[indicador.tono].fondo }]}>
           <Text style={[estilos.indicadorTexto, { color: tonos[indicador.tono].texto }]}>{indicador.texto.toUpperCase()}</Text>
         </View>
-      )}
+      ))}
     </Pressable>
   );
 }

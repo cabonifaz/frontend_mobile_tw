@@ -1,12 +1,13 @@
 import type { ComponentProps } from 'react';
 import type { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ResumenMenu } from '@/api/menu';
+import { soles } from '@/utilidades/dinero';
 
 /**
  * Módulos del menú principal (HU-02), en el orden del mockup y con los nombres
  * que ya usan los técnicos en la app actual de TW (menú lateral): Reloj Marcador,
  * Servicios Programados, Procedimientos, Recepción Instrumentos OM, Ingreso de
- * Equipos OS, Viáticos, Solicitud de Gastos y Configuraciones.
+ * Equipos OS, Viáticos y Gastos (viáticos y solicitudes de gastos en un solo acceso, HU-25/26/27) y Configuraciones.
  * Nuevos respecto a la app actual: Progreso Guardado y Asistente IA.
  * "Cerrar App" de la app actual está en la pestaña Perfil como "Salir de la app".
  * Los indicadores salen de GET api/movil/menu/resumen; los módulos que aún no tienen
@@ -30,7 +31,8 @@ export interface ModuloMenu {
   /** Ruta de la pantalla; null = todavía no desarrollada. */
   ruta: string | null;
   destacado?: boolean;
-  indicador?: (r: ResumenMenu) => Indicador;
+  /** Indicadores bajo el título (puede haber más de uno, p. ej. saldo y gastos en revisión). */
+  indicadores?: (r: ResumenMenu) => Indicador[];
 }
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
@@ -42,10 +44,12 @@ export const modulosMenu: ModuloMenu[] = [
     titulo: 'Servicios Programados',
     icono: { familia: 'ion', nombre: 'clipboard-outline' },
     ruta: '/servicios-programados', // HU-03
-    indicador: (r) => ({
-      texto: r.serviciosAsignados > 0 ? plural(r.serviciosAsignados, 'asignado', 'asignados') : 'Sin asignar',
-      tono: r.serviciosAsignados > 0 ? 'amarillo' : 'gris',
-    }),
+    indicadores: (r) => [
+      {
+        texto: r.serviciosAsignados > 0 ? plural(r.serviciosAsignados, 'asignado', 'asignados') : 'Sin asignar',
+        tono: r.serviciosAsignados > 0 ? 'amarillo' : 'gris',
+      },
+    ],
   },
   { id: 'procedimientos', titulo: 'Procedimientos', icono: { familia: 'ion', nombre: 'book-outline' }, ruta: null },
   {
@@ -55,8 +59,19 @@ export const modulosMenu: ModuloMenu[] = [
     ruta: null,
   },
   { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: null },
-  { id: 'viaticos', titulo: 'Viáticos', icono: { familia: 'ion', nombre: 'wallet-outline' }, ruta: null },
-  { id: 'solicitud-gastos', titulo: 'Solicitud de Gastos', icono: { familia: 'ion', nombre: 'receipt-outline' }, ruta: null },
+  {
+    id: 'viaticos-gastos',
+    titulo: 'Viáticos y Gastos',
+    icono: { familia: 'ion', nombre: 'wallet-outline' },
+    ruta: '/viaticos-gastos', // HU-25 / HU-26
+    // Saldo por rendir de los viáticos activos y gastos que esperan al Jefe de Operaciones (solo si hay algo que mostrar).
+    indicadores: (r) => {
+      const lista: Indicador[] = [];
+      if ((r.viaticosActivos ?? 0) > 0) lista.push({ texto: soles(r.viaticosSaldoPorRendir ?? 0), tono: 'azul' });
+      if ((r.gastosEnRevisionCantidad ?? 0) > 0) lista.push({ texto: `${r.gastosEnRevisionCantidad} en revisión`, tono: 'amarillo' });
+      return lista;
+    },
+  },
   { id: 'progreso-guardado', titulo: 'Progreso Guardado', icono: { familia: 'ion', nombre: 'save-outline' }, ruta: null },
   { id: 'configuracion', titulo: 'Configuraciones', icono: { familia: 'ion', nombre: 'settings-outline' }, ruta: null },
   {

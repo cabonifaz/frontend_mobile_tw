@@ -132,6 +132,11 @@ export const mockMenu = {
         horaInicio: '08:30',
         estado: 'programada',
       },
+      // Mismos números que mockViaticos (HU-25/26)
+      viaticosSaldoPorRendir: 182.5,
+      viaticosActivos: 1,
+      gastosEnRevision: 25,
+      gastosEnRevisionCantidad: 1,
     };
   },
 };

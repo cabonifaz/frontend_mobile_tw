@@ -41,6 +41,16 @@ docs/
 | Checklist de pre-salida (HU-04) | `GET api/movil/servicios/{idOs}/checklist` · `PUT …/checklist/{codigo}` | `SP_ObtenerChecklistSalidaMovil`, `SP_MarcarChecklistSalidaMovil` | `checklist_presalida_os`, `os_personal`, `expediente_digital`, `item_presalida`, `alerta_predictiva`, `autorizacion_salida_os` |
 | Solicitar autorización (HU-04) | `POST api/movil/servicios/{idOs}/solicitar-autorizacion` | `SP_SolicitarAutorizacionSalidaMovil` | `autorizacion_salida_os`, `requerimiento`, `area_servicio_rq`, `notificacion`, `auditoria_evento` (notifica al Jefe de Servicio Técnico o al Jefe de Metrología según el área de la RQ) |
 | Iniciar traslado (HU-04) | `POST api/movil/servicios/{idOs}/iniciar-traslado` | `SP_IniciarTrasladoMovil` | `orden_servicio`, `evento_campo`, `auditoria_evento` |
+| Viáticos y Gastos (HU-25 / HU-26) · lectura | `GET api/movil/viaticos` | `SP_ObtenerViaticosMovil` (reglas en `SP_ObtenerViaticosUsuarioMovil`) | `gasto_viatico`, `programacion`, `programacion_rendicion`, `orden_servicio`, `cliente`, `sede_cliente`, `tabla_maestra` (CONCEPTO_GASTO, MONEDA), `usuario` |
+
+**Viáticos y Gastos (HU-25 / HU-26).** Salen de lo que registra la intranet en *Gestionar Viáticos* (HU-45): al programar, el Jefe de Operaciones asigna un adelanto por técnico y concepto (`gasto_viatico.tipo = 'viatico_asignado'`); el técnico rinde sus gastos (`'gasto_solicitado'`) y el Jefe los aprueba, observa o rechaza. El técnico sale del token: solo ve lo suyo. Un solo endpoint alimenta el menú, la lista de viáticos, la lista de solicitudes y los dos detalles:
+- **Depositado:** viático asignado en estado `aprobado` o `rendido` (lo marca Contabilidad); el resto es *pendiente de depósito*.
+- **Rendido:** gastos que no fueron rechazados. **Por rendir** = asignado − rendido (nunca negativo).
+- **Activo / finalizado:** finalizado = la rendición de esa programación ya se cerró (`programacion_rendicion`); con saldo final = aprobado − asignado → devolución (<0), reembolso adicional (>0) o cuadrado.
+- **En revisión:** gastos `pendiente`; **observados:** gastos `observado` (el Jefe dejó un comentario que el técnico debe corregir).
+- **Menú:** el módulo "Viáticos y Gastos" muestra el saldo por rendir (viáticos activos) y los gastos en revisión; vienen en el mismo resultado de `GET api/movil/menu/resumen` (`viaticosSaldoPorRendir`, `viaticosActivos`, `gastosEnRevision`, `gastosEnRevisionCantidad`). Si el cálculo falla, el menú se muestra igual con esos números en 0.
+- **Pendiente (HU-27):** rendir un gasto, corregir y reenviar uno observado y "Solicitar reembolso" desde la app todavía no existen; requieren guardar la foto del comprobante tomada con la cámara. Los botones "Rendir gasto" y "+" no se muestran hasta entonces.
+- Limitación: un viático de una programación **cancelada** no se muestra (la cancelación avisa a Contabilidad en la intranet).
 
 **La salida se valida solo desde el día programado (HU-04).** Antes de esa fecha el técnico ve el detalle completo, pero:
 - el checklist trae `salidaHabilitada: false` y `salidaMensaje` ("Aún no es el día del servicio. Podrás validar la salida el dd/mm/aaaa."),

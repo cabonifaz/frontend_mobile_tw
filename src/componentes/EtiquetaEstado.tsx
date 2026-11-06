@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colores } from '@/tema/colores';
 
-export type EstadoEtiqueta = 'conforme' | 'pendiente' | 'bloqueado' | 'no_aplica' | 'opcional' | 'asignado';
+export type EstadoEtiqueta = 'conforme' | 'pendiente' | 'bloqueado' | 'no_aplica' | 'opcional' | 'asignado' | 'info' | 'observado';
 
 const estilosPorEstado: Record<EstadoEtiqueta, { texto: string; fondo: string; color: string }> = {
   conforme: { texto: 'CONFORME', fondo: colores.verdeEtiquetaFondo, color: colores.verdeEtiquetaTexto },
@@ -11,6 +11,9 @@ const estilosPorEstado: Record<EstadoEtiqueta, { texto: string; fondo: string; c
   bloqueado: { texto: 'BLOQUEADO', fondo: colores.rojoEtiquetaFondo, color: colores.rojoEtiquetaTexto },
   no_aplica: { texto: 'NO APLICA', fondo: colores.grisFondo, color: colores.grisTexto },
   opcional: { texto: 'OPCIONAL', fondo: colores.grisFondo, color: colores.grisTexto },
+  // Viáticos y gastos (HU-25/26): programación en curso y gasto observado por el Jefe
+  info: { texto: 'PROGRAMADO', fondo: colores.azulFondo, color: colores.azulTexto },
+  observado: { texto: 'OBSERVADO', fondo: '#FFEDD5', color: '#9A3412' },
 };
 
 /** Etiqueta de estado del checklist (CONFORME, PENDIENTE, BLOQUEADO…). */

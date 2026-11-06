@@ -27,6 +27,10 @@ export default function LayoutPestanas() {
     '/llegada',
     '/objetivos',
     '/seleccionar-equipo',
+    // Viáticos y Gastos (HU-25 / HU-26)
+    '/viaticos-gastos',
+    '/viatico',
+    '/solicitud-gasto',
   ].includes(pathname);
   const enCuenta = pathname === '/mi-cuenta';
   const itemActivo = {
@@ -139,6 +143,19 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-25 / HU-26: viáticos asignados al programar y gastos rendidos (se entra desde el menú). */}
+      <Tabs.Screen
+        name="viaticos-gastos"
+        options={{ title: 'Viáticos y Gastos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="viatico"
+        options={{ title: 'Viático', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="solicitud-gasto"
+        options={{ title: 'Gasto', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
   );
