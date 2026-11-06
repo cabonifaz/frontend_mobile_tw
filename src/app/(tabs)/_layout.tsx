@@ -3,16 +3,26 @@ import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
+import { useAprobacionesPendientes } from '@/hooks/useAprobacionesPendientes';
+import { useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
+import { perfilDe } from '@/utilidades/perfil';
 
 /**
  * Pestañas inferiores (HU-02): Menú, Notificaciones, Asistente y Perfil.
  * Las pantallas de la ruta del técnico (HU-03 en adelante) viven aquí sin botón propio, para que la
  * barra inferior se siga viendo; mientras están abiertas, la pestaña "Menú" queda marcada.
  * "Mi cuenta" también vive aquí sin botón y marca la pestaña "Perfil".
+ * El cargo define la barra (HU-28): el técnico ve Menú · Notificaciones · Asistente · Perfil; el Jefe de Servicio Técnico y el
+ * Jefe de Metrología ven Menú · Aprobaciones (con globo) · Notificaciones · Perfil.
  */
 export default function LayoutPestanas() {
   const pathname = usePathname();
+  const { sesion } = useSesion();
+  const esJefatura = perfilDe(sesion?.usuario.cargo) === 'jefatura';
+  const aprobacionesPendientes = useAprobacionesPendientes(esJefatura, pathname);
+  // Pestaña que no corresponde al perfil: existe pero sin botón (no se usa href: null, ver nota de HU-03).
+  const sinBoton = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as const } };
   // Android (edge-to-edge) dibuja la app detrás de la barra de navegación del sistema
   // (botones ◁ ○ ▢ o gestos): la barra de pestañas suma ese espacio para no quedar tapada.
   const { bottom: margenInferior } = useSafeAreaInsets();
@@ -33,6 +43,8 @@ export default function LayoutPestanas() {
     '/solicitud-gasto',
   ].includes(pathname);
   const enCuenta = pathname === '/mi-cuenta';
+  // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
+  const enDetalleAprobacion = pathname === '/aprobacion-salida';
   const itemActivo = {
     borderRadius: 12,
     overflow: 'hidden' as const,
@@ -78,6 +90,28 @@ export default function LayoutPestanas() {
           ),
         }}
       />
+      {/* HU-31: centro de aprobaciones (solo Jefatura). Va aquí para quedar entre Menú y Notificaciones. */}
+      <Tabs.Screen
+        name="aprobaciones"
+        options={
+          esJefatura
+            ? {
+                title: 'Aprobaciones',
+                tabBarBadge: aprobacionesPendientes > 0 ? aprobacionesPendientes : undefined,
+                tabBarBadgeStyle: { backgroundColor: colores.error, color: colores.blanco, fontSize: 10 },
+                ...(enDetalleAprobacion
+                  ? {
+                      tabBarItemStyle: itemActivo,
+                      tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600', color: colores.blanco },
+                    }
+                  : {}),
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="checkmark-done-outline" color={enDetalleAprobacion ? colores.blanco : (color as string)} size={size} />
+                ),
+              }
+            : { title: 'Aprobaciones', ...sinBoton }
+        }
+      />
       <Tabs.Screen
         name="notificaciones"
         options={{
@@ -87,10 +121,14 @@ export default function LayoutPestanas() {
       />
       <Tabs.Screen
         name="asistente"
-        options={{
-          title: 'Asistente',
-          tabBarIcon: ({ color, size }) => <Ionicons name="headset-outline" color={color as string} size={size} />,
-        }}
+        options={
+          esJefatura
+            ? { title: 'Asistente', ...sinBoton }
+            : {
+                title: 'Asistente',
+                tabBarIcon: ({ color, size }) => <Ionicons name="headset-outline" color={color as string} size={size} />,
+              }
+        }
       />
       <Tabs.Screen
         name="perfil"
@@ -143,6 +181,11 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-31: detalle de una solicitud de salida (se entra desde Aprobaciones). */}
+      <Tabs.Screen
+        name="aprobacion-salida"
+        options={{ title: 'Autorización de salida', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-25 / HU-26: viáticos asignados al programar y gastos rendidos (se entra desde el menú). */}
       <Tabs.Screen

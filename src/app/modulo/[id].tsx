@@ -4,12 +4,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Proximamente } from '@/componentes/Proximamente';
 import { moduloPorId } from '@/menu/modulos';
+import { moduloJefaturaPorId } from '@/menu/modulosJefatura';
 import { colores } from '@/tema/colores';
 
 /** Pantalla temporal de los módulos del menú (y del detalle de un servicio) que aún no se desarrollan. */
 export default function PantallaModulo() {
   const { id, titulo: tituloParam } = useLocalSearchParams<{ id: string; titulo?: string }>();
-  const modulo = moduloPorId(id);
+  const modulo = moduloPorId(id) ?? moduloJefaturaPorId(id);
   const titulo = modulo?.titulo ?? tituloParam ?? 'Módulo';
 
   return (

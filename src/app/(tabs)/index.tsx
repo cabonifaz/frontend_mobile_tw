@@ -14,6 +14,8 @@ import { useDiseno } from '@/hooks/useDiseno';
 import { modulosMenu, type ModuloMenu } from '@/menu/modulos';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
+import { perfilDe } from '@/utilidades/perfil';
+import { MenuJefatura } from '@/componentes/MenuJefatura';
 
 /**
  * HU-02 — Menú principal y accesos operativos.
@@ -27,7 +29,13 @@ import { colores } from '@/tema/colores';
  */
 const REINTENTO_SIN_CONEXION_MS = 30000;
 
+/** HU-28: el cargo define el menú. Jefe de Servicio Técnico / Jefe de Metrología → menú de Jefatura; el resto → menú de campo. */
 export default function PantallaMenu() {
+  const { sesion } = useSesion();
+  return perfilDe(sesion?.usuario.cargo) === 'jefatura' ? <MenuJefatura /> : <MenuCampo />;
+}
+
+function MenuCampo() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();

@@ -5,7 +5,7 @@ import { colores, radios } from '@/tema/colores';
 import { IconoModulo } from './IconoModulo';
 
 interface Props {
-  modulo: ModuloMenu;
+  modulo: Pick<ModuloMenu, 'id' | 'titulo' | 'icono' | 'destacado'>;
   indicadores?: Indicador[];
   onPress: () => void;
 }
