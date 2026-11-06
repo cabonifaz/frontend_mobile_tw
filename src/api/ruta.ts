@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { solicitar } from './cliente';
 import { entorno } from '@/config/entorno';
 import { mockRuta } from './mockRuta';
+import { conRespaldo, type ConRespaldo } from './respaldo';
 
 /**
  * HU-05, HU-06 y HU-07 — Ruta y planta.
@@ -95,6 +96,11 @@ export interface NuevaDemora {
   ubicacion: Ubicacion;
   /** URI de la foto tomada con la cámara de la app (nunca de la galería). */
   fotoUri: string | null;
+  /**
+   * Hora en que el técnico registró la demora, la marca el teléfono (ISO 8601, UTC). Sin conexión la demora se guarda y se envía después:
+   * el back respeta esta hora (no futura, máx. 24 h) y la usa para no duplicar un envío repetido.
+   */
+  capturadoEn: string;
 }
 
 export interface ResultadoDemora {
@@ -107,6 +113,10 @@ export interface ResultadoDemora {
   /** Llegada: nueva ETA. Ingreso: nuevo inicio previsto del trabajo. */
   etaRecalculada: string | null;
   notificados: number;
+  /** El envío ya estaba registrado (reintento): no se duplicó. */
+  repetida?: boolean;
+  /** Se guardó sin conexión y llegó después. */
+  diferida?: boolean;
 }
 
 const ruta = (idOs: number) => `/api/movil/servicios/${encodeURIComponent(String(idOs))}`;
@@ -114,6 +124,15 @@ const ruta = (idOs: number) => `/api/movil/servicios/${encodeURIComponent(String
 export async function obtenerDemoras(token: string, idOs: number): Promise<ContextoDemoras> {
   if (entorno.usarMock) return mockRuta.demoras(idOs);
   return (await solicitar<ContextoDemoras>(`${ruta(idOs)}/demoras`, { token })).datos!;
+}
+
+/**
+ * Igual que `obtenerDemoras`, pero sin conexión devuelve lo último guardado en el teléfono (motivos, ETA, demoras) para poder
+ * registrar la demora igual: se envía sola cuando vuelva la señal.
+ */
+export async function obtenerDemorasConRespaldo(token: string, idUsuario: number, idOs: number): Promise<ConRespaldo<ContextoDemoras>> {
+  if (entorno.usarMock) return { datos: await mockRuta.demoras(idOs), sinConexion: false, guardadoEn: new Date() };
+  return conRespaldo(idUsuario, `demoras.${idOs}`, () => obtenerDemoras(token, idOs));
 }
 
 export async function registrarDemora(token: string, idOs: number, d: NuevaDemora): Promise<{ mensaje: string; datos: ResultadoDemora | null }> {
@@ -126,6 +145,7 @@ export async function registrarDemora(token: string, idOs: number, d: NuevaDemor
   form.append('latitud', d.ubicacion.latitud.toFixed(7));
   form.append('longitud', d.ubicacion.longitud.toFixed(7));
   form.append('precisionMetros', d.ubicacion.precisionMetros.toFixed(1));
+  form.append('capturadoEn', d.capturadoEn);
   if (d.fotoUri) {
     if (Platform.OS === 'web') {
       // En web la cámara devuelve un data URI: se convierte a archivo

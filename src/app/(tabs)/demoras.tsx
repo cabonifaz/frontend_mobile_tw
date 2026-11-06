@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { obtenerDemoras, registrarDemora, type ResultadoDemora, type TipoDemora, type Ubicacion } from '@/api/ruta';
+import { registrarDemoraOEncolar } from '@/api/colaDemoras';
+import { obtenerDemorasConRespaldo, type ResultadoDemora, type TipoDemora, type Ubicacion } from '@/api/ruta';
+import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { CamaraApp } from '@/componentes/CamaraApp';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { FilaTiempos, duracion } from '@/componentes/FilaTiempos';
+import { useColaDemoras } from '@/hooks/useColaDemoras';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useUbicacion } from '@/hooks/useUbicacion';
@@ -20,6 +23,7 @@ import {
   MAX_DESCRIPCION_DEMORA,
   MAX_DEMORA,
   MIN_DEMORA,
+  contextoConPendientes,
   coordenadasTexto,
   demoraAcumulada,
   impactoDemora,
@@ -42,6 +46,10 @@ interface Registrada {
   resultado: ResultadoDemora | null;
   ubicacion: Ubicacion;
   hora: string;
+  /** true = no se pudo enviar y quedó guardada en el teléfono (se envía sola). */
+  pendiente?: boolean;
+  /** Con `pendiente`: había señal pero el envío falló (p. ej. la foto); si no, no había conexión. */
+  conConexion?: boolean;
 }
 
 /**
@@ -51,6 +59,8 @@ interface Registrada {
  *  - GPS y hora se capturan solos; motivo (según el tipo) y duración (1–480 min) son obligatorios; la descripción y la foto no.
  *  - Foto opcional SOLO con la cámara de la app (sin galería).
  *  - Al registrar, el back avisa a Operaciones y la app muestra la ETA anterior y la nueva. Sin botón de refresh (se desliza hacia abajo).
+ *  - Sin conexión funciona igual: la pantalla usa lo último guardado (motivos, ETA) y la demora se guarda en el teléfono con su hora
+ *    y se envía sola al recuperar la señal (api/colaDemoras.ts); mientras tanto la ETA ya la incluye y la lista la marca pendiente.
  */
 export default function PantallaDemoras() {
   const { sesion } = useSesion();
@@ -63,9 +73,22 @@ export default function PantallaDemoras() {
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     if (!idValido) throw new ErrorApi('Servicio no válido.', 400, 1);
-    const [contexto, cargos] = await Promise.all([obtenerDemoras(token, idOs), obtenerCatalogo(token, 'CARGO_USUARIO')]);
-    return { contexto, cargos };
+    const [respuesta, cargos] = await Promise.all([
+      obtenerDemorasConRespaldo(token, usuario?.idUsuario ?? 0, idOs),
+      obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined), // el cargo del encabezado no debe impedir registrar la demora
+    ]);
+    return { contexto: respuesta.datos, sinConexion: respuesta.sinConexion, guardadoEn: respuesta.guardadoEn, cargos };
   }, params.id ?? '');
+
+  // Demoras guardadas en el teléfono: ya cuentan en la ETA que se ve, y cuando se envían la pantalla vuelve a leer sus datos
+  const cola = useColaDemoras(usuario?.idUsuario);
+  const pendientesOs = cola.pendientes.filter((p) => p.idOs === idOs);
+  const enviadasVistas = useRef(cola.enviadas);
+  useEffect(() => {
+    if (cola.enviadas === enviadasVistas.current) return;
+    enviadasVistas.current = cola.enviadas;
+    void recargar();
+  }, [cola.enviadas, recargar]);
 
   const [tipoElegido, setTipoElegido] = useState<TipoDemora | null>(null);
   const [idMotivo, setIdMotivo] = useState<number | null>(null);
@@ -78,7 +101,7 @@ export default function PantallaDemoras() {
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'info'; texto: string } | null>(null);
   const [registrada, setRegistrada] = useState<Registrada | null>(null);
 
-  const c = datos?.contexto ?? null;
+  const c = datos?.contexto ? contextoConPendientes(datos.contexto, pendientesOs) : null;
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const disponibles = c ? tiposDisponibles(c) : { llegada: false, ingreso: false };
   // El tipo elegido solo vale mientras se pueda registrar; si el servicio avanzó (llegó a planta), se pasa al que corresponde.
@@ -102,26 +125,30 @@ export default function PantallaDemoras() {
     if (!idMotivo || !motivo) return setMensaje({ tipo: 'error', texto: 'Selecciona el motivo de la demora.' });
     if (min === null) return setMensaje({ tipo: 'error', texto: `La duración estimada debe estar entre ${MIN_DEMORA} y ${MAX_DEMORA} minutos.` });
     setEnviando(true);
+    const capturadoEn = new Date().toISOString(); // la hora de la demora es la de este toque, aunque se envíe después
     try {
       const ubicacion = gps.ubicacion ?? (await gps.capturar());
       if (!ubicacion) {
         setMensaje({ tipo: 'error', texto: gps.mensaje ?? 'No se pudo obtener tu ubicación GPS.' });
         return;
       }
-      const r = await registrarDemora(sesion.token, idOs, {
-        tipo,
-        idMotivo,
-        duracionMinutos: min,
-        descripcion: descripcion.slice(0, MAX_DESCRIPCION_DEMORA),
-        ubicacion,
-        fotoUri: foto,
-      });
-      setRegistrada({ tipo, motivo: motivo.nombre, minutos: min, mensaje: r.mensaje, resultado: r.datos, ubicacion, hora: horaLimaAhora() });
+      const r = await registrarDemoraOEncolar(
+        sesion.token,
+        idOs,
+        { idUsuario: sesion.usuario.idUsuario, numeroOs: c.numeroOs, motivo: motivo.nombre },
+        { tipo, idMotivo, duracionMinutos: min, descripcion: descripcion.slice(0, MAX_DESCRIPCION_DEMORA), ubicacion, fotoUri: foto, capturadoEn },
+      );
+      const base = { tipo, motivo: motivo.nombre, minutos: min, ubicacion, hora: horaLimaAhora() };
+      setRegistrada(
+        r.estado === 'enviada'
+          ? { ...base, mensaje: r.mensaje, resultado: r.datos }
+          : { ...base, mensaje: '', resultado: null, pendiente: true, conConexion: r.conConexion },
+      );
       setIdMotivo(null);
       setDescripcion('');
       setFoto(null);
       setMinutos('15');
-      await recargar();
+      if (r.estado === 'enviada') await recargar();
     } catch (e) {
       setMensaje({ tipo: 'error', texto: e instanceof ErrorApi ? e.message : e instanceof Error ? e.message : 'No se pudo registrar la demora.' });
     } finally {
@@ -182,10 +209,27 @@ export default function PantallaDemoras() {
               </Pressable>
             )}
 
+            {datos?.sinConexion && (
+              <View style={{ marginTop: 10 }} testID="aviso-sin-conexion">
+                <Aviso
+                  tipo="info"
+                  mensaje={`Sin conexión: ves lo último guardado a las ${horaRespaldo(datos.guardadoEn)}. Puedes registrar la demora igual: se envía sola cuando vuelva la señal.`}
+                />
+              </View>
+            )}
+
             {registrada ? (
               <Confirmacion
                 r={registrada}
-                acumulada={demoraAcumulada(c.demoras, registrada.tipo)}
+                acumulada={
+                  demoraAcumulada(c.demoras, registrada.tipo) +
+                  pendientesOs.filter((p) => p.tipo === registrada.tipo).reduce((suma, p) => suma + p.duracionMinutos, 0)
+                }
+                estimada={
+                  registrada.tipo === 'ingreso'
+                    ? { original: c.llegadaEn ?? null, nueva: c.inicioPrevisto ?? null }
+                    : { original: c.etaOriginal, nueva: c.etaVigente }
+                }
                 puedeOtra={disponibles.llegada || disponibles.ingreso}
                 onVolver={volverAlServicio}
                 onOtra={() => {
@@ -339,12 +383,33 @@ export default function PantallaDemoras() {
               </>
             )}
 
-            {c.demoras.length > 0 && (
+            {(c.demoras.length > 0 || pendientesOs.length > 0) && (
               <View style={{ marginTop: 22 }} testID="demoras-del-servicio">
                 <Text style={estilos.etiqueta}>DEMORAS DEL SERVICIO</Text>
                 <View style={estilos.tarjeta}>
+                  {[...pendientesOs].reverse().map((x, i) => (
+                    <View key={x.idLocal} style={[estilos.demora, i > 0 && estilos.separador]} testID={`pendiente-${x.idLocal}`}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={estilos.campoTexto}>
+                          {x.motivo} · {x.duracionMinutos} min
+                        </Text>
+                        <Text style={estilos.nota}>
+                          {nombreTipoDemora(x.tipo)} · {horaDe(x.capturadoEn)}
+                        </Text>
+                        {!!x.descripcion && (
+                          <Text style={estilos.nota} numberOfLines={2}>
+                            {x.descripcion}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={estilos.pendienteEnvio}>
+                        <Ionicons name="cloud-upload-outline" size={12} color={colores.amarilloTexto} />
+                        <Text style={estilos.pendienteEnvioTexto}>POR ENVIAR</Text>
+                      </View>
+                    </View>
+                  ))}
                   {c.demoras.map((x, i) => (
-                    <View key={x.idDemora} style={[estilos.demora, i > 0 && estilos.separador]}>
+                    <View key={x.idDemora} style={[estilos.demora, (i > 0 || pendientesOs.length > 0) && estilos.separador]}>
                       <View style={{ flex: 1 }}>
                         <Text style={estilos.campoTexto}>
                           {x.motivo ?? 'Demora'} · {x.duracionMinutos} min
@@ -425,12 +490,15 @@ function TarjetaTipo({
 function Confirmacion({
   r,
   acumulada,
+  estimada,
   puedeOtra,
   onVolver,
   onOtra,
 }: {
   r: Registrada;
   acumulada: number;
+  /** Para una demora guardada sin conexión: las horas que tendrá cuando se registre (sin respuesta del servidor todavía). */
+  estimada: { original: string | null; nueva: string | null };
   puedeOtra: boolean;
   onVolver: () => void;
   onOtra: () => void;
@@ -440,16 +508,27 @@ function Confirmacion({
   const coordenadas = coordenadasTexto(r.ubicacion.latitud, r.ubicacion.longitud);
   return (
     <View style={{ marginTop: 18 }} testID="demora-registrada">
-      <View style={estilos.exito}>
-        <Ionicons name="checkmark-circle" size={44} color={colores.verde} />
-        <Text style={estilos.exitoTitulo}>Demora registrada</Text>
+      <View style={[estilos.exito, r.pendiente && estilos.exitoPendiente]}>
+        <Ionicons name={r.pendiente ? 'cloud-upload-outline' : 'checkmark-circle'} size={44} color={r.pendiente ? colores.amarilloTexto : colores.verde} />
+        <Text style={estilos.exitoTitulo}>{r.pendiente ? 'Demora guardada en tu teléfono' : 'Demora registrada'}</Text>
         <Text style={estilos.exitoTexto}>
           {nombreTipoDemora(r.tipo)} · {r.motivo} · {r.minutos} min
         </Text>
       </View>
 
       <View style={estilos.impacto}>
-        {res?.etaRecalculada ? (
+        {r.pendiente ? (
+          <>
+            <View style={estilos.impactoFila}>
+              <Text style={estilos.campoTexto}>{ingreso ? 'Llegada a planta' : 'ETA original'}</Text>
+              <Text style={estilos.impactoValor}>{horaDe(estimada.original)}</Text>
+            </View>
+            <View style={estilos.impactoFila}>
+              <Text style={estilos.campoTexto}>{ingreso ? 'Inicio estimado' : 'ETA estimada'}</Text>
+              <Text style={[estilos.impactoValor, { color: colores.rojo }]}>{horaDe(estimada.nueva)}</Text>
+            </View>
+          </>
+        ) : res?.etaRecalculada ? (
           <>
             <View style={estilos.impactoFila}>
               <Text style={estilos.campoTexto}>{ingreso ? 'Inicio previsto anterior' : 'ETA original'}</Text>
@@ -480,9 +559,13 @@ function Confirmacion({
       <View style={{ marginTop: 12 }}>
         <Aviso
           mensaje={
-            res && res.notificados > 0
-              ? `Se avisó a Operaciones (${res.notificados} ${res.notificados === 1 ? 'persona' : 'personas'}).`
-              : r.mensaje
+            r.pendiente
+              ? r.conConexion
+                ? 'No se pudo enviar ahora (revisa la señal o el peso de la foto). Quedó guardada con su hora y se reintenta sola; si la foto no sube, se registrará sin ella.'
+                : 'Sin conexión: quedó guardada con su hora y GPS. Se enviará sola cuando recuperes la señal y se avisará a Operaciones.'
+              : res && res.notificados > 0
+                ? `Se avisó a Operaciones (${res.notificados} ${res.notificados === 1 ? 'persona' : 'personas'}).`
+                : r.mensaje
           }
         />
       </View>
@@ -580,6 +663,18 @@ const estilos = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 16,
   },
+  exitoPendiente: { backgroundColor: colores.amarilloFondo, borderColor: '#FCD34D' },
+  pendienteEnvio: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colores.amarilloFondo,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    marginTop: 2,
+  },
+  pendienteEnvioTexto: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.4, color: colores.amarilloTexto },
   exitoTitulo: { fontSize: 20, fontWeight: '800', color: colores.titulo },
   exitoTexto: { fontSize: 14, color: colores.textoSecundario, textAlign: 'center' },
 });

@@ -5,7 +5,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { obtenerDemoras } from '@/api/ruta';
+import { obtenerDemorasConRespaldo } from '@/api/ruta';
 import {
   marcarItemChecklist,
   obtenerChecklistSalida,
@@ -71,7 +71,10 @@ export default function PantallaDetalleServicio() {
         obtenerCatalogo(token, 'CARGO_USUARIO'),
       ]);
       // Traslado en curso: la salida y la ETA vigente (con las demoras ya registradas) salen del contexto de demoras.
-      const demoras = detalle.servicio.estadoOs === 'en_ruta' ? await obtenerDemoras(token, idOs).catch(() => null) : null;
+      const demoras =
+        detalle.servicio.estadoOs === 'en_ruta'
+          ? await obtenerDemorasConRespaldo(token, usuario?.idUsuario ?? 0, idOs).then((r) => r.datos).catch(() => null)
+          : null;
       return { detalle, checklist, cargos, demoras };
     },
     `${params.id ?? ''}|${params.v ?? ''}`,

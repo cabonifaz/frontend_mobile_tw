@@ -86,3 +86,77 @@ export function coordenadasTexto(latitud: number | null | undefined, longitud: n
 export function nombreTipoDemora(tipo: TipoDemora | string | undefined): string {
   return tipo === 'ingreso' ? 'Ingreso a planta' : 'Llegada a planta';
 }
+
+// ── Sin conexión: demoras guardadas en el teléfono ───────────────────────────────────────────
+
+/** Qué hacer con una demora guardada cuando su envío falla. */
+export type DestinoFallo = 'sin_conexion' | 'sesion' | 'rechazada' | 'reintentar';
+
+/**
+ * Clasifica el fallo de un envío (estadoHttp 0 = sin conexión o tiempo agotado, como lo informa `solicitar`):
+ *  - sin_conexion: se conserva y se reintenta cuando vuelva la señal.
+ *  - sesion: la sesión terminó (401): se conserva hasta que el técnico vuelva a entrar.
+ *  - rechazada: el servidor la rechazó por una regla de negocio o por datos que nunca serán válidos (4xx): se descarta y se avisa.
+ *  - reintentar: error del servidor (5xx) u otro: se conserva y se reintenta, con tope de intentos.
+ */
+export function clasificarFallo(estadoHttp: number, idTipoMensaje?: number): DestinoFallo {
+  if (estadoHttp === 0) return 'sin_conexion';
+  if (estadoHttp === 401) return 'sesion';
+  if (idTipoMensaje === 1) return 'rechazada';
+  if (estadoHttp >= 400 && estadoHttp < 500 && estadoHttp !== 408 && estadoHttp !== 429) return 'rechazada';
+  return 'reintentar';
+}
+
+/** Intentos con conexión confirmada tras los cuales una demora con foto se envía sin la foto (la foto no se puede subir). */
+export const INTENTOS_ANTES_DE_SOLTAR_FOTO = 3;
+/** Intentos tras los cuales una demora que el servidor no logra procesar (5xx) se descarta y se avisa. */
+export const INTENTOS_MAXIMOS = 10;
+
+/** Bytes que ocupa un texto en UTF-8 (el almacenamiento seguro del teléfono limita el tamaño de cada valor). */
+export function bytesUtf8(texto: string): number {
+  let bytes = 0;
+  for (const caracter of texto) {
+    const c = caracter.codePointAt(0) ?? 0;
+    bytes += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+  }
+  return bytes;
+}
+
+/**
+ * Recorta la descripción hasta que `armar(descripcion)` entre en `maximoBytes`. Lo demás de la demora no se toca: es mejor
+ * guardar la demora con una descripción más corta que perderla.
+ */
+export function descripcionQueEntra(descripcion: string, maximoBytes: number, armar: (d: string) => string): string {
+  let d = descripcion;
+  while (d.length > 0 && bytesUtf8(armar(d)) > maximoBytes) d = d.slice(0, Math.max(0, d.length - Math.max(10, Math.ceil(d.length / 10))));
+  return d;
+}
+
+/** Lo mínimo de una demora pendiente que necesita el cálculo de horas. */
+export interface DemoraPendienteCalculo {
+  tipo: TipoDemora;
+  duracionMinutos: number;
+  capturadoEn: string;
+}
+
+/**
+ * El contexto de la pantalla (ETA, inicio previsto) más las demoras que aún no se enviaron: sin conexión, el técnico ve la ETA
+ * que tendrá cuando se registren. Las de llegada suman a la ETA vigente; las de ingreso se encadenan desde el inicio previsto.
+ */
+export function contextoConPendientes(c: ContextoDemoras, pendientes: readonly DemoraPendienteCalculo[]): ContextoDemoras {
+  if (pendientes.length === 0) return c;
+  const llegada = pendientes.filter((p) => p.tipo === 'llegada').reduce((suma, p) => suma + p.duracionMinutos, 0);
+  let inicio = c.inicioPrevisto ?? c.ahora;
+  [...pendientes]
+    .filter((p) => p.tipo === 'ingreso')
+    .sort((a, b) => a.capturadoEn.localeCompare(b.capturadoEn))
+    .forEach((p) => {
+      inicio = sumarMinutos(inicio, p.duracionMinutos) ?? inicio;
+    });
+  return {
+    ...c,
+    minutosDemora: c.minutosDemora + llegada,
+    etaVigente: llegada > 0 ? (sumarMinutos(c.etaVigente, llegada) ?? c.etaVigente) : c.etaVigente,
+    inicioPrevisto: inicio,
+  };
+}

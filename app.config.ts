@@ -81,7 +81,8 @@ const config: ExpoConfig = {
     [
       'expo-location',
       {
-        locationWhenInUsePermission: 'La app usa tu ubicación para registrar demoras y validar tu llegada a la planta del cliente.',
+        locationWhenInUsePermission:
+          'La app usa tu ubicación para registrar demoras, validar tu llegada a la planta del cliente y mostrar tu posición a Operaciones mientras tienes un servicio en curso.',
         isAndroidBackgroundLocationEnabled: false,
         isIosBackgroundLocationEnabled: false,
       },

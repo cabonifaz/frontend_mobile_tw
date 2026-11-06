@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Boton } from './Boton';
 import { colores } from '@/tema/colores';
+import { elegirTamanoFoto } from '@/utilidades/camara';
 
 interface Props {
   visible: boolean;
@@ -24,13 +25,24 @@ export function CamaraApp({ visible, modo, onCerrar, onFoto, onQr }: Props) {
   const [permiso, pedirPermiso] = useCameraPermissions();
   const camara = useRef<CameraView>(null);
   const [tomando, setTomando] = useState(false);
+  /** Tamaño de foto (Android): la evidencia no necesita los megapíxeles del sensor, y una foto pesada falla al subirse. */
+  const [tamanoFoto, setTamanoFoto] = useState<string | undefined>(undefined);
   const leido = useRef(false);
+
+  async function alEstarLista() {
+    if (modo !== 'foto' || Platform.OS !== 'android' || !camara.current) return;
+    try {
+      setTamanoFoto(elegirTamanoFoto(await camara.current.getAvailablePictureSizesAsync()));
+    } catch {
+      // sin lista de tamaños: se usa el de la cámara (la calidad igual baja el peso)
+    }
+  }
 
   async function tomarFoto() {
     if (!camara.current || tomando) return;
     setTomando(true);
     try {
-      const foto = await camara.current.takePictureAsync({ quality: 0.6, exif: false });
+      const foto = await camara.current.takePictureAsync({ quality: 0.5, exif: false });
       if (foto?.uri) onFoto?.(foto.uri);
     } finally {
       setTomando(false);
@@ -69,6 +81,8 @@ export function CamaraApp({ visible, modo, onCerrar, onFoto, onQr }: Props) {
               ref={camara}
               style={{ flex: 1 }}
               facing="back"
+              pictureSize={modo === 'foto' ? tamanoFoto : undefined}
+              onCameraReady={() => void alEstarLista()}
               barcodeScannerSettings={modo === 'qr' ? { barcodeTypes: ['qr'] } : undefined}
               onBarcodeScanned={modo === 'qr' ? alLeer : undefined}
             />

@@ -3,6 +3,7 @@ import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
+import { MonitorCampo } from '@/componentes/MonitorCampo';
 import { useAprobacionesPendientes } from '@/hooks/useAprobacionesPendientes';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
@@ -54,6 +55,9 @@ export default function LayoutPestanas() {
   };
 
   return (
+    <>
+    {/* GPS automático al entrar, seguimiento mientras hay un servicio en curso y envío de demoras guardadas sin conexión */}
+    <MonitorCampo />
     <Tabs
       // "Volver" regresa a la pantalla anterior (agenda → detalle → checklist), no siempre al menú.
       backBehavior="history"
@@ -201,6 +205,7 @@ export default function LayoutPestanas() {
         options={{ title: 'Gasto', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
+    </>
   );
 }
 
