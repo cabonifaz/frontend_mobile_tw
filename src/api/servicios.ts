@@ -249,6 +249,12 @@ export interface ChecklistSalida {
   trasladoIniciado: boolean;
   autorizacion: AutorizacionSalida | null;
   areaAutoriza: AreaAutorizaSalida | null;
+  /**
+   * La salida se valida solo desde el día programado. `false` = aún no es el día: el detalle se ve, pero "Validar salida"
+   * queda deshabilitado y `salidaMensaje` dice cuándo se habilita. Opcional: un back anterior no lo envía (se trata como habilitado).
+   */
+  salidaHabilitada?: boolean;
+  salidaMensaje?: string | null;
 }
 
 /** Resultado de una acción: mensaje del back y el checklist ya actualizado. */

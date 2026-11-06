@@ -171,6 +171,12 @@ export default function PantallaChecklistSalida() {
               </View>
             </View>
 
+            {c.salidaHabilitada === false && !c.trasladoIniciado && (
+              <View style={{ marginTop: 14 }} testID="aviso-salida-pendiente">
+                <Aviso tipo="info" mensaje={c.salidaMensaje || 'Aún no es el día del servicio: podrás validar la salida ese día.'} />
+              </View>
+            )}
+
             <Text style={estilos.seccion}>CHECKLIST OBLIGATORIO</Text>
             <View style={{ gap: 10 }}>
               {c.items.map((i) => (
@@ -199,7 +205,7 @@ export default function PantallaChecklistSalida() {
                   <Text style={estilos.recuadroTexto}>El servicio está en ruta. Marca la llegada al llegar a la planta.</Text>
                 </View>
               </View>
-            ) : c.faltantes.length > 0 && !c.puedeIniciar ? (
+            ) : c.faltantes.length > 0 && !c.puedeIniciar && c.salidaHabilitada !== false ? (
               <View style={[estilos.recuadro, estilos.recuadroError]} testID="aviso-bloqueo">
                 <Ionicons name="alert-circle" size={22} color={colores.rojo} />
                 <View style={{ flex: 1 }}>

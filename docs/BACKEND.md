@@ -41,6 +41,13 @@ docs/
 | Checklist de pre-salida (HU-04) | `GET api/movil/servicios/{idOs}/checklist` · `PUT …/checklist/{codigo}` | `SP_ObtenerChecklistSalidaMovil`, `SP_MarcarChecklistSalidaMovil` | `checklist_presalida_os`, `os_personal`, `expediente_digital`, `item_presalida`, `alerta_predictiva`, `autorizacion_salida_os` |
 | Solicitar autorización (HU-04) | `POST api/movil/servicios/{idOs}/solicitar-autorizacion` | `SP_SolicitarAutorizacionSalidaMovil` | `autorizacion_salida_os`, `requerimiento`, `area_servicio_rq`, `notificacion`, `auditoria_evento` (notifica al Jefe de Servicio Técnico o al Jefe de Metrología según el área de la RQ) |
 | Iniciar traslado (HU-04) | `POST api/movil/servicios/{idOs}/iniciar-traslado` | `SP_IniciarTrasladoMovil` | `orden_servicio`, `evento_campo`, `auditoria_evento` |
+
+**La salida se valida solo desde el día programado (HU-04).** Antes de esa fecha el técnico ve el detalle completo, pero:
+- el checklist trae `salidaHabilitada: false` y `salidaMensaje` ("Aún no es el día del servicio. Podrás validar la salida el dd/mm/aaaa."),
+- los ítems del checklist vienen no editables y `puedeIniciar` / `puedeSolicitarAutorizacion` en `false`,
+- "Validar salida" queda deshabilitado con ese aviso, y marcar un ítem, solicitar autorización o iniciar el traslado responden `IdTipoMensaje 1` con el mismo mensaje.
+
+La regla vive una sola vez, en `SP_ObtenerSalidaHabilitadaMovil` (usa la fecha de Lima = UTC-5); la app solo muestra lo que el back informa.
 | Intranet · visto bueno de salida (HU-04) | `GET api/operaciones/autorizaciones-salida` · `PUT api/operaciones/ordenes-servicio/{idOs}/visto-bueno-salida` | `SP_ObtenerAutorizacionesSalida`, `SP_ResolverAutorizacionSalida` | `autorizacion_salida_os`, `area_servicio_rq`, `notificacion`, `auditoria_evento` (cada encargado ve y resuelve solo su área) |
 | Servicios Programados (agenda) | `GET api/movil/servicios?filtro=&busqueda=` | `SP_ObtenerServiciosProgramadosMovil` | `orden_servicio`, `os_personal`, `os_equipo`, `programacion`, `programacion_equipo`, `informe_tecnico`, `alerta_predictiva`, `expediente_digital`, `expediente_bloqueador`, `requerimiento`, `orden_metrologia`, `cliente`, `sede_cliente`, `usuario` |
 | Menú · cargo del encabezado | `GET api/maestros/catalogos/CARGO_USUARIO` | `SP_ObtenerCatalogo` | `tabla_maestra` |

@@ -223,11 +223,22 @@ function areaDemo(idOs: number) {
     : { codigo: 'servicio_tecnico' as const, area: 'Servicio Técnico', cargo: 'Jefe de Servicio Técnico', encargado: 'Jorge Salas' };
 }
 
+/** Misma regla del back: la salida se valida desde el día programado (antes se ve el detalle, pero no se valida). */
+function salidaDemo(idOs: number): { habilitada: boolean; mensaje: string | null } {
+  const s = serviciosDemo().find((x) => x.idOs === idOs) ?? serviciosDemo()[0];
+  const e = estadoDemo(idOs);
+  const fecha = s.fechaEjecucion;
+  if (e.estadoOs !== 'programada' || !fecha || fecha <= fechaRelativa(0)) return { habilitada: true, mensaje: null };
+  const [a, m, d] = fecha.split('-');
+  return { habilitada: false, mensaje: `Aún no es el día del servicio. Podrás validar la salida el ${d}/${m}/${a}.` };
+}
+
 function checklistDemo(idOs: number): ChecklistSalida {
   const s = serviciosDemo().find((x) => x.idOs === idOs) ?? serviciosDemo()[0];
   const e = estadoDemo(idOs);
   const area = areaDemo(idOs);
-  const editable = e.estadoOs === 'programada';
+  const salida = salidaDemo(idOs);
+  const editable = e.estadoOs === 'programada' && salida.habilitada;
   const manual = (codigo: CodigoManual, nombre: string): ItemChecklist => ({
     codigo, nombre, tipo: 'manual', obligatorio: true, estado: e.manuales[codigo] ? 'conforme' : 'pendiente', detalle: null, editable,
   });
@@ -264,6 +275,8 @@ function checklistDemo(idOs: number): ChecklistSalida {
     autorizacion: e.autorizacion ? { estado: e.autorizacion, jefe: e.autorizacion === 'aprobada' ? area.encargado : null,
       comentario: null, solicitadaEn: new Date().toISOString(), resueltaEn: null } : null,
     areaAutoriza: area,
+    salidaHabilitada: salida.habilitada,
+    salidaMensaje: salida.mensaje,
   };
 }
 
@@ -346,11 +359,15 @@ export const mockPresalida = {
   },
   async marcar(idOs: number, codigo: CodigoManual, confirmado: boolean): Promise<ResultadoChecklist> {
     await esperar(250);
+    const salida = salidaDemo(idOs);
+    if (!salida.habilitada) throw new ErrorApi(salida.mensaje ?? 'Aún no es el día del servicio.', 400, 1);
     estadoDemo(idOs).manuales[codigo] = confirmado;
     return { mensaje: confirmado ? 'Confirmado.' : 'Desmarcado.', checklist: checklistDemo(idOs) };
   },
   async solicitar(idOs: number): Promise<ResultadoChecklist> {
     await esperar(400);
+    const salida = salidaDemo(idOs);
+    if (!salida.habilitada) throw new ErrorApi(salida.mensaje ?? 'Aún no es el día del servicio.', 400, 1);
     const e = estadoDemo(idOs);
     e.autorizacion = 'pendiente';
     setTimeout(() => { e.autorizacion = 'aprobada'; }, 2000);
@@ -360,7 +377,7 @@ export const mockPresalida = {
   async iniciar(idOs: number): Promise<ResultadoChecklist> {
     await esperar(400);
     const c = checklistDemo(idOs);
-    if (!c.puedeIniciar) throw new ErrorApi(`No puedes iniciar el traslado. Faltan: ${c.faltantes.join(', ')}.`, 400, 1);
+    if (!c.puedeIniciar) throw new ErrorApi(c.salidaMensaje ?? `No puedes iniciar el traslado. Faltan: ${c.faltantes.join(', ')}.`, 400, 1);
     estadoDemo(idOs).estadoOs = 'en_ruta';
     return { mensaje: 'Traslado iniciado. ¡Buen viaje!', checklist: checklistDemo(idOs) };
   },

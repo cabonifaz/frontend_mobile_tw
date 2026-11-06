@@ -104,6 +104,9 @@ export default function PantallaDetalleServicio() {
   const programada = s ? ['programada', 'reprogramada'].includes(s.estadoOs) : false;
   const enRuta = s?.estadoOs === 'en_ruta';
   const enPlanta = s ? ['en_ejecucion', 'pausada'].includes(s.estadoOs) : false;
+  // Antes del día programado el detalle se ve completo, pero la salida aún no se puede validar (HU-04).
+  const salidaPendiente = programada && datos?.checklist.salidaHabilitada === false;
+  const textoSalidaPendiente = datos?.checklist.salidaMensaje || 'Aún no es el día del servicio: podrás validar la salida ese día.';
 
   async function alternar(i: ItemChecklist) {
     if (!sesion || !i.editable || guardando) return;
@@ -516,10 +519,18 @@ export default function PantallaDetalleServicio() {
 
             <View style={{ gap: 12, marginTop: 18 }}>
               {programada ? (
-                <Boton
-                  titulo="Validar salida"
-                  onPress={() => router.push({ pathname: '/checklist-salida', params: { id: String(idOs) } })}
-                />
+                <>
+                  {salidaPendiente && (
+                    <View testID="aviso-salida-pendiente">
+                      <Aviso tipo="info" mensaje={textoSalidaPendiente} />
+                    </View>
+                  )}
+                  <Boton
+                    titulo="Validar salida"
+                    deshabilitado={salidaPendiente}
+                    onPress={() => router.push({ pathname: '/checklist-salida', params: { id: String(idOs) } })}
+                  />
+                </>
               ) : enRuta ? (
                 <>
                   <Boton titulo="Registrar llegada" onPress={() => ir('/llegada')} />
