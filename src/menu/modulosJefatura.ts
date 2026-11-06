@@ -3,10 +3,10 @@ import type { AreaJefatura } from '@/utilidades/perfil';
 import type { Indicador, ModuloMenu } from './modulos';
 
 /**
- * Módulos del menú de Jefatura (HU-28), en el orden del mockup. Hoy solo el Jefe de Metrología tiene menú de Jefatura:
+ * Módulos del menú de Jefatura (HU-28), en el orden del mockup. Hoy solo el Jefe de Metrología (supervisor del área Metrología) tiene menú de Jefatura:
  *   Metrología: Panel de Campo, Aprobaciones, Correlativos, Mi Equipo, Certificados por Revisar, Recepción en Taller,
  *               Agenda del Área, Viáticos y Gastos y Procedimientos. (Correlativos y Recepción en Taller son solo de Metrología.)
- * El Jefe de Servicio Técnico usa el menú de campo. Para sumar otra área: agregar su cargo en utilidades/perfil.ts y su lista aquí.
+ * El Jefe de Servicio Técnico usa el menú de campo. Para sumar otra área: agregarla en utilidades/perfil.ts y su lista aquí.
  * Las pantallas que todavía no existen abren "Próximamente" y no muestran contador (ruta null). Se van habilitando de a una
  * cambiando `ruta`. Las que existen: Aprobaciones (HU-31).
  */

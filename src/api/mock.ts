@@ -25,11 +25,11 @@ const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const usuarios: Record<
   string,
-  { contrasena: string; nombre: string; apellido: string; forzar: boolean; cargo: string; area: string }
+  { contrasena: string; nombre: string; apellido: string; forzar: boolean; cargo: string; area: string; rol?: string }
 > = {
   'tecnico.demo': { contrasena: 'Demo1234', nombre: 'Carlos', apellido: 'Quispe', forzar: false, cargo: 'tecnico_campo', area: 'servicio_tecnico' },
   'tecnico.nuevo': { contrasena: 'Temporal1', nombre: 'Lucía', apellido: 'Huamán', forzar: true, cargo: 'tecnico_campo', area: 'servicio_tecnico' },
-  'jefe.met': { contrasena: 'Demo1234', nombre: 'Ana', apellido: 'Torres', forzar: false, cargo: 'jefe_metrologia', area: 'metrologia' },
+  'jefe.met': { contrasena: 'Demo1234', nombre: 'Ana', apellido: 'Torres', forzar: false, cargo: 'Jefe de Metrología', area: 'metrologia', rol: 'supervisor' },
 };
 
 export const mockAutenticacion = {
@@ -53,7 +53,7 @@ export const mockAutenticacion = {
         apellido: u.apellido,
         cargo: u.cargo,
         area: u.area,
-        rolSistema: 'usuario',
+        rolSistema: u.rol ?? 'usuario',
         forzarCambioContrasena: u.forzar,
       },
     };

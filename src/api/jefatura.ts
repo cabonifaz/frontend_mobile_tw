@@ -6,7 +6,7 @@ import { mockJefatura } from './mockJefatura';
 /**
  * HU-28 — Menú de Jefatura (Jefe de Metrología; el Jefe de Servicio Técnico usa el menú de campo).
  * Backend: GET api/movil/jefatura/menu → SP_ObtenerMenuJefaturaMovil
- * Tablas: usuario, tabla_maestra (CARGO_USUARIO, AREA_USUARIO, SEDE_OPERATIVA_TW), orden_servicio, expediente_digital,
+ * Tablas: usuario (rol_sistema + area), tabla_maestra (AREA_USUARIO, SEDE_OPERATIVA_TW), orden_servicio, expediente_digital,
  *   requerimiento, area_servicio_rq, demora_registro, autorizacion_salida_os.
  * Todo se filtra por el área del jefe según la RQ de cada servicio. Los contadores son de HOY (hora de Lima).
  */

@@ -16,7 +16,7 @@ import { areaDeJefatura } from '@/utilidades/perfil';
 
 /**
  * HU-28 — Menú de Jefatura (Jefe de Metrología; el Jefe de Servicio Técnico usa el menú de campo).
- *  - El cargo del usuario define el menú: este es el del jefe; el técnico ve el menú de campo (HU-02).
+ *  - El rol y el área del usuario definen el menú: este es el del Jefe de Metrología (supervisor del área); el resto ve el menú de campo (HU-02).
  *  - Resumen del día del área (programados, en ruta, en ejecución y con demora), filtrado por el área según la RQ de cada servicio.
  *  - Tarjetas del área: Panel de Campo, Aprobaciones, Correlativos, Mi Equipo, Certificados por Revisar, Recepción en Taller, etc.
  *    Aprobaciones muestra cuántas solicitudes esperan su decisión; las pantallas que aún no existen abren "Próximamente".
@@ -27,7 +27,7 @@ export function MenuJefatura() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();
-  const areaCargo = areaDeJefatura(usuario?.cargo);
+  const areaCargo = areaDeJefatura(usuario);
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     const [menu, cargos] = await Promise.all([obtenerMenuJefatura(token), obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => null)]);
@@ -36,7 +36,7 @@ export function MenuJefatura() {
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Jefe de Área';
   const menu = datos?.menu ?? null;
-  // El área sale del back (cargo + RQ); mientras carga, del cargo que ya conoce la sesión.
+  // El área sale del back (rol + área + RQ); mientras carga, de lo que ya conoce la sesión.
   const area = menu?.areaCodigo ?? areaCargo ?? 'metrologia';
   const nombreArea = menu?.areaNombre ?? 'Metrología';
   const modulos = useMemo(() => modulosJefatura(area), [area]);

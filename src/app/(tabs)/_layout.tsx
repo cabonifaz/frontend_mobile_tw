@@ -13,13 +13,13 @@ import { perfilDe } from '@/utilidades/perfil';
  * Las pantallas de la ruta del técnico (HU-03 en adelante) viven aquí sin botón propio, para que la
  * barra inferior se siga viendo; mientras están abiertas, la pestaña "Menú" queda marcada.
  * "Mi cuenta" también vive aquí sin botón y marca la pestaña "Perfil".
- * El cargo define la barra (HU-28): el técnico ve Menú · Notificaciones · Asistente · Perfil; el Jefe de Servicio Técnico y el
- * Jefe de Metrología ven Menú · Aprobaciones (con globo) · Notificaciones · Perfil.
+ * El rol y el área definen la barra (HU-28): el técnico ve Menú · Notificaciones · Asistente · Perfil; el Jefe de Metrología
+ * (supervisor del área) ve Menú · Aprobaciones (con globo) · Notificaciones · Perfil.
  */
 export default function LayoutPestanas() {
   const pathname = usePathname();
   const { sesion } = useSesion();
-  const esJefatura = perfilDe(sesion?.usuario.cargo) === 'jefatura';
+  const esJefatura = perfilDe(sesion?.usuario) === 'jefatura';
   const aprobacionesPendientes = useAprobacionesPendientes(esJefatura, pathname);
   // Pestaña que no corresponde al perfil: existe pero sin botón (no se usa href: null, ver nota de HU-03).
   const sinBoton = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as const } };

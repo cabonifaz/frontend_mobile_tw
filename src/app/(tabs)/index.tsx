@@ -29,10 +29,10 @@ import { MenuJefatura } from '@/componentes/MenuJefatura';
  */
 const REINTENTO_SIN_CONEXION_MS = 30000;
 
-/** HU-28: el cargo define el menú. Jefe de Servicio Técnico / Jefe de Metrología → menú de Jefatura; el resto → menú de campo. */
+/** HU-28: el rol y el área definen el menú. Jefe de Metrología (supervisor del área) → menú de Jefatura; el resto → menú de campo. */
 export default function PantallaMenu() {
   const { sesion } = useSesion();
-  return perfilDe(sesion?.usuario.cargo) === 'jefatura' ? <MenuJefatura /> : <MenuCampo />;
+  return perfilDe(sesion?.usuario) === 'jefatura' ? <MenuJefatura /> : <MenuCampo />;
 }
 
 function MenuCampo() {
