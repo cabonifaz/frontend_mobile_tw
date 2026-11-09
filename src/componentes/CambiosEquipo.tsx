@@ -3,11 +3,11 @@ import type { CambioEquipo } from '@/api/ruta';
 import { colores } from '@/tema/colores';
 import { fechaCorta, horaDe } from '@/utilidades/formato';
 
-/** Etiqueta del avance de un equipo (EN EJECUCIÓN, POR INICIAR, PAUSADO…). */
+/** Etiqueta del avance de un equipo (EJECUTANDO, POR INICIAR, PAUSADO…). */
 const etiquetasEstado: Record<string, { texto: string; fondo: string; color: string }> = {
-  en_ejecucion: { texto: 'EN EJECUCIÓN', fondo: colores.azulFondo, color: colores.azulTexto },
+  en_ejecucion: { texto: 'EJECUTANDO', fondo: colores.azulFondo, color: colores.azulTexto },
   por_iniciar: { texto: 'POR INICIAR', fondo: colores.grisFondo, color: colores.grisTexto },
-  pausado: { texto: 'PAUSADO', fondo: colores.rojo, color: colores.blanco },
+  pausado: { texto: 'PAUSADO', fondo: colores.amarilloFondo, color: colores.amarilloTexto },
   completado: { texto: 'COMPLETADO', fondo: colores.verdeEtiquetaFondo, color: colores.verdeEtiquetaTexto },
   observado: { texto: 'OBSERVADO', fondo: colores.rojoEtiquetaFondo, color: colores.rojoEtiquetaTexto },
 };

@@ -3,9 +3,12 @@ import type {
   ContextoDemoras,
   Llegada,
   NuevaDemora,
+  NuevoEquipo,
   ObjetivoEquipo,
   Objetivos,
+  OpcionesEquipoNuevo,
   ResultadoDemora,
+  ResultadoEquipoNuevo,
   ResultadoLlegada,
   Ubicacion,
   ValidacionLlegada,
@@ -33,40 +36,53 @@ const sumar = (iso: string, min: number) => {
 };
 
 const REFERENCIA = { latitud: -12.0453, longitud: -77.1137, radioMetros: 200 };
-const estado = { demoras: [] as ContextoDemoras['demoras'], llegada: false, equipos: new Map<number, Partial<ObjetivoEquipo>>() };
+const estado = {
+  demoras: [] as ContextoDemoras['demoras'],
+  llegada: false,
+  equipos: new Map<number, Partial<ObjetivoEquipo>>(),
+  nuevos: [] as ObjetivoEquipo[],
+};
 
 function equiposBase(): ObjetivoEquipo[] {
+  const comun = {
+    garantia: undefined,
+    estadoEquipo: 'Operativo en Planta', bloqueado: false, enCampo: false, faltaEquipo: false, alertasPendientes: 0, tiempoRealMin: 0,
+    iniciadoEn: null, motivoPausa: null, requiereAprobacion: false, ultimaIntervencion: null, ultimaParte: null, cambios: [],
+    puedeIniciar: false, puedePausar: false, puedeReanudar: false, estado: 'por_iniciar' as const,
+  };
   const base: ObjetivoEquipo[] = [
     {
-      idOsEquipo: 1, idEquipo: 501, codigoTw: 'EQ-TW-2026-0501', codigoCliente: 'BAL-001', nombre: 'Báscula Camionera',
-      marca: 'Mettler Toledo', modelo: 'VTC-221', numeroSerie: 'MT-552', ubicacion: 'Balanza 1', tipoIntervencion: 'Mantenimiento preventivo',
-      estadoEquipo: 'Operativo en Planta', bloqueado: false, garantiaVigente: true, alertasPendientes: 1, estado: 'por_iniciar',
-      tiempoEstimadoMin: 90, tiempoRealMin: 0, iniciadoEn: null, motivoPausa: null, requiereAprobacion: false,
-      ultimaIntervencion: '2025-10-15', ultimaParte: 'Celda de carga: PDX 30t (serie B7)', puedeIniciar: true, puedePausar: false,
-      puedeReanudar: false,
-      cambios: [{ fecha: '2026-03-03T15:30:00', campo: 'Celda de carga', valorAnterior: 'PDX 30t (serie A1)', valorNuevo: 'PDX 30t (serie B7)', detalle: 'Cambio de celda', usuario: 'Jhonny Iparraguirre' }],
+      ...comun, idOsEquipo: 1, idEquipo: 501, numero: 1, codigoTw: 'EQ-TW-2026-0501', codigoCliente: 'BAL-149', nombre: 'Balanza industrial unicelda de piso',
+      marca: 'Precia Weight', modelo: '2456', numeroSerie: 'V000079-HD', ubicacion: 'Salida importación', tipoIntervencion: 'Mantenimiento correctivo',
+      tipoCorto: 'MC', tiempoEstimadoMin: 60, ultimaIntervencion: '2025-10-15', ultimaParte: 'Celda de carga: PDX 30t (serie B7)',
+      cambios: [{ fecha: '2026-03-03T15:30:00', campo: 'Celda de carga', valorAnterior: 'PDX 30t (serie A1)', valorNuevo: 'PDX 30t (serie B7)', detalle: 'Cambio de celda', usuario: 'Admin TW' }],
     },
     {
-      idOsEquipo: 2, idEquipo: 502, codigoTw: 'EQ-TW-2026-0502', codigoCliente: 'IND-12', nombre: 'Indicador IND780',
-      marca: 'Mettler Toledo', modelo: 'IND780', numeroSerie: 'IND-12', ubicacion: 'Cabina', tipoIntervencion: 'Mantenimiento preventivo',
-      estadoEquipo: 'Operativo en Planta', bloqueado: false, garantiaVigente: null, alertasPendientes: 0, estado: 'pausado',
-      tiempoEstimadoMin: 60, tiempoRealMin: 120, iniciadoEn: null, motivoPausa: 'Fallo de evidencia fotográfica', requiereAprobacion: true,
-      ultimaIntervencion: null, ultimaParte: null, puedeIniciar: false, puedePausar: false, puedeReanudar: false, cambios: [],
+      ...comun, idOsEquipo: 2, idEquipo: 502, numero: 2, codigoTw: 'EQ-TW-2026-0502', codigoCliente: 'BAL-085', nombre: 'Balanza industrial unicelda de piso',
+      marca: 'Precia Weight', modelo: '2456SS', numeroSerie: 'D0137898CH', ubicacion: 'Cámara de recepción', tipoIntervencion: 'Mantenimiento correctivo',
+      tipoCorto: 'MC', tiempoEstimadoMin: 60,
     },
     {
-      idOsEquipo: 3, idEquipo: 503, codigoTw: 'EQ-TW-2026-0503', codigoCliente: 'BAL-002', nombre: 'Balanza de Plataforma Industrial',
-      marca: 'Mettler Toledo', modelo: 'PBA430', numeroSerie: 'MT-600', ubicacion: 'Almacén B', tipoIntervencion: 'Mantenimiento preventivo',
-      estadoEquipo: 'En Evaluación', bloqueado: true, garantiaVigente: null, alertasPendientes: 0, estado: 'por_iniciar',
-      tiempoEstimadoMin: 60, tiempoRealMin: 0, iniciadoEn: null, motivoPausa: null, requiereAprobacion: false,
-      ultimaIntervencion: null, ultimaParte: null, puedeIniciar: false, puedePausar: false, puedeReanudar: false, cambios: [],
+      ...comun, idOsEquipo: 3, idEquipo: 503, numero: 3, codigoTw: 'EQ-TW-2026-0503', codigoCliente: null, nombre: 'Balanza suspendida',
+      marca: null, modelo: null, numeroSerie: null, ubicacion: null, tipoIntervencion: 'Calibración', tipoCorto: null, tiempoEstimadoMin: 30, faltaEquipo: true,
     },
-  ];
-  return base.map((e) => {
+    {
+      ...comun, idOsEquipo: 4, idEquipo: 504, numero: 4, codigoTw: 'EQ-TW-2026-0504', codigoCliente: 'BAL-006', nombre: 'Balanza industrial de plataforma',
+      marca: 'Precia Weight', modelo: '2456', numeroSerie: '154318-0219', ubicacion: 'Aforo importación', tipoIntervencion: 'Calibración', tipoCorto: null,
+      tiempoEstimadoMin: 30, estadoEquipo: 'En Evaluación', bloqueado: true,
+    },
+    {
+      ...comun, idOsEquipo: 5, idEquipo: 505, numero: 5, codigoTw: 'EQ-TW-2026-0505', codigoCliente: 'BAL-007', nombre: 'Balanza industrial de plataforma',
+      marca: 'Precia Weight', modelo: '2456', numeroSerie: '154319-0219', ubicacion: 'Salida importación', tipoIntervencion: 'Calibración', tipoCorto: null,
+      tiempoEstimadoMin: 30,
+    },
+  ].map(({ garantia: _g, ...e }) => e as ObjetivoEquipo);
+  return [...base, ...estado.nuevos].map((e) => {
     const c = { ...e, ...estado.equipos.get(e.idOsEquipo) } as ObjetivoEquipo;
     const enPlanta = estado.llegada;
     return {
       ...c,
-      puedeIniciar: enPlanta && !c.bloqueado && c.estado === 'por_iniciar',
+      puedeIniciar: enPlanta && !c.bloqueado && (c.estado === 'por_iniciar' || c.estado === 'observado'),
       puedePausar: enPlanta && !c.bloqueado && c.estado === 'en_ejecucion',
       puedeReanudar: enPlanta && !c.bloqueado && c.estado === 'pausado' && !c.requiereAprobacion,
     };
@@ -155,25 +171,60 @@ export const mockRuta = {
       resumen: {
         idOs, numeroOs: 'OS-000791', estadoOs: estado.llegada ? 'en_ejecucion' : 'en_ruta', cliente: 'Alicorp S.A.A.', sede: 'Planta Callao',
         llegadaRegistrada: estado.llegada, salidaEn: `${hoy()}T07:45:00`, llegadaEn: estado.llegada ? `${hoy()}T08:27:00` : null,
-        trasladoMin: estado.llegada ? 42 : null, enPlantaMin: estado.llegada ? 15 : null, estimadoMin: 210,
+        trasladoMin: estado.llegada ? 42 : null, enPlantaMin: estado.llegada ? 15 : null,
+        estimadoMin: todos.reduce((a, e) => a + (e.tiempoEstimadoMin ?? 0), 0),
       },
       contadores: { completados, pendientes: todos.length - completados - observados, observados, total: todos.length },
       equipos,
     };
   },
   async qr(idOs: number, contenido: string): Promise<ObjetivoEquipo> {
-    const codigo = contenido.split('/').pop() ?? contenido;
-    const e = (await mockRuta.objetivos(idOs)).equipos.find((x) => [x.codigoTw, x.numeroSerie, x.codigoCliente].includes(codigo));
-    if (!e) throw new Error(`El equipo «${codigo}» no está en esta orden de servicio.`);
+    const codigo = (contenido.split('/').pop() ?? contenido).trim().toUpperCase();
+    const e = (await mockRuta.objetivos(idOs)).equipos.find((x) => [x.codigoTw, x.numeroSerie, x.codigoCliente].some((v) => v?.toUpperCase() === codigo));
+    if (!e) throw new Error('El código escaneado no corresponde a ningún equipo de esta O/S. Búscalo en la lista o regístralo como equipo nuevo (NEW).');
     return e;
+  },
+  async opcionesEquipoNuevo(): Promise<OpcionesEquipoNuevo> {
+    await esperar(200);
+    return {
+      marcas: ['Precia Weight', 'Mettler Toledo', 'Ohaus', 'Sartorius', 'Avery Weigh-Tronix', 'Fairbanks', 'Toledo', 'Flintec'],
+      tipos: [
+        { idSuministro: 11, descripcion: 'Balanza industrial de plataforma', clase: 'equipo', marca: null, modelo: null },
+        { idSuministro: 12, descripcion: 'Balanza industrial unicelda de piso', clase: 'equipo', marca: null, modelo: null },
+        { idSuministro: 13, descripcion: 'Báscula camionera', clase: 'equipo', marca: null, modelo: null },
+        { idSuministro: 14, descripcion: 'Indicador de pesaje', clase: 'instrumento', marca: null, modelo: null },
+      ],
+    };
+  },
+  async registrarEquipoNuevo(e: NuevoEquipo): Promise<{ mensaje: string; datos: ResultadoEquipoNuevo }> {
+    await esperar(400);
+    const opciones = await mockRuta.opcionesEquipoNuevo();
+    const id = 900 + estado.nuevos.length + 1;
+    const existente = equiposBase().find((x) => x.numeroSerie?.toUpperCase() === e.numeroSerie.trim().toUpperCase());
+    if (existente) throw new Error(`Este equipo ya está en la lista de la O/S (${existente.codigoTw}): búscalo y selecciónalo.`);
+    estado.nuevos.push({
+      idOsEquipo: id, idEquipo: id, numero: 5 + estado.nuevos.length + 1, codigoTw: `NEW-${String(id).padStart(6, '0')}`, codigoCliente: e.codigo.trim(),
+      nombre: opciones.tipos.find((t) => t.idSuministro === e.idSuministro)?.descripcion ?? 'Equipo', marca: e.marca, modelo: e.modelo.trim(),
+      numeroSerie: e.numeroSerie.trim(), ubicacion: e.ubicacion.trim(), tipoIntervencion: 'Mantenimiento correctivo', tipoCorto: 'MC', estadoEquipo: null,
+      bloqueado: false, enCampo: true, faltaEquipo: false, alertasPendientes: 0, estado: 'por_iniciar', tiempoEstimadoMin: 60, tiempoRealMin: 0, iniciadoEn: null,
+      motivoPausa: null, requiereAprobacion: false, ultimaIntervencion: null, ultimaParte: null, puedeIniciar: false, puedePausar: false, puedeReanudar: false,
+      cambios: [],
+    });
+    return {
+      mensaje: 'Equipo registrado. El COD TW lo asigna la intranet al aprobar el registro.',
+      datos: { idOsEquipo: id, idEquipo: id, codigoTw: `NEW-${String(id).padStart(6, '0')}`, yaExistia: false, yaRegistrado: false, notificados: 1 },
+    };
   },
   async cambiar(idOs: number, idOsEquipo: number, accion: AccionEquipo, motivo?: string) {
     await esperar(300);
     const anterior = equiposBase().find((e) => e.idOsEquipo === idOsEquipo);
+    const otro = accion !== 'pausar' ? equiposBase().find((e) => e.idOsEquipo !== idOsEquipo && e.estado === 'en_ejecucion') : undefined;
+    if (otro) throw new Error(`Ya estás trabajando en el equipo ${otro.codigoCliente ?? otro.nombre}: pausa ese equipo antes de continuar con otro.`);
     const nuevo = accion === 'pausar' ? 'pausado' : 'en_ejecucion';
     estado.equipos.set(idOsEquipo, {
       ...estado.equipos.get(idOsEquipo),
       estado: nuevo,
+      iniciadoEn: anterior?.iniciadoEn ?? ahoraIso(),
       motivoPausa: accion === 'pausar' ? (motivo ?? null) : null,
       cambios: [
         { fecha: ahoraIso(), campo: 'Estado', valorAnterior: anterior?.estado.replace('en_ejecucion', 'en ejecución').replace('_', ' ') ?? null, valorNuevo: nuevo.replace('en_ejecucion', 'en ejecución').replace('_', ' '), detalle: null, usuario: 'Juan Pérez' },

@@ -38,6 +38,7 @@ export default function LayoutPestanas() {
     '/llegada',
     '/objetivos',
     '/seleccionar-equipo',
+    '/equipo-nuevo',
     // Viáticos y Gastos (HU-25 / HU-26)
     '/viaticos-gastos',
     '/viatico',
@@ -185,6 +186,10 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="equipo-nuevo"
+        options={{ title: 'Equipo nuevo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-31: detalle de una solicitud de salida (se entra desde Aprobaciones). */}
       <Tabs.Screen

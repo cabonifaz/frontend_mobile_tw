@@ -12,8 +12,10 @@ import { conRespaldo, type ConRespaldo } from './respaldo';
  *   POST api/movil/servicios/{idOs}/llegada/validar         → solo compara (no registra)
  *   POST api/movil/servicios/{idOs}/llegada                 → SP_RegistrarLlegadaMovil
  *   GET  api/movil/servicios/{idOs}/objetivos?buscar=       → SP_ObtenerObjetivosMovil
- *   GET  api/movil/servicios/{idOs}/equipos/qr?codigo=      → equipo de la OS por su QR
- *   POST api/movil/servicios/{idOs}/equipos/{id}/iniciar | pausar | reanudar
+ *   GET  api/movil/servicios/{idOs}/equipos/qr?codigo=      → SP_BuscarEquipoQrMovil (equipo de la OS por su código o QR)
+ *   POST api/movil/servicios/{idOs}/equipos/{id}/iniciar | pausar | reanudar → SP_CambiarEstadoEquipoMovil (devuelve los objetivos actualizados)
+ *   GET  api/movil/servicios/{idOs}/equipos/nuevo/opciones  → SP_ObtenerOpcionesEquipoNuevoMovil (marcas y tipos de equipo)
+ *   POST api/movil/servicios/{idOs}/equipos/nuevo (multipart) → SP_RegistrarEquipoNuevoMovil (equipo NEW, con la foto de la placa)
  * El back valida todo (OS del técnico, estado, distancia, Hard Stop): la app solo muestra.
  */
 
@@ -265,6 +267,8 @@ export interface CambioEquipo {
 export interface ObjetivoEquipo {
   idOsEquipo: number;
   idEquipo: number;
+  /** Número del objetivo en la lista de la OS (1, 2, 3…). */
+  numero: number;
   codigoTw: string | null;
   codigoCliente: string | null;
   nombre: string;
@@ -273,9 +277,15 @@ export interface ObjetivoEquipo {
   numeroSerie: string | null;
   ubicacion: string | null;
   tipoIntervencion: string | null;
+  /** Sigla del tipo de intervención ("MC"); sin sigla se muestra el nombre completo. */
+  tipoCorto: string | null;
   estadoEquipo: string | null;
+  /** No se puede seleccionar (equipo inactivo o en evaluación). */
   bloqueado: boolean;
-  garantiaVigente: boolean | null;
+  /** Lo registró el técnico en campo como equipo nuevo (NEW): pendiente de aprobación en la intranet. */
+  enCampo: boolean;
+  /** El objetivo no tiene N/S: "FALTA EQUIPO/INSTRUMENTO". */
+  faltaEquipo: boolean;
   alertasPendientes: number;
   estado: EstadoObjetivo;
   tiempoEstimadoMin: number | null;
@@ -315,6 +325,15 @@ export async function obtenerObjetivos(token: string, idOs: number, buscar = '')
   return (await solicitar<Objetivos>(`${ruta(idOs)}/objetivos${q}`, { token })).datos!;
 }
 
+/**
+ * Igual que `obtenerObjetivos` (sin búsqueda), pero sin conexión devuelve la última lista guardada en el teléfono para poder seguir
+ * iniciando, pausando y reanudando equipos: las acciones se guardan y se envían solas al volver la señal (`api/colaEquipos.ts`).
+ */
+export async function obtenerObjetivosConRespaldo(token: string, idUsuario: number, idOs: number): Promise<ConRespaldo<Objetivos>> {
+  if (entorno.usarMock) return { datos: await mockRuta.objetivos(idOs, ''), sinConexion: false, guardadoEn: new Date() };
+  return conRespaldo(idUsuario, `objetivos.${idOs}`, () => obtenerObjetivos(token, idOs));
+}
+
 export async function buscarEquipoPorQr(token: string, idOs: number, contenido: string): Promise<ObjetivoEquipo> {
   if (entorno.usarMock) return mockRuta.qr(idOs, contenido);
   return (await solicitar<ObjetivoEquipo>(`${ruta(idOs)}/equipos/qr?codigo=${encodeURIComponent(contenido.slice(0, 300))}`, { token })).datos!;
@@ -322,18 +341,92 @@ export async function buscarEquipoPorQr(token: string, idOs: number, contenido: 
 
 export type AccionEquipo = 'iniciar' | 'pausar' | 'reanudar';
 
+/**
+ * Inicia, pausa (con motivo) o reanuda el trabajo en un equipo. `capturadoEn` = hora (ISO 8601, UTC) en que el técnico tocó el botón: si la acción
+ * se guardó sin conexión y llega después, el back la usa para el tiempo trabajado y reconoce un envío repetido (no duplica).
+ * Devuelve los objetivos ya actualizados.
+ */
 export async function cambiarEstadoEquipo(
   token: string,
   idOs: number,
   idOsEquipo: number,
   accion: AccionEquipo,
-  motivo?: string,
+  opciones: { motivo?: string; capturadoEn?: string } = {},
 ): Promise<{ mensaje: string; objetivos: Objetivos | null }> {
-  if (entorno.usarMock) return mockRuta.cambiar(idOs, idOsEquipo, accion, motivo);
+  if (entorno.usarMock) return mockRuta.cambiar(idOs, idOsEquipo, accion, opciones.motivo);
   const r = await solicitar<Objetivos>(`${ruta(idOs)}/equipos/${encodeURIComponent(String(idOsEquipo))}/${accion}`, {
     token,
     metodo: 'POST',
-    cuerpo: accion === 'pausar' ? { motivo: motivo?.trim() ?? '' } : undefined,
+    cuerpo: { motivo: accion === 'pausar' ? (opciones.motivo?.trim() ?? '') : undefined, capturadoEn: opciones.capturadoEn },
   });
   return { mensaje: r.mensaje, objetivos: r.datos ?? null };
+}
+
+// ── HU-07 · Equipo nuevo (NEW) ───────────────────────────────────────────────
+
+export interface TipoEquipoNuevo {
+  idSuministro: number;
+  descripcion: string;
+  clase: string;
+  marca: string | null;
+  modelo: string | null;
+}
+
+export interface OpcionesEquipoNuevo {
+  marcas: string[];
+  tipos: TipoEquipoNuevo[];
+}
+
+export interface NuevoEquipo {
+  numeroSerie: string;
+  codigo: string;
+  marca: string;
+  modelo: string;
+  idSuministro: number;
+  ubicacion: string;
+  /** URI de la foto de la placa tomada con la cámara de la app (nunca de la galería). */
+  fotoUri: string;
+}
+
+export interface ResultadoEquipoNuevo {
+  idOsEquipo: number;
+  idEquipo: number;
+  /** Provisional (NEW-…): la intranet asigna el COD TW definitivo al aprobar el registro. */
+  codigoTw: string;
+  /** Ya estaba en el maestro del cliente: se agregó a la OS sin duplicarlo. */
+  yaExistia: boolean;
+  /** Reintento: ya lo había registrado este técnico. */
+  yaRegistrado: boolean;
+  notificados: number;
+}
+
+export async function obtenerOpcionesEquipoNuevo(token: string, idOs: number): Promise<OpcionesEquipoNuevo> {
+  if (entorno.usarMock) return mockRuta.opcionesEquipoNuevo();
+  return (await solicitar<OpcionesEquipoNuevo>(`${ruta(idOs)}/equipos/nuevo/opciones`, { token })).datos!;
+}
+
+/** Las listas del formulario, con respaldo local para abrirlo sin conexión (registrar sí exige conexión: sube la foto y avisa al área). */
+export async function obtenerOpcionesEquipoNuevoConRespaldo(token: string, idUsuario: number, idOs: number): Promise<ConRespaldo<OpcionesEquipoNuevo>> {
+  if (entorno.usarMock) return { datos: await mockRuta.opcionesEquipoNuevo(), sinConexion: false, guardadoEn: new Date() };
+  return conRespaldo(idUsuario, `equipo-nuevo.opciones.${idOs}`, () => obtenerOpcionesEquipoNuevo(token, idOs));
+}
+
+export async function registrarEquipoNuevo(token: string, idOs: number, e: NuevoEquipo): Promise<{ mensaje: string; datos: ResultadoEquipoNuevo | null }> {
+  if (entorno.usarMock) return mockRuta.registrarEquipoNuevo(e);
+  const form = new FormData();
+  form.append('numeroSerie', e.numeroSerie.trim());
+  form.append('codigo', e.codigo.trim());
+  form.append('marca', e.marca);
+  form.append('modelo', e.modelo.trim());
+  form.append('idSuministro', String(e.idSuministro));
+  form.append('ubicacion', e.ubicacion.trim());
+  if (Platform.OS === 'web') {
+    // En web la cámara devuelve un data URI: se convierte a archivo
+    const blob = await (await fetch(e.fotoUri)).blob();
+    form.append('foto', blob, 'placa.jpg');
+  } else {
+    form.append('foto', { uri: e.fotoUri, name: 'placa.jpg', type: 'image/jpeg' } as unknown as Blob);
+  }
+  const r = await solicitar<ResultadoEquipoNuevo>(`${ruta(idOs)}/equipos/nuevo`, { token, metodo: 'POST', cuerpo: form });
+  return { mensaje: r.mensaje, datos: r.datos ?? null };
 }

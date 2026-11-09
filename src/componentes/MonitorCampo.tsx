@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { accionesPendientes, sincronizarAccionesEquipos } from '@/api/colaEquipos';
 import { pendientesLlegadas, sincronizarLlegadas } from '@/api/colaLlegadas';
 import { pendientesDe, sincronizarPendientes } from '@/api/colaDemoras';
 import type { Ubicacion } from '@/api/ruta';
@@ -25,8 +26,9 @@ const POSICION_VIGENTE_MS = 3 * 60_000;
  *     está en primer plano (se pausa al salir, para cuidar la batería, y se retoma al volver).
  *  2. Seguimiento (HU-51): mientras el técnico tiene un servicio en curso (en ruta, en ejecución o en pausa) envía su posición al
  *     back cada ~45 s para el Seguimiento Operativo de la intranet. Sin servicio en curso no se envía nada; sin conexión se omite.
- *  3. Llegadas (HU-06) y demoras (HU-05) guardadas sin conexión: las envía al abrir la app, al volver a ella y cada 30 s mientras haya
- *     pendientes. Primero las llegadas: una demora de ingreso a planta necesita la llegada registrada.
+ *  3. Llegadas (HU-06), demoras (HU-05) y acciones sobre los equipos (HU-07: iniciar, pausar, reanudar) guardadas sin conexión: las envía al abrir
+ *     la app, al volver a ella y cada 30 s mientras haya pendientes. Primero las llegadas (una demora de ingreso a planta y las acciones de los
+ *     equipos necesitan la llegada registrada) y al final las acciones de los equipos.
  * El perfil de Jefatura no sale a ruta: no se le pide ubicación.
  */
 export function MonitorCampo() {
@@ -155,6 +157,7 @@ export function MonitorCampo() {
         // Primero las llegadas (una demora de ingreso a planta necesita la llegada registrada)
         if ((await pendientesLlegadas(idUsuario)).length > 0) avisar((await sincronizarLlegadas(token, idUsuario)).avisos);
         if ((await pendientesDe(idUsuario)).length > 0) avisar((await sincronizarPendientes(token, idUsuario)).avisos);
+        if ((await accionesPendientes(idUsuario)).length > 0) avisar((await sincronizarAccionesEquipos(token, idUsuario)).avisos);
       } catch {
         // se reintenta en el siguiente ciclo
       }
