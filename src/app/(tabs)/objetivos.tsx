@@ -27,7 +27,7 @@ import { aplicarPendientes, descripcionObjetivo, lineaIdentificacion, tituloObje
  *  - Contadores Completados / Pendientes / Observados y tiempos del técnico (llegada, traslado, en planta, estimado).
  *  - Los equipos de la OS numerados ("1. MC · 60 min") con su estado: POR INICIAR, EJECUTANDO o PAUSADO.
  *  - POR INICIAR → "Seleccionar equipo e iniciar" (buscar, escanear su código o registrar uno nuevo). EJECUTANDO → "Pausar" (con motivo) y
- *    "Trabajar en el equipo". PAUSADO → "Reanudar", bloqueado cuando espera la aprobación de un supervisor ("Esperando aprobación de supervisor").
+ *    "Trabajar en el equipo" (HU-08: las 5 etapas del equipo). PAUSADO → "Reanudar", bloqueado cuando espera la aprobación de un supervisor ("Esperando aprobación de supervisor").
  *  - "Ver detalles": la modificación anterior y la actual del equipo.
  *  - HU-06 Hard Stop: sin llegada registrada, un candado rojo bloquea los objetivos. Se decide con la llegada de HU-06 (la registrada en el servidor
  *    o la confirmada sin conexión que aún no se envió), antes de pedir los objetivos.
@@ -218,9 +218,7 @@ export default function PantallaObjetivos() {
                   onMotivo={setMotivo}
                   onSeleccionar={() => router.push({ pathname: '/seleccionar-equipo', params: { id: String(idOs), objetivo: String(e.numero) } })}
                   onReanudar={() => void accion(e, 'reanudar')}
-                  onTrabajar={() =>
-                    setMensaje({ tipo: 'info', texto: 'El registro del trabajo en el equipo (mediciones y evidencias) se habilitará en la siguiente etapa.' })
-                  }
+                  onTrabajar={() => router.push({ pathname: '/trabajo-equipo', params: { id: String(idOs), equipo: String(e.idOsEquipo) } })}
                   onPausar={() => {
                     setMensaje(null);
                     setPausando(e.idOsEquipo);

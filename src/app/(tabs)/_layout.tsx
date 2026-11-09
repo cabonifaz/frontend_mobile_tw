@@ -39,6 +39,8 @@ export default function LayoutPestanas() {
     '/objetivos',
     '/seleccionar-equipo',
     '/equipo-nuevo',
+    '/trabajo-equipo',
+    '/variables-ambientales',
     // Viáticos y Gastos (HU-25 / HU-26)
     '/viaticos-gastos',
     '/viatico',
@@ -190,6 +192,14 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="equipo-nuevo"
         options={{ title: 'Equipo nuevo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="trabajo-equipo"
+        options={{ title: 'Trabajo en el equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="variables-ambientales"
+        options={{ title: 'Variables ambientales', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-31: detalle de una solicitud de salida (se entra desde Aprobaciones). */}
       <Tabs.Screen
