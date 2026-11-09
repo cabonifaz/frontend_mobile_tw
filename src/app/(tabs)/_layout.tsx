@@ -41,6 +41,7 @@ export default function LayoutPestanas() {
     '/equipo-nuevo',
     '/trabajo-equipo',
     '/variables-ambientales',
+    '/ensayos',
     // Viáticos y Gastos (HU-25 / HU-26)
     '/viaticos-gastos',
     '/viatico',
@@ -200,6 +201,10 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="variables-ambientales"
         options={{ title: 'Variables ambientales', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="ensayos"
+        options={{ title: 'Ensayos y Calibración', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-31: detalle de una solicitud de salida (se entra desde Aprobaciones). */}
       <Tabs.Screen

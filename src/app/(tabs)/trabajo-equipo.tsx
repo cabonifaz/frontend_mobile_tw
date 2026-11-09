@@ -58,7 +58,9 @@ export default function PantallaTrabajoEquipo() {
     setMensaje(null);
     if (e.estado === 'bloqueado') return setMensaje({ tipo: 'info', texto: `${e.nombre}: ${e.detalle ?? 'etapa bloqueada.'}` });
     if (!e.disponible) return setMensaje({ tipo: 'info', texto: `${e.nombre} se habilita en la siguiente etapa de la app.` });
-    if (e.codigo === 'variables') router.push({ pathname: '/variables-ambientales', params: { id: String(idOs), equipo: String(idOsEquipo) } });
+    const params = { id: String(idOs), equipo: String(idOsEquipo) };
+    if (e.codigo === 'variables') router.push({ pathname: '/variables-ambientales', params });
+    if (e.codigo === 'ensayos') router.push({ pathname: '/ensayos', params });
   }
 
   const avance = avanceEtapas(c?.etapasConformes ?? 0, c?.etapasTotal ?? 5);

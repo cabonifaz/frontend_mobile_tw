@@ -125,7 +125,7 @@ function trabajoDemo(idOs: number, idOsEquipo: number): TrabajoEquipo {
       { orden: 1, codigo: 'variables', nombre: 'Variables ambientales', estado: v ? 'conforme' : 'pendiente', disponible: true,
         detalle: v ? `T° ${nf(v.temperatura)} °C · h ${nf(v.humedad)} % · Procedencia ${v.procedencia}` : 'Temperatura, humedad y procedencia' },
       { orden: 2, codigo: 'fotos', nombre: 'Registro fotográfico', estado: 'pendiente', disponible: false, detalle: 'Fotos del equipo y del informe a mano' },
-      { orden: 3, codigo: 'ensayos', nombre: 'Ensayos y Calibración', estado: v ? 'pendiente' : 'bloqueado', disponible: false,
+      { orden: 3, codigo: 'ensayos', nombre: 'Ensayos y Calibración', estado: v ? 'pendiente' : 'bloqueado', disponible: true,
         detalle: v ? 'Verificación de pesaje tras el ajuste' : 'Se habilita al guardar las variables ambientales' },
       { orden: 4, codigo: 'cabecera', nombre: 'Cabecera del informe', estado: 'pendiente', disponible: false, detalle: 'Datos · Detalle Serv. · Observación y pruebas' },
       { orden: 5, codigo: 'correlativo', nombre: 'Correlativo y certificado', estado: 'pendiente', disponible: false, detalle: 'Correlativo de Metrología → N° de certificado' },
