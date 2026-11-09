@@ -8,7 +8,6 @@ import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { horaRespaldo } from '@/api/respaldo';
 import { obtenerTrabajoEquipoConRespaldo, type EtapaTrabajo } from '@/api/trabajo';
 import { Aviso } from '@/componentes/Aviso';
-import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
@@ -173,11 +172,17 @@ export default function PantallaTrabajoEquipo() {
             </View>
 
             <View style={{ marginTop: 14 }}>
-              <Boton
-                titulo={c.puedeFinalizar ? 'Finalizar trabajo en equipo' : '🔒  Finalizar trabajo en equipo'}
+              <Pressable
                 onPress={() => setMensaje({ tipo: 'info', texto: 'La generación del informe técnico se habilita en la siguiente etapa de la app.' })}
-                deshabilitado={!c.puedeFinalizar}
-              />
+                disabled={!c.puedeFinalizar}
+                style={[estilos.finalizar, c.puedeFinalizar ? estilos.finalizarActivo : estilos.finalizarBloqueado]}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !c.puedeFinalizar }}
+                testID="finalizar-trabajo"
+              >
+                <Ionicons name={c.puedeFinalizar ? 'checkmark-done' : 'lock-closed-outline'} size={22} color={colores.blanco} />
+                <Text style={estilos.finalizarTexto}>Finalizar trabajo en equipo</Text>
+              </Pressable>
               <Text style={estilos.ayuda}>Se habilita cuando todas las etapas estén conformes.</Text>
             </View>
           </>
@@ -230,15 +235,15 @@ const estilos = StyleSheet.create({
   subtitulo: { color: colores.textoSecundario, fontSize: 14, marginBottom: 12 },
   tarjeta: { backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, padding: 16 },
   filaCabecera: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  servicio: { fontSize: 17, fontWeight: '800', color: colores.titulo },
-  equipo: { fontSize: 14, color: colores.textoSecundario, marginTop: 6 },
+  servicio: { fontSize: 19, fontWeight: '800', color: colores.titulo, lineHeight: 25 },
+  equipo: { fontSize: 15.5, color: colores.textoSecundario, marginTop: 6, lineHeight: 22 },
   etiqueta: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   etiquetaTexto: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
   tipoOrden: { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: colores.primarioSuave, borderRadius: 10, padding: 10, marginTop: 12 },
-  tipoOrdenTexto: { flex: 1, color: colores.titulo, fontSize: 14 },
+  tipoOrdenTexto: { flex: 1, color: colores.titulo, fontSize: 15.5, lineHeight: 21 },
   tiempos: { flexDirection: 'row', marginTop: 14 },
   tiempoK: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, color: colores.textoSecundario },
-  tiempoV: { fontSize: 17, color: colores.titulo, marginTop: 2 },
+  tiempoV: { fontSize: 19, color: colores.titulo, marginTop: 2 },
   avanceFila: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },
   avanceK: { fontSize: 12.5, fontWeight: '800', color: colores.primario, letterSpacing: 0.4 },
   barra: { height: 6, backgroundColor: colores.grisFondo, borderRadius: 3, overflow: 'hidden', marginTop: 8 },
@@ -255,9 +260,13 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
   },
-  etapaNombre: { fontSize: 17, fontWeight: '700', color: colores.titulo },
-  etapaDetalle: { fontSize: 13.5, color: colores.textoSecundario, marginTop: 3 },
+  etapaNombre: { fontSize: 18, fontWeight: '700', color: colores.titulo },
+  etapaDetalle: { fontSize: 15, color: colores.textoSecundario, marginTop: 3, lineHeight: 20 },
   info: { flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: colores.primarioSuave, borderRadius: radios.tarjeta, padding: 14, marginTop: 16 },
-  infoTexto: { flex: 1, color: colores.titulo, fontSize: 14.5 },
-  ayuda: { textAlign: 'center', color: colores.textoSecundario, fontSize: 13.5, marginTop: 8 },
+  infoTexto: { flex: 1, color: colores.titulo, fontSize: 16, lineHeight: 22 },
+  finalizar: { minHeight: 56, borderRadius: radios.boton, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  finalizarActivo: { backgroundColor: colores.primario },
+  finalizarBloqueado: { backgroundColor: '#CBD3DF' },
+  finalizarTexto: { color: colores.blanco, fontSize: 18, fontWeight: '700' },
+  ayuda: { textAlign: 'center', color: colores.textoSecundario, fontSize: 15, marginTop: 8 },
 });
