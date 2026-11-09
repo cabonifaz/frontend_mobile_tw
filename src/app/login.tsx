@@ -15,8 +15,8 @@ import { colores, radios } from '@/tema/colores';
 /**
  * App Mobile HU-01 — Acceso Seguro y Modo Offline.
  *  1. Solo usuario (asignado por el jefe), no correo; mostrar u ocultar la contraseña.
- *  2. 1 sesión a la vez: si el usuario ya está en otro equipo, el backend lo rechaza
- *     y aquí se muestra el mensaje con el equipo donde está abierta.
+ *  2. 1 sesión a la vez: si el usuario ingresa en otro equipo, el backend cierra la sesión del primero (que vuelve
+ *     aquí con el aviso "se inició sesión con tu usuario en otro equipo", ver SesionContext).
  *  3. Modo offline: no hay botón "Ingresar en modo offline". El primer ingreso necesita internet;
  *     con "Recordar sesión" la app abre sola sin conexión (SesionContext) y muestra lo guardado.
  */

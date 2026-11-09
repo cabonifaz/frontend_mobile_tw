@@ -33,6 +33,11 @@ export const mockJefatura = {
   /** `token` solo sirve en el modo demo: el usuario jefe.ops entra como Operaciones; los demás, como Metrología. */
   async menu(token: string = ''): Promise<MenuJefatura> {
     await esperar(400);
+    if (token.includes('jefe.st'))
+      return {
+        areaCodigo: 'servicio_tecnico', areaNombre: 'Servicio Técnico', sede: 'Lima',
+        programados: 9, enRuta: 5, enEjecucion: 3, conDemora: 1, aprobacionesPendientes: pendientes().length,
+      };
     if (token.includes('jefe.ops'))
       return {
         areaCodigo: 'operaciones', areaNombre: 'Operaciones', sede: 'Lima Central',

@@ -29,8 +29,20 @@ export class ErrorApi extends Error {
   }
 }
 
-type ManejadorSesionInvalida = () => void;
+type ManejadorSesionInvalida = (mensaje: string) => void;
 let alInvalidarSesion: ManejadorSesionInvalida | null = null;
+
+/** Aviso por defecto cuando el 401 no trae motivo. */
+export const MENSAJE_SESION_TERMINADA = 'Tu sesión terminó. Vuelve a iniciar sesión.';
+
+/**
+ * Mensaje de un 401: el back (token de la app) lo acompaña del motivo, p. ej. "Tu sesión se cerró porque se inició sesión con tu
+ * usuario en otro equipo." Sin cuerpo o sin mensaje, el aviso por defecto.
+ */
+export function mensajeDeSesionInvalida(cuerpo: { mensaje?: unknown } | null | undefined): string {
+  const m = typeof cuerpo?.mensaje === 'string' ? cuerpo.mensaje.trim() : '';
+  return m && m.length <= 300 ? m : MENSAJE_SESION_TERMINADA;
+}
 
 /** El proveedor de sesión se registra aquí para cerrar la sesión local ante un 401. */
 export function registrarManejadorSesionInvalida(fn: ManejadorSesionInvalida | null) {
@@ -95,8 +107,9 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
 
   // 401 en un endpoint protegido = la sesión ya no existe en el servidor.
   if (respuestaHttp.status === 401 && token && manejarSesionInvalida) {
-    alInvalidarSesion?.();
-    throw new ErrorApi('Tu sesión terminó. Vuelve a iniciar sesión.', 401);
+    const motivo = mensajeDeSesionInvalida(cuerpoRespuesta);
+    alInvalidarSesion?.(motivo);
+    throw new ErrorApi(motivo, 401);
   }
 
   if (cuerpoRespuesta && typeof cuerpoRespuesta.idTipoMensaje === 'number') {

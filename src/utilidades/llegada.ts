@@ -51,6 +51,41 @@ export function evaluarLlegadaLocal(referencia: ReferenciaGps | null, u: Ubicaci
       };
 }
 
+/** 850 → "850 m"; 2340 → "2,3 km" (la distancia a la planta que ve el técnico). */
+export function textoDistancia(metros: number): string {
+  if (!Number.isFinite(metros) || metros < 0) return '—';
+  if (metros < 1000) return `${Math.round(metros)} m`;
+  return `${(metros / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
+/** Distancia (m) del técnico a la planta, o null si falta la coordenada de la planta o el GPS. Funciona sin conexión (solo usa lo ya cargado). */
+export function distanciaAPlanta(referencia: ReferenciaGps | null, u: Ubicacion | null): number | null {
+  return referencia && u ? distanciaMetros(referencia, u) : null;
+}
+
+/** Coordenada con 5 decimales ("-12.04532, -77.11371"); vacío si falta alguno de los dos valores. */
+export function textoCoordenada(latitud: number | null | undefined, longitud: number | null | undefined): string {
+  if (latitud == null || longitud == null || !Number.isFinite(latitud) || !Number.isFinite(longitud)) return '';
+  return `${latitud.toFixed(5)}, ${longitud.toFixed(5)}`;
+}
+
+/**
+ * Enlace para abrir la planta en la app de mapas del teléfono (sin librerías nativas: `Linking.openURL`).
+ * Android: geo: (abre el selector de mapas). iOS: Apple Maps. Otro (web): Google Maps. Null si no hay coordenada.
+ */
+export function enlaceMapaPlanta(
+  referencia: { latitud: number; longitud: number } | null,
+  etiqueta: string | null,
+  plataforma: string,
+): string | null {
+  if (!referencia || !Number.isFinite(referencia.latitud) || !Number.isFinite(referencia.longitud)) return null;
+  const punto = `${referencia.latitud},${referencia.longitud}`;
+  const nombre = (etiqueta ?? '').trim() || 'Planta';
+  if (plataforma === 'android') return `geo:${punto}?q=${punto}(${encodeURIComponent(nombre)})`;
+  if (plataforma === 'ios') return `https://maps.apple.com/?ll=${punto}&q=${encodeURIComponent(nombre)}`;
+  return `https://www.google.com/maps/search/?api=1&query=${punto}`;
+}
+
 /** Título de la tarjeta de validación según el resultado. */
 export function tituloValidacion(resultado: ValidacionLlegada['resultado']): string {
   switch (resultado) {

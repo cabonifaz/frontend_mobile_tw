@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,9 +18,16 @@ import { useUbicacion } from '@/hooks/useUbicacion';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { horaDe, horaLimaAhora } from '@/utilidades/formato';
-import { evaluarLlegadaLocal, tituloValidacion } from '@/utilidades/llegada';
+import {
+  distanciaAPlanta,
+  enlaceMapaPlanta,
+  evaluarLlegadaLocal,
+  textoCoordenada,
+  textoDistancia,
+  tituloValidacion,
+} from '@/utilidades/llegada';
 
-const coordenadas = (latitud: number, longitud: number) => `${latitud.toFixed(4)}, ${longitud.toFixed(4)}`;
+const coordenadas = (latitud: number, longitud: number) => textoCoordenada(latitud, longitud);
 
 /**
  * HU-06 — Registrar llegada y Hard Stop.
@@ -96,6 +103,19 @@ export default function PantallaLlegada() {
       await recargar();
     } finally {
       setEnviando(false);
+    }
+  }
+
+  // Distancia en vivo a la planta (con lo ya cargado: sirve también sin conexión)
+  const distancia = distanciaAPlanta(l?.referencia ?? null, gps.ubicacion);
+
+  async function abrirMapa() {
+    const enlace = enlaceMapaPlanta(l?.referencia ?? null, l?.sede ?? null, Platform.OS);
+    if (!enlace) return;
+    try {
+      await Linking.openURL(enlace);
+    } catch {
+      setMensaje('No se pudo abrir el mapa en este teléfono.');
     }
   }
 
@@ -176,12 +196,32 @@ export default function PantallaLlegada() {
             <View style={estilos.tarjeta} testID="llegada-destino">
               <Text style={estilos.etiqueta}>CLIENTE</Text>
               <Text style={estilos.valorFuerte}>{l.cliente ?? '—'}</Text>
-              <Text style={[estilos.etiqueta, { marginTop: 12 }]}>UBICACIÓN ESPERADA</Text>
+              <Text style={[estilos.etiqueta, { marginTop: 12 }]}>UBICACIÓN DE LA PLANTA</Text>
               <Text style={estilos.valor}>{l.sede ?? '—'}</Text>
-              {!!(l.direccion || l.referencia) && (
-                <Text style={estilos.nota}>
-                  {[l.direccion, l.referencia ? coordenadas(l.referencia.latitud, l.referencia.longitud) : null].filter(Boolean).join(' · ')}
+              {!!l.direccion && <Text style={estilos.nota}>{l.direccion}</Text>}
+              <View style={estilos.gpsFila}>
+                <Ionicons name="business" size={16} color={l.referencia ? colores.rojo : colores.textoTenue} />
+                <Text style={[estilos.gpsTexto, { color: l.referencia ? colores.titulo : colores.textoSecundario }]} testID="planta-ubicacion">
+                  {l.referencia
+                    ? `Planta: ${textoCoordenada(l.referencia.latitud, l.referencia.longitud)}`
+                    : 'La sede no tiene coordenadas registradas'}
                 </Text>
+              </View>
+              {!!l.referencia && (
+                <>
+                  <Text style={estilos.nota}>Radio de llegada permitido: {l.referencia.radioMetros} m</Text>
+                  <Pressable
+                    onPress={() => void abrirMapa()}
+                    hitSlop={8}
+                    style={estilos.enlaceMapa}
+                    accessibilityRole="link"
+                    accessibilityLabel="Abrir la planta en el mapa"
+                    testID="abrir-mapa"
+                  >
+                    <Ionicons name="map-outline" size={15} color={colores.primario} />
+                    <Text style={estilos.enlaceMapaTexto}>Abrir en el mapa</Text>
+                  </Pressable>
+                </>
               )}
               <View style={estilos.separador} />
               <View style={estilos.dosColumnas}>
@@ -210,6 +250,17 @@ export default function PantallaLlegada() {
                       : 'GPS: Sin ubicación'}
                 </Text>
               </View>
+              {distancia !== null && l.referencia && (
+                <View style={estilos.gpsFila}>
+                  <Ionicons name="navigate-outline" size={16} color={distancia <= l.referencia.radioMetros ? colores.verde : colores.rojo} />
+                  <Text
+                    style={[estilos.gpsTexto, { color: distancia <= l.referencia.radioMetros ? colores.verdeEtiquetaTexto : colores.rojo }]}
+                    testID="distancia-planta"
+                  >
+                    {`A ${textoDistancia(distancia)} de la planta · permitido hasta ${l.referencia.radioMetros} m`}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <Mapa referencia={l.referencia} ubicacion={gps.ubicacion} />
@@ -348,6 +399,8 @@ const estilos = StyleSheet.create({
   dosColumnas: { flexDirection: 'row', gap: 12 },
   gpsFila: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
   gpsTexto: { color: colores.primario, fontWeight: '600', fontSize: 14, flexShrink: 1 },
+  enlaceMapa: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, alignSelf: 'flex-start' },
+  enlaceMapaTexto: { color: colores.primario, fontSize: 13, fontWeight: '600' },
   mapa: {
     marginTop: 14,
     backgroundColor: '#E5E9F0',

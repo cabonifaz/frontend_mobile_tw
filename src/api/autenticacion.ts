@@ -4,7 +4,7 @@ import { mockAutenticacion } from './mock';
 
 /**
  * Endpoints de acceso a la app (App Mobile HU-01).
- *   POST api/movil/autenticacion/iniciar-sesion   (nuevo — solo usuario, 1 equipo a la vez)
+ *   POST api/movil/autenticacion/iniciar-sesion   (nuevo — solo usuario; sesión única: el nuevo equipo reemplaza al anterior)
  *   POST api/movil/autenticacion/cerrar-sesion    (nuevo)
  *   POST api/autenticacion/cambiar-contrasena     (existente en la intranet)
  *   GET  api/autenticacion/me                     (existente en la intranet)
@@ -91,8 +91,12 @@ export async function cambiarContrasena(token: string, contrasenaActual: string,
   return r.mensaje;
 }
 
-/** Comprueba que la sesión siga vigente en el servidor (al abrir la app con "Recordar sesión"). */
-export async function validarSesion(token: string): Promise<void> {
+/**
+ * Comprueba que la sesión siga vigente en el servidor (al abrir la app con "Recordar sesión" y cada 30 s mientras está abierta).
+ * Con `cerrarSiInvalida` (por defecto) un 401 cierra la sesión local; la vigilancia periódica lo pasa en false y decide ella,
+ * para no cerrar una sesión nueva si el 401 llega tarde a una consulta de la anterior.
+ */
+export async function validarSesion(token: string, cerrarSiInvalida = true): Promise<void> {
   if (entorno.usarMock) return;
-  await solicitar('/api/autenticacion/me', { token });
+  await solicitar('/api/autenticacion/me', { token, manejarSesionInvalida: cerrarSiInvalida });
 }
