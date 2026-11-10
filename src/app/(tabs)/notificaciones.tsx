@@ -60,6 +60,9 @@ const iconos: Record<TipoNotificacion, { nombre: IconoIon; color: string }> = {
   autorizacion_solicitud: { nombre: 'hand-left-outline', color: colores.naranja },
   solicitud_enviada: { nombre: 'paper-plane-outline', color: colores.primario },
   correlativo: { nombre: 'ribbon-outline', color: colores.primario },
+  correlativo_asignado: { nombre: 'ribbon-outline', color: colores.primario },
+  correlativo_solicitado: { nombre: 'paper-plane-outline', color: colores.primario },
+  correlativo_solicitud: { nombre: 'ribbon-outline', color: colores.naranja },
   gasto_aprobado: { nombre: 'receipt-outline', color: colores.verde },
   gasto_observado: { nombre: 'alert-circle-outline', color: colores.naranja },
   gasto_rechazado: { nombre: 'close-circle', color: colores.rojo },
@@ -131,6 +134,8 @@ export default function PantallaNotificaciones() {
     if (destino.pantalla === 'servicio' && destino.idOs) router.push({ pathname: '/detalle-servicio', params: { id: String(destino.idOs) } });
     else if (destino.pantalla === 'aprobacion' && destino.idOs) router.push({ pathname: '/aprobacion-salida', params: { id: String(destino.idOs) } });
     else if (destino.pantalla === 'gastos') router.push({ pathname: '/viaticos-gastos', params: { tab: 'solicitudes' } });
+    else if (destino.pantalla === 'tickets') router.push('/mis-tickets');
+    else if (destino.pantalla === 'correlativos') router.push('/correlativos');
   };
 
   // Agrupa por día, del más reciente al más antiguo

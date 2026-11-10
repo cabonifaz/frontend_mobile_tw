@@ -47,13 +47,17 @@ export default function LayoutPestanas() {
     '/viaticos-gastos',
     '/viatico',
     '/solicitud-gasto',
+    // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
+    '/solicitud-correlativo',
+    '/mis-tickets',
   ].includes(pathname);
   const enCuenta = pathname === '/mi-cuenta';
   // HU-19: la fuente consultada y los guardados del asistente marcan la pestaña "Asistente".
   const enAsistente = ['/asistente-fuente', '/asistente-guardados'].includes(pathname);
   // Jefatura entra al Asistente IA desde la tarjeta del menú (su barra no tiene pestaña Asistente): ahí queda marcada la pestaña Menú.
   // HU-29 / HU-30: el Panel de Campo y el seguimiento de un servicio (pantallas del jefe) marcan la pestaña "Menú".
-  const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio'].includes(pathname);
+  // HU-34: los Correlativos del Jefe de Metrología también marcan "Menú".
+  const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio', '/correlativos'].includes(pathname);
   const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente' || enPanelCampo));
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
   const enDetalleAprobacion = pathname === '/aprobacion-salida';
@@ -166,6 +170,10 @@ export default function LayoutPestanas() {
       <Tabs.Screen name="servicios-activos" options={{ title: 'Servicios activos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="servicio-jefatura" options={{ title: 'Seguimiento del servicio', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="ruta-servicio" options={{ title: 'Ubicación y ruta', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      {/* HU-14 / HU-34: correlativos de Metrología (solicitud y tickets del técnico; solicitudes del Jefe de Metrología). */}
+      <Tabs.Screen name="solicitud-correlativo" options={{ title: 'Solicitud de correlativo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="mis-tickets" options={{ title: 'Mis tickets', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="correlativos" options={{ title: 'Correlativos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen
         name="perfil"
         options={{

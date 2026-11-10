@@ -271,3 +271,24 @@ Al pulsar **Ver detalle**, la app muestra lo que el coordinador ve en Programaci
 **Filtros de la agenda (HU-03):** la app pide la lista completa (`filtro=todos`) y calcula Todos / Hoy / Pendientes y sus contadores en `src/utilidades/agenda.ts`, con la fecha de Lima. El back sigue aceptando `filtro` y `busqueda`.
 
 Cualquier cambio en la BD (una OS nueva para el técnico, su área o nombre) se ve en la app al **deslizar hacia abajo**. No hay botón de actualizar.
+
+
+## HU-14 / HU-34 — Correlativos de Metrología
+
+Todo bajo `api/movil/correlativos` (`src/api/correlativos.ts`, con modo demo). El back decide las reglas; la app solo muestra.
+
+**Técnico (HU-14)** — etapa 5 "Correlativo y certificado" del trabajo en el equipo (`SP_ObtenerTrabajoEquipoMovil`: conforme con el certificado guardado, en curso con un ticket abierto, bloqueada hasta finalizar los ensayos):
+- `GET …/servicios/{idOs}/equipos/{idOsEquipo}/solicitud` (`SP_ObtenerSolicitudCorrelativoMovil`): datos del equipo, OS u OM según la RQ, tipos de certificado (catálogo `TIPO_CERTIFICADO_MET`), si se puede solicitar y por qué no, el correlativo asignado sin usar y la reserva libre.
+- `POST …/tickets` (`SP_SolicitarCorrelativoMovil`): crea el ticket `TK-MET-#####` (`ticket_metrologia`). Exige Hard Stop, equipo en ejecución, ensayos finalizados, sin certificado y un solo ticket abierto por equipo; avisa a los jefes de Metrología y al técnico.
+- `GET tickets?filtro=todos|pendientes|asignados&idOs=` (`SP_ObtenerTicketsCorrelativoMovil`): "Mis tickets", con recarga cada ~30 s.
+- `PUT …/certificado` (`SP_GuardarCertificadoMovil`): el correlativo asignado (o uno de la reserva del técnico) pasa a ser `informe_tecnico.numero_certificado` y queda usado.
+- `POST reserva` (`SP_GenerarReservaCorrelativosMovil`, modo propia): la reserva diaria del técnico de Metrología, al abrir la solicitud.
+
+**Jefe de Metrología (HU-34)** — tarjeta Correlativos del menú de Jefatura (solo Metrología; los demás ven el candado):
+- `GET jefatura` (`SP_ObtenerCorrelativosJefaturaMovil`): KPIs Pendientes / Asignados hoy / Reservados, tickets pendientes y asignados hoy (con patrón y resultado de los ensayos), el siguiente correlativo sugerido y la reserva por técnico.
+- `POST jefatura/tickets/{idTicket}/asignar` (`SP_AsignarCorrelativoMovil`): sugerido o editable (CC-0000-AAAA del año actual, no emitido); avisa al técnico ("Correlativo asignado · Ver ticket").
+- `POST jefatura/reserva`: la reserva de todos los técnicos de Metrología (idempotente por día; parámetro `CORRELATIVO_RESERVA_DIARIA`, 2 por defecto).
+
+**Offline:** las pantallas muestran lo último guardado sin conexión; solicitar, asignar, guardar el certificado y generar la reserva exigen conexión. **Pendiente:** usar un correlativo de la reserva SIN conexión desde el teléfono (necesita cola local y conciliación) y la confirmación de Metrología de los correlativos "usados · por confirmar".
+
+**Notificaciones nuevas** (`SP_ObtenerNotificacionesMovil`): `correlativo_solicitado` y `correlativo_asignado` (técnico → Mis tickets) y `correlativo_solicitud` (jefe → Correlativos).

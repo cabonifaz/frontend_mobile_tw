@@ -32,6 +32,12 @@ export type TipoNotificacion =
   /** Otra alerta operativa del Control de Campo. */
   | 'alerta_campo'
   | 'correlativo'
+  /** HU-14: Metrología asignó el correlativo del ticket (abre Mis tickets). */
+  | 'correlativo_asignado'
+  /** HU-14: confirmación al técnico de que su solicitud de correlativo se envió. */
+  | 'correlativo_solicitado'
+  /** HU-34: un técnico solicita un correlativo (le llega al Jefe de Metrología). */
+  | 'correlativo_solicitud'
   | 'general';
 
 export interface Notificacion {
@@ -117,7 +123,7 @@ const demoVigente = (): Notificacion[] =>
       fecha: haceDias(0, '07:12'), leida: false, entidadTipo: 'orden_servicio', idEntidad: 791, pendientesAprobados: null },
     { id: 5, tipo: 'demora', titulo: 'Demora en ruta', cuerpo: 'OS-000790 · Tráfico · 20 min · nueva llegada estimada 10:20',
       fecha: haceDias(0, '09:50'), leida: true, entidadTipo: 'orden_servicio', idEntidad: 790, pendientesAprobados: null },
-    { id: 4, tipo: 'correlativo', titulo: 'Correlativo despachado', cuerpo: 'TK-MET-00241 → CC-2026-01458', fecha: haceDias(0, '11:10'), leida: false, ...base },
+    { id: 4, tipo: 'correlativo_asignado', titulo: 'Correlativo asignado', cuerpo: 'TK-MET-00241 · BAL-012 · Metrología asignó el correlativo CC-1712-2026.', fecha: haceDias(0, '11:10'), leida: false, ...base, entidadTipo: 'ticket_metrologia', idEntidad: 241 },
     { id: 3, tipo: 'gasto_aprobado', titulo: 'Gasto aprobado', cuerpo: 'Movilidad · S/ 40.00', fecha: haceDias(0, '09:15'), leida: true, ...base },
     { id: 2, tipo: 'servicio', titulo: 'Nueva programación: OS-000795', cuerpo: 'OS-000795 · Gloria S.A. · 27/10 08:00',
       fecha: haceDias(1, '18:20'), leida: true, entidadTipo: 'orden_servicio', idEntidad: 795, pendientesAprobados: null },

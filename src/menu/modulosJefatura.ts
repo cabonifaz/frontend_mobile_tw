@@ -81,7 +81,7 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-correlativos',
     titulo: 'Correlativos',
     icono: ion('ribbon-outline'),
-    ruta: null,
+    ruta: '/correlativos', // HU-34 (solo Metrología: los demás jefes ven el candado)
     soloArea: METROLOGIA,
     indicadores: (m) => (hay(m.ticketsCorrelativo) ? [{ texto: plural(m.ticketsCorrelativo, 'ticket', 'tickets'), tono: 'amarillo' }] : []),
   },

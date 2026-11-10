@@ -128,7 +128,7 @@ function trabajoDemo(idOs: number, idOsEquipo: number): TrabajoEquipo {
       { orden: 3, codigo: 'ensayos', nombre: 'Ensayos y Calibración', estado: v ? 'pendiente' : 'bloqueado', disponible: true,
         detalle: v ? 'Verificación de pesaje tras el ajuste' : 'Se habilita al guardar las variables ambientales' },
       { orden: 4, codigo: 'cabecera', nombre: 'Cabecera del informe', estado: 'pendiente', disponible: false, detalle: 'Datos · Detalle Serv. · Observación y pruebas' },
-      { orden: 5, codigo: 'correlativo', nombre: 'Correlativo y certificado', estado: 'pendiente', disponible: false, detalle: 'Correlativo de Metrología → N° de certificado' },
+      { orden: 5, codigo: 'correlativo', nombre: 'Correlativo y certificado', estado: 'pendiente', disponible: true, detalle: 'Correlativo de Metrología → N° de certificado' },
     ],
   };
 }

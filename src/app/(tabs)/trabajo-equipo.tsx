@@ -8,6 +8,7 @@ import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { horaRespaldo } from '@/api/respaldo';
 import { obtenerTrabajoEquipoConRespaldo, type EtapaTrabajo } from '@/api/trabajo';
 import { Aviso } from '@/componentes/Aviso';
+import { CertificadoModal } from '@/componentes/CertificadoModal';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
@@ -19,18 +20,22 @@ import { avanceEtapas } from '@/utilidades/trabajo';
  * HU-08 — Trabajo en el equipo.
  *  - Cabecera: servicio (sigla y tipo), equipo, tipo de orden definido por la RQ (OS = Servicio técnico · OM = Metrología), tiempos y avance.
  *  - Las 5 etapas con su estado: Variables ambientales (HU-09), Registro fotográfico, Ensayos y Calibración (bloqueada hasta guardar las variables),
- *    Cabecera del informe y Correlativo y certificado. Las que aún no tienen pantalla avisan que se habilitan más adelante.
+ *    Cabecera del informe y Correlativo y certificado (HU-14: solicitud a Metrología, Mis tickets y el modal "Correlativo y certificado"). Las que aún no tienen
+ *    pantalla avisan que se habilitan más adelante.
  *  - "Finalizar trabajo en equipo" se habilita cuando las 5 etapas están conformes (la decide el back).
  */
 export default function PantallaTrabajoEquipo() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();
-  const params = useLocalSearchParams<{ id?: string; equipo?: string }>();
+  const params = useLocalSearchParams<{ id?: string; equipo?: string; usar?: string }>();
   const idOs = Number(params.id);
   const idOsEquipo = Number(params.equipo);
   const valido = Number.isInteger(idOs) && idOs > 0 && Number.isInteger(idOsEquipo) && idOsEquipo > 0;
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'info'; texto: string } | null>(null);
+  // HU-14: "Usar correlativo" (desde Mis tickets o la solicitud) llega con `usar=<marca>` (distinta cada vez) y abre el modal "Correlativo y certificado"
+  const [usarAtendido, setUsarAtendido] = useState<string | null>(null);
+  const modalCertificado = valido && !!params.usar && params.usar !== usarAtendido;
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     if (!valido) throw new ErrorApi('Servicio o equipo no válido.', 400, 1);
@@ -62,6 +67,15 @@ export default function PantallaTrabajoEquipo() {
     if (e.codigo === 'variables') router.push({ pathname: '/variables-ambientales', params });
     if (e.codigo === 'ensayos') router.push({ pathname: '/ensayos', params });
     if (e.codigo === 'fotos') router.push({ pathname: '/registro-fotografico', params });
+    if (e.codigo === 'correlativo') router.push({ pathname: '/solicitud-correlativo', params });
+  }
+
+  function alCerrarCertificado(guardado: boolean) {
+    setUsarAtendido(params.usar ?? null);
+    if (guardado) {
+      setMensaje({ tipo: 'info', texto: 'Certificado guardado: forma parte del informe técnico del equipo.' });
+      void recargar();
+    }
   }
 
   const avance = avanceEtapas(c?.etapasConformes ?? 0, c?.etapasTotal ?? 5);
@@ -191,6 +205,7 @@ export default function PantallaTrabajoEquipo() {
           </>
         )}
       </ScrollView>
+      <CertificadoModal visible={modalCertificado} idOs={idOs} idOsEquipo={idOsEquipo} onCerrar={alCerrarCertificado} />
     </SafeAreaView>
   );
 }

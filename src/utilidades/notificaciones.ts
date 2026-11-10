@@ -17,6 +17,9 @@ const TIPOS: readonly TipoNotificacion[] = [
   'servicio_detenido',
   'alerta_campo',
   'correlativo',
+  'correlativo_asignado',
+  'correlativo_solicitado',
+  'correlativo_solicitud',
   'general',
 ];
 
@@ -35,7 +38,7 @@ export function pendientesComoLista(texto: string | null | undefined): string[] 
 
 /** A qué pantalla lleva la tarjeta de una notificación. */
 export interface DestinoNotificacion {
-  pantalla: 'servicio' | 'aprobacion' | 'gastos';
+  pantalla: 'servicio' | 'aprobacion' | 'gastos' | 'tickets' | 'correlativos';
   /** Id de la OS (servicio y aprobación). */
   idOs?: number;
   etiqueta: string;
@@ -57,6 +60,13 @@ export function destinoNotificacion(n: Pick<Notificacion, 'tipo' | 'entidadTipo'
       return idOs && !jefatura ? { pantalla: 'servicio', idOs, etiqueta: 'Ir al servicio' } : null;
     case 'autorizacion_solicitud':
       return idOs ? { pantalla: 'aprobacion', idOs, etiqueta: 'Revisar solicitud' } : null;
+    // HU-14: el técnico abre Mis tickets; HU-34: el Jefe de Metrología abre Correlativos (solo si lo mira como jefe)
+    case 'correlativo':
+    case 'correlativo_asignado':
+    case 'correlativo_solicitado':
+      return jefatura ? null : { pantalla: 'tickets', etiqueta: 'Ver ticket' };
+    case 'correlativo_solicitud':
+      return jefatura ? { pantalla: 'correlativos', etiqueta: 'Atender solicitud' } : null;
     case 'gasto_aprobado':
     case 'gasto_observado':
     case 'gasto_rechazado':
