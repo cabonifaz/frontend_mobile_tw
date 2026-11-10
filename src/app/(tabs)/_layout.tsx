@@ -52,7 +52,9 @@ export default function LayoutPestanas() {
   // HU-19: la fuente consultada y los guardados del asistente marcan la pestaña "Asistente".
   const enAsistente = ['/asistente-fuente', '/asistente-guardados'].includes(pathname);
   // Jefatura entra al Asistente IA desde la tarjeta del menú (su barra no tiene pestaña Asistente): ahí queda marcada la pestaña Menú.
-  const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente'));
+  // HU-29 / HU-30: el Panel de Campo y el seguimiento de un servicio (pantallas del jefe) marcan la pestaña "Menú".
+  const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio'].includes(pathname);
+  const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente' || enPanelCampo));
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
   const enDetalleAprobacion = pathname === '/aprobacion-salida';
   const itemActivo = {
@@ -159,6 +161,11 @@ export default function LayoutPestanas() {
         name="asistente-guardados"
         options={{ title: 'Guardados', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* HU-29 / HU-30: Panel de Campo y seguimiento del servicio (solo Jefatura; se entra desde la tarjeta "Panel de Campo" del menú). */}
+      <Tabs.Screen name="panel-campo" options={{ title: 'Panel de Campo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="servicios-activos" options={{ title: 'Servicios activos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="servicio-jefatura" options={{ title: 'Seguimiento del servicio', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="ruta-servicio" options={{ title: 'Ubicación y ruta', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen
         name="perfil"
         options={{

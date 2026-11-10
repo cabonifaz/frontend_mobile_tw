@@ -48,7 +48,7 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-panel-campo',
     titulo: 'Panel de Campo',
     icono: ion('map-outline'),
-    ruta: null,
+    ruta: '/panel-campo', // HU-29 (y HU-30: seguimiento del servicio desde ahí)
     indicadores: (m) => (m.enRuta > 0 ? [{ texto: `${m.enRuta} en ruta`, tono: 'azul' }] : []),
   },
   {
