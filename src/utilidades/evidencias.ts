@@ -120,6 +120,14 @@ export function leerDatosIa(valor: unknown): DatosIa | null {
   return null;
 }
 
+/** Etiqueta de una evidencia cuya toma está en el teléfono esperando señal para pasar por la IA. */
+export const ETIQUETA_EN_COLA: EtiquetaEstado = { texto: 'EN COLA', fondo: colores.azulFondo, color: colores.azulTexto };
+
+/** Banner del registro fotográfico: "2 evidencias esperando señal · se envían solas a la IA; hasta entonces no cuentan como completas." */
+export function textoEnCola(n: number): string {
+  return `${n} ${n === 1 ? 'evidencia esperando señal' : 'evidencias esperando señal'} · se ${n === 1 ? 'envía sola' : 'envían solas'} a la IA al recuperar la conexión; hasta entonces no ${n === 1 ? 'cuenta' : 'cuentan'} como completa${n === 1 ? '' : 's'}.`;
+}
+
 /** Título de la cabecera: "SERVICIO: MC · Báscula Camionera #01". */
 export function tituloServicio(c: Pick<CabeceraEvidencias, 'servicioSigla' | 'nombre' | 'numero'>): string {
   return `SERVICIO: ${c.servicioSigla ? `${c.servicioSigla} · ` : ''}${c.nombre} #${String(c.numero).padStart(2, '0')}`;

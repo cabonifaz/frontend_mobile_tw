@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -6,17 +6,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { capturarEvidencia, obtenerEvidenciasConRespaldo, urlArchivoEvidencia, type Evidencia, type Evidencias } from '@/api/evidencias';
+import { puedeGuardarSinConexion, sincronizarEvidencias } from '@/api/colaEvidencias';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { CamaraApp } from '@/componentes/CamaraApp';
 import { CapturaEvidencia } from '@/componentes/CapturaEvidencia';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
+import { useCapturasPendientes } from '@/hooks/useCapturasPendientes';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { fechaCorta, horaDe } from '@/utilidades/formato';
-import { estaCompleta, etiquetaEvidencia, siguientePagina, textoAvance, textoDuracion, textoFaltan, textoForzadas, tituloServicio } from '@/utilidades/evidencias';
+import { ETIQUETA_EN_COLA, estaCompleta, etiquetaEvidencia, siguientePagina, textoAvance, textoDuracion, textoEnCola, textoFaltan, textoForzadas, tituloServicio } from '@/utilidades/evidencias';
 
 /**
  * HU-11 — Registro fotográfico y validación IA (con HU-12 evidencia forzada y HU-13 microvideo de encendido).
@@ -24,7 +26,8 @@ import { estaCompleta, etiquetaEvidencia, siguientePagina, textoAvance, textoDur
  *  - HU-12: una toma rechazada se puede aceptar a la fuerza con un motivo escrito: queda FORZADA y, con "Ver detalles", se ve el motivo, el rechazo de la IA,
  *    quién la aceptó, cuándo y los intentos previos.
  *  - HU-13: "Encendido" es un microvideo de 3 a 5 s; el QR se lee con la cámara y debe ser el del equipo; el informe a mano admite varias hojas.
- *  - "Guardar y volver" se habilita con las 9 completas. Capturar exige conexión (sube el archivo y espera a la IA).
+ *  - "Guardar y volver" se habilita con las 9 completas. Capturar sube el archivo y espera a la IA; sin señal la toma queda EN COLA en el teléfono
+ *    (`colaEvidencias`), se envía sola al volver la conexión y NO cuenta como completa hasta que la IA la valide.
  */
 export default function PantallaRegistroFotografico() {
   const { sesion } = useSesion();
@@ -57,6 +60,40 @@ export default function PantallaRegistroFotografico() {
       else void recargar();
     }, [recargar]),
   );
+
+  // Tomas guardadas en el teléfono sin señal: esperan a la IA y no cuentan como completas
+  const pendientes = useCapturasPendientes(usuario?.idUsuario, idOs, idOsEquipo);
+  const enCola = new Set(pendientes.map((p) => p.codigo as string));
+  const [enviando, setEnviando] = useState(false);
+  const anteriores = useRef(0);
+  useEffect(() => {
+    // Cuando la cola se vacía (la envió el monitor o el botón) el panel se vuelve a leer con lo que dijo la IA
+    const bajo = pendientes.length < anteriores.current;
+    anteriores.current = pendientes.length;
+    if (!bajo) return;
+    void (async () => {
+      await recargar();
+      setPanel(null);
+    })();
+  }, [pendientes.length, recargar]);
+
+  async function enviarAhora() {
+    if (!sesion || enviando) return;
+    setEnviando(true);
+    setMensaje(null);
+    try {
+      const r = await sincronizarEvidencias(sesion.token, sesion.usuario.idUsuario);
+      if (r.sinConexion) setMensaje({ tipo: 'error', texto: 'Sigue sin conexión con el servidor. Se enviarán solas cuando la haya.' });
+      else if (r.avisos.length > 0) setMensaje({ tipo: 'error', texto: r.avisos.join('\n\n') });
+      else if (r.enviadas > 0) setMensaje({ tipo: 'info', texto: 'Evidencias enviadas: la IA ya las validó.' });
+      await recargar();
+      setPanel(null);
+    } catch (e) {
+      setMensaje({ tipo: 'error', texto: e instanceof Error ? e.message : 'No se pudieron enviar las evidencias.' });
+    } finally {
+      setEnviando(false);
+    }
+  }
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const actual = panel && datos && panel.cabecera.idOsEquipo === datos.evidencias.cabecera.idOsEquipo && !recargando ? panel : (datos?.evidencias ?? null);
@@ -120,7 +157,7 @@ export default function PantallaRegistroFotografico() {
             </Text>
             {datos?.sinConexion && (
               <View style={{ marginBottom: 10 }}>
-                <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). Capturar evidencias exige conexión.`} />
+                <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). ${puedeGuardarSinConexion() ? 'Las tomas se guardan en el teléfono y la IA las valida al volver la señal.' : 'Capturar evidencias exige conexión.'}`} />
               </View>
             )}
 
@@ -158,6 +195,23 @@ export default function PantallaRegistroFotografico() {
                 <Text style={estilos.bannerTexto}>{textoForzadas(c.forzadas)}</Text>
               </View>
             )}
+            {pendientes.length > 0 && (
+              <View style={[estilos.banner, estilos.bannerAzul, { flexDirection: 'column', alignItems: 'stretch' }]} testID="aviso-en-cola">
+                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                  <Ionicons name="cloud-upload-outline" size={22} color={colores.titulo} />
+                  <Text style={estilos.bannerTexto}>{textoEnCola(pendientes.length)}</Text>
+                </View>
+                <Pressable
+                  onPress={() => void enviarAhora()}
+                  disabled={enviando}
+                  style={[estilos.enviarAhora, enviando && { opacity: 0.6 }]}
+                  accessibilityRole="button"
+                  testID="enviar-ahora"
+                >
+                  {enviando ? <ActivityIndicator color={colores.blanco} /> : <Text style={estilos.enviarAhoraTexto}>Enviar ahora</Text>}
+                </Pressable>
+              </View>
+            )}
             {mensaje && (
               <View style={{ marginTop: 12 }} testID="mensaje-evidencias">
                 <Aviso tipo={mensaje.tipo} mensaje={mensaje.texto} />
@@ -177,6 +231,7 @@ export default function PantallaRegistroFotografico() {
                 <TarjetaEvidencia
                   key={e.codigo}
                   e={e}
+                  enCola={enCola.has(e.codigo)}
                   abierta={abierta === e.codigo}
                   idOs={c.idOs}
                   idOsEquipo={c.idOsEquipo}
@@ -210,6 +265,7 @@ export default function PantallaRegistroFotografico() {
           pagina={captura?.pagina ?? 1}
           cabecera={c}
           token={token}
+          idUsuario={usuario?.idUsuario ?? 0}
           onPanel={(p) => setPanel(p)}
           onCerrar={(cambios) => {
             setCaptura(null);
@@ -227,6 +283,8 @@ export default function PantallaRegistroFotografico() {
 
 function TarjetaEvidencia(props: {
   e: Evidencia;
+  /** Hay una toma guardada en el teléfono esperando señal para esta evidencia. */
+  enCola: boolean;
   abierta: boolean;
   idOs: number;
   idOsEquipo: number;
@@ -235,9 +293,10 @@ function TarjetaEvidencia(props: {
   onDetalles: () => void;
 }) {
   const { e } = props;
-  const et = etiquetaEvidencia(e);
-  const forzada = e.estado === 'forzada';
   const completa = estaCompleta(e);
+  // Una evidencia aún no completa con su toma en cola se muestra EN COLA; si ya estaba completa conserva su estado y avisa de la nueva toma
+  const et = props.enCola && !completa ? ETIQUETA_EN_COLA : etiquetaEvidencia(e);
+  const forzada = e.estado === 'forzada';
   const conImagen = e.idEvidencia !== null && e.medio !== 'qr' && !(e.medio === 'video' && !e.tieneCuadro);
   const uri = conImagen && e.idEvidencia !== null ? urlArchivoEvidencia(props.idOs, props.idOsEquipo, e.idEvidencia, e.medio === 'video') : null;
 
@@ -274,6 +333,7 @@ function TarjetaEvidencia(props: {
         <View style={[estilos.pill, { backgroundColor: et.fondo, alignSelf: 'flex-start', marginTop: 8 }]}>
           <Text style={[estilos.pillTexto, { color: et.color }]}>{et.texto}</Text>
         </View>
+        {props.enCola && completa && <Text style={estilos.nuevaEnCola}>Nueva toma en cola</Text>}
       </Pressable>
 
       {forzada && (
@@ -350,6 +410,9 @@ const estilos = StyleSheet.create({
   datoK: { fontSize: 16, color: colores.titulo },
   datoV: { fontSize: 16, fontWeight: '800', color: colores.titulo, flexShrink: 1, textAlign: 'right' },
   datoDetalle: { fontSize: 15, color: colores.textoSecundario, marginTop: 3, lineHeight: 21 },
+  enviarAhora: { minHeight: 46, borderRadius: radios.boton, backgroundColor: colores.primario, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  enviarAhoraTexto: { color: colores.blanco, fontSize: 16.5, fontWeight: '700' },
+  nuevaEnCola: { color: colores.azulTexto, fontSize: 13, fontWeight: '700', marginTop: 4 },
   guardar: { marginTop: 18, minHeight: 56, borderRadius: radios.boton, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   guardarActivo: { backgroundColor: colores.primario },
   guardarBloqueado: { backgroundColor: '#CBD3DF' },

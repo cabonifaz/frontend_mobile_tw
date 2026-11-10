@@ -5,6 +5,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { capturarEvidencia, forzarEvidencia, type CabeceraEvidencias, type CodigoEvidencia, type Evidencia, type Evidencias, type ResultadoEvidencia } from '@/api/evidencias';
+import { guardarCapturaPendiente, puedeGuardarSinConexion } from '@/api/colaEvidencias';
 import { Boton } from '@/componentes/Boton';
 import { useUbicacion } from '@/hooks/useUbicacion';
 import { colores, radios } from '@/tema/colores';
@@ -30,6 +31,8 @@ interface Props {
   pagina: number;
   cabecera: CabeceraEvidencias;
   token: string;
+  /** Técnico de la sesión: dueño de las tomas que se guardan sin conexión. */
+  idUsuario: number;
   /** Cierra la cámara. `huboCambios` = se guardó o se forzó algo: el panel se vuelve a leer. */
   onCerrar: (huboCambios: boolean) => void;
   /** Panel actualizado que devuelve el back al forzar una foto. */
@@ -54,7 +57,7 @@ export function CapturaEvidencia(props: Props) {
 
 type Fase = 'camara' | 'grabando' | 'analizando' | 'resultado';
 
-function CapturaActiva({ evidencia, pagina, cabecera, token, onCerrar, onPanel }: Props & { evidencia: Evidencia }) {
+function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar, onPanel }: Props & { evidencia: Evidencia }) {
   const [permiso, pedirPermiso] = useCameraPermissions();
   const { ubicacion } = useUbicacion(true);
   const camara = useRef<CameraView>(null);
@@ -76,6 +79,8 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, onCerrar, onPanel }
   const [motivo, setMotivo] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [hubo, setHubo] = useState(false);
+  /** La toma quedó guardada en el teléfono esperando señal (la IA la valida al enviarla). */
+  const [enCola, setEnCola] = useState(false);
   const inicioGrabacion = useRef(0);
   const detenida = useRef(false);
 
@@ -114,6 +119,32 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, onCerrar, onPanel }
       setFase('resultado');
       if (r.estado === 'rechazada') setRechazo(true);
     } catch (e) {
+      // Sin señal: la toma se guarda en el teléfono y se envía a la IA sola al volver la conexión (no cuenta como completa hasta entonces)
+      if (e instanceof ErrorApi && e.estadoHttp === 0 && puedeGuardarSinConexion()) {
+        try {
+          await guardarCapturaPendiente({
+            idUsuario,
+            idOs: cabecera.idOs,
+            idOsEquipo: cabecera.idOsEquipo,
+            numeroOs: cabecera.numeroOs,
+            equipo: `${cabecera.nombre} #${String(cabecera.numero).padStart(2, '0')}`,
+            codigo,
+            nombreEvidencia: evidencia.nombre,
+            pagina: codigo === 'informe' ? paginaActual : 1,
+            archivoUri,
+            cuadroUri,
+            ubicacion,
+            capturadoEn,
+            duracionSeg: dur,
+          });
+          setHubo(true);
+          setEnCola(true);
+          setFase('resultado');
+          return;
+        } catch {
+          // no se pudo guardar en el teléfono: se muestra el aviso de siempre
+        }
+      }
       setError(
         e instanceof ErrorApi && e.estadoHttp === 0
           ? 'Sin conexión: la evidencia se valida con IA y se sube con señal. Vuelve a intentarlo cuando la tengas.'
@@ -190,6 +221,7 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, onCerrar, onPanel }
   }
 
   function repetir() {
+    setEnCola(false);
     setResultado(null);
     setVista(null);
     setRechazo(false);
@@ -219,7 +251,9 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, onCerrar, onPanel }
   const rechazada = resultado?.estado === 'rechazada';
   const aprobada = !!resultado && !rechazada;
   const datos = resultado?.datosIa ?? null;
-  const etiquetaCabecera = !resultado
+  const etiquetaCabecera = enCola
+    ? { t: 'EN COLA · SIN SEÑAL', f: colores.azulFondo, c: colores.azulTexto }
+    : !resultado
     ? esVideo ? { t: `REQUERIDO ${DURACION_MIN_SEG}–${DURACION_MAX_SEG} s`, f: '#FEE2E2', c: colores.rojoEtiquetaTexto }
               : null
     : rechazada
@@ -354,6 +388,40 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, onCerrar, onPanel }
                   <View style={estilos.detener} />
                 </Pressable>
                 <Text style={estilos.ayuda}>{puedeDetener(segundos) ? 'DETENER' : `Sigue grabando · mínimo ${DURACION_MIN_SEG} s`}</Text>
+              </>
+            )}
+
+            {fase === 'resultado' && enCola && (
+              <>
+                <View style={estilos.cajaAzul} testID="captura-en-cola">
+                  <Text style={estilos.cajaAzulTexto}>
+                    <Text style={{ fontWeight: '800' }}>Guardada en el teléfono, sin señal. </Text>
+                    Se enviará sola a la IA cuando haya conexión (con la hora y el GPS de esta toma). Hasta que la IA la valide, la evidencia NO cuenta como completa.
+                  </Text>
+                </View>
+                <View style={estilos.botones}>
+                  <Pressable onPress={repetir} style={[estilos.boton, estilos.botonBorde]} accessibilityRole="button" testID="repetir-en-cola">
+                    <Text style={[estilos.botonTexto, { color: colores.blanco }]}>{esVideo ? 'Grabar de nuevo' : 'Tomar de nuevo'}</Text>
+                  </Pressable>
+                  {codigo === 'informe' && paginaActual < 10 && (
+                    <Pressable
+                      onPress={() => {
+                        setPaginaActual(siguientePagina(paginaActual));
+                        repetir();
+                      }}
+                      style={[estilos.boton, estilos.botonBorde]}
+                      accessibilityRole="button"
+                      testID="agregar-pagina-en-cola"
+                    >
+                      <Ionicons name="add" size={20} color={colores.blanco} />
+                      <Text style={[estilos.botonTexto, { color: colores.blanco }]}>Página</Text>
+                    </Pressable>
+                  )}
+                  <Pressable onPress={() => onCerrar(true)} style={[estilos.boton, { backgroundColor: colores.primario }]} accessibilityRole="button" testID="listo-en-cola">
+                    <Ionicons name="checkmark" size={20} color={colores.blanco} />
+                    <Text style={estilos.botonTexto}>Listo</Text>
+                  </Pressable>
+                </View>
               </>
             )}
 
@@ -610,6 +678,8 @@ const estilos = StyleSheet.create({
   filaIaK: { color: '#CBD5E1', fontSize: 16, flexShrink: 1 },
   filaIaV: { color: colores.blanco, fontSize: 16.5, fontWeight: '800' },
   coincide: { color: '#86EFAC', fontSize: 15, marginTop: 8 },
+  cajaAzul: { backgroundColor: 'rgba(59,130,246,0.15)', borderRadius: 10, padding: 12 },
+  cajaAzulTexto: { color: '#BFDBFE', fontSize: 15, lineHeight: 21 },
   cajaVerde: { backgroundColor: 'rgba(34,197,94,0.15)', borderRadius: 10, padding: 10, marginBottom: 6 },
   cajaVerdeTexto: { color: '#86EFAC', fontSize: 15 },
   velo: { flex: 1, backgroundColor: 'rgba(2,6,23,0.7)', justifyContent: 'center', padding: 22 },

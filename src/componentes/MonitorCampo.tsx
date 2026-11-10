@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { accionesPendientes, sincronizarAccionesEquipos } from '@/api/colaEquipos';
+import { capturasPendientes, sincronizarEvidencias } from '@/api/colaEvidencias';
 import { pendientesLlegadas, sincronizarLlegadas } from '@/api/colaLlegadas';
 import { pendientesDe, sincronizarPendientes } from '@/api/colaDemoras';
 import type { Ubicacion } from '@/api/ruta';
@@ -158,6 +159,8 @@ export function MonitorCampo() {
         if ((await pendientesLlegadas(idUsuario)).length > 0) avisar((await sincronizarLlegadas(token, idUsuario)).avisos);
         if ((await pendientesDe(idUsuario)).length > 0) avisar((await sincronizarPendientes(token, idUsuario)).avisos);
         if ((await accionesPendientes(idUsuario)).length > 0) avisar((await sincronizarAccionesEquipos(token, idUsuario)).avisos);
+        // Al final: una evidencia solo se acepta con el equipo ya en ejecución en el servidor
+        if ((await capturasPendientes(idUsuario)).length > 0) avisar((await sincronizarEvidencias(token, idUsuario)).avisos);
       } catch {
         // se reintenta en el siguiente ciclo
       }
