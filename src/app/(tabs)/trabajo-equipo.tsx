@@ -61,6 +61,7 @@ export default function PantallaTrabajoEquipo() {
     const params = { id: String(idOs), equipo: String(idOsEquipo) };
     if (e.codigo === 'variables') router.push({ pathname: '/variables-ambientales', params });
     if (e.codigo === 'ensayos') router.push({ pathname: '/ensayos', params });
+    if (e.codigo === 'fotos') router.push({ pathname: '/registro-fotografico', params });
   }
 
   const avance = avanceEtapas(c?.etapasConformes ?? 0, c?.etapasTotal ?? 5);

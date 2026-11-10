@@ -55,6 +55,8 @@ interface OpcionesRequest {
   token?: string | null;
   /** false = un 401 no cierra la sesión local (p. ej. el propio login). */
   manejarSesionInvalida?: boolean;
+  /** Tiempo máximo de espera de esta llamada (ms); por defecto el general. Sube una foto o un video y espera a la IA: necesita más. */
+  timeoutMs?: number;
 }
 
 /**
@@ -62,7 +64,7 @@ interface OpcionesRequest {
  * En cualquier otro caso lanza ErrorApi con el mensaje del backend.
  */
 export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {}): Promise<Respuesta<T>> {
-  const { metodo = 'GET', cuerpo, token, manejarSesionInvalida = true } = opciones;
+  const { metodo = 'GET', cuerpo, token, manejarSesionInvalida = true, timeoutMs = entorno.timeoutMs } = opciones;
 
   if (!entorno.apiUrl) {
     throw new ErrorApi('La app no tiene configurada la URL del backend (EXPO_PUBLIC_API_URL).', 0);
@@ -72,7 +74,7 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
   const esFormulario = typeof FormData !== 'undefined' && cuerpo instanceof FormData;
 
   const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), entorno.timeoutMs);
+  const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
 
   let respuestaHttp: Response;
   try {

@@ -42,6 +42,7 @@ export default function LayoutPestanas() {
     '/trabajo-equipo',
     '/variables-ambientales',
     '/ensayos',
+    '/registro-fotografico',
     // Viáticos y Gastos (HU-25 / HU-26)
     '/viaticos-gastos',
     '/viatico',
@@ -205,6 +206,10 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="ensayos"
         options={{ title: 'Ensayos y Calibración', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="registro-fotografico"
+        options={{ title: 'Registro fotográfico', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-31: detalle de una solicitud de salida (se entra desde Aprobaciones). */}
       <Tabs.Screen
