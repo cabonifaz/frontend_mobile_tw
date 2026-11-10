@@ -1,3 +1,4 @@
+import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
 /**
@@ -14,11 +15,16 @@ let modulo: Fs | null | undefined;
 /** El módulo de archivos de Expo; null si la app instalada no lo trae. */
 export function sistemaArchivos(): Fs | null {
   if (modulo !== undefined) return modulo;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    modulo = require('expo-file-system') as Fs;
-  } catch {
-    modulo = null;
+  modulo = null;
+  // Primero se comprueba que la parte NATIVA esté instalada en el teléfono: si falta y se pide el módulo de JavaScript, Metro lo reporta como error
+  // fatal ("Uncaught Error: Cannot find native module") y el try/catch no lo atrapa.
+  if (requireOptionalNativeModule('FileSystem')) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      modulo = require('expo-file-system') as Fs;
+    } catch {
+      modulo = null;
+    }
   }
   return modulo;
 }

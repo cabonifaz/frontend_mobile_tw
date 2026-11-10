@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { requireOptionalNativeModule } from 'expo';
 import { transcribirVoz } from '@/api/asistente';
 import { ErrorApi } from '@/api/cliente';
 import { colores, radios } from '@/tema/colores';
@@ -12,11 +13,16 @@ let modulo: ModuloAudio | null | undefined;
 /** El módulo de audio de Expo; null si la app instalada no lo trae (la voz llega con la próxima versión instalada). */
 function moduloAudio(): ModuloAudio | null {
   if (modulo !== undefined) return modulo;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    modulo = require('expo-audio') as ModuloAudio;
-  } catch {
-    modulo = null;
+  modulo = null;
+  // Primero se comprueba que la parte NATIVA esté instalada en el teléfono: si falta y se pide el módulo de JavaScript, Metro lo reporta como error
+  // fatal ("Uncaught Error: Cannot find native module") y el try/catch no lo atrapa.
+  if (requireOptionalNativeModule('ExpoAudio')) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      modulo = require('expo-audio') as ModuloAudio;
+    } catch {
+      modulo = null;
+    }
   }
   return modulo;
 }
