@@ -81,6 +81,8 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
   const [hubo, setHubo] = useState(false);
   /** La toma quedó guardada en el teléfono esperando señal (la IA la valida al enviarla). */
   const [enCola, setEnCola] = useState(false);
+  /** Causa técnica del último fallo al enviar (excepción, ruta, tiempos): se le pasa a soporte. */
+  const [detalle, setDetalle] = useState<string | null>(null);
   const inicioGrabacion = useRef(0);
   const detenida = useRef(false);
 
@@ -119,6 +121,9 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
       setFase('resultado');
       if (r.estado === 'rechazada') setRechazo(true);
     } catch (e) {
+      // Causa real del fallo (para soporte): se muestra en pantalla y en la consola de la app
+      const causa = e instanceof ErrorApi ? (e.detalleTecnico ?? `HTTP ${e.estadoHttp} · ${e.message}`) : e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      setDetalle(causa);
       // Sin señal: la toma se guarda en el teléfono y se envía a la IA sola al volver la conexión (no cuenta como completa hasta entonces)
       if (e instanceof ErrorApi && e.estadoHttp === 0 && puedeGuardarSinConexion()) {
         try {
@@ -222,6 +227,7 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
 
   function repetir() {
     setEnCola(false);
+    setDetalle(null);
     setResultado(null);
     setVista(null);
     setRechazo(false);
@@ -343,6 +349,11 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
           {/* Panel inferior */}
           <View style={estilos.pie}>
             {error && <Text style={estilos.error}>{error}</Text>}
+            {(error || enCola) && !!detalle && (
+              <Text style={estilos.detalleTecnico} selectable testID="detalle-tecnico">
+                Detalle técnico: {detalle}
+              </Text>
+            )}
 
             {fase === 'camara' && (
               <>
@@ -663,6 +674,7 @@ const estilos = StyleSheet.create({
   detener: { width: 30, height: 30, borderRadius: 6, backgroundColor: colores.rojo },
   ayuda: { color: '#94A3B8', fontSize: 14, textAlign: 'center' },
   error: { color: '#FCA5A5', fontSize: 14.5, textAlign: 'center' },
+  detalleTecnico: { color: '#94A3B8', fontSize: 11.5, textAlign: 'center', fontFamily: 'monospace' },
   barra: { height: 8, borderRadius: 4, backgroundColor: '#334155', overflow: 'hidden' },
   barraRelleno: { height: '100%', backgroundColor: '#F59E0B' },
   barraMarca: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: colores.blanco },

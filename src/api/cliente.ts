@@ -18,6 +18,8 @@ export class ErrorApi extends Error {
     readonly estadoHttp: number,
     /** idTipoMensaje del backend, si vino. */
     readonly idTipoMensaje?: number,
+    /** Causa técnica real (excepción, URL, tiempos) para soporte: el mensaje para el usuario no la dice. Nunca incluye el token. */
+    readonly detalleTecnico?: string,
   ) {
     super(mensaje);
     this.name = 'ErrorApi';
@@ -67,7 +69,7 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
   const { metodo = 'GET', cuerpo, token, manejarSesionInvalida = true, timeoutMs = entorno.timeoutMs } = opciones;
 
   if (!entorno.apiUrl) {
-    throw new ErrorApi('La app no tiene configurada la URL del backend (EXPO_PUBLIC_API_URL).', 0);
+    throw new ErrorApi('La app no tiene configurada la URL del backend (EXPO_PUBLIC_API_URL).', 0, undefined, 'SIN URL · EXPO_PUBLIC_API_URL vacía en esta compilación');
   }
 
   // FormData (fotos): el navegador / React Native arman el multipart y su boundary; no se fija Content-Type.
@@ -75,6 +77,7 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
 
   const controlador = new AbortController();
   const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
+  const inicio = Date.now();
 
   let respuestaHttp: Response;
   try {
@@ -90,11 +93,18 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
     });
   } catch (e) {
     const abortado = e instanceof Error && e.name === 'AbortError';
+    // Causa real del fallo (no el token): excepción, método y ruta, tiempo transcurrido frente al límite y tipo de cuerpo
+    const detalle =
+      `${abortado ? 'TIMEOUT' : 'RED'} · ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)} · ${metodo} ${ruta} · ` +
+      `${Date.now() - inicio} ms de ${timeoutMs} ms · ${esFormulario ? 'multipart' : cuerpo !== undefined ? 'json' : 'sin cuerpo'} · ${token ? 'con token' : 'sin token'} · base ${entorno.apiUrl}`;
+    console.warn(`[API] ${detalle}`);
     throw new ErrorApi(
       abortado
         ? 'El servidor tardó demasiado en responder. Revisa tu conexión e inténtalo de nuevo.'
         : 'No se pudo conectar con el servidor. Revisa tu conexión a internet.',
       0,
+      undefined,
+      detalle,
     );
   } finally {
     clearTimeout(temporizador);
@@ -128,6 +138,8 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
       ? 'El servidor tuvo un problema. Inténtalo en unos minutos.'
       : `Respuesta inesperada del servidor (HTTP ${respuestaHttp.status}).`,
     respuestaHttp.status,
+    undefined,
+    `HTTP ${respuestaHttp.status} · ${metodo} ${ruta} · ${Date.now() - inicio} ms · respuesta sin el formato esperado`,
   );
 }
 
