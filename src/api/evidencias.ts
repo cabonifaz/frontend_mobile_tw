@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { agregarArchivo } from './archivosLocales';
 import { solicitar } from './cliente';
 import { entorno } from '@/config/entorno';
 import { conRespaldo, type ConRespaldo } from './respaldo';
@@ -127,14 +127,6 @@ export async function obtenerEvidencias(token: string, idOs: number, idOsEquipo:
 export async function obtenerEvidenciasConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number): Promise<ConRespaldo<Evidencias>> {
   if (entorno.usarMock) return { datos: await mockEvidencias.obtener(idOs, idOsEquipo), sinConexion: false, guardadoEn: new Date() };
   return conRespaldo(idUsuario, `evidencias.${idOs}.${idOsEquipo}`, () => obtenerEvidencias(token, idOs, idOsEquipo));
-}
-
-async function agregarArchivo(form: FormData, campo: string, uri: string, nombre: string, tipo: string) {
-  if (Platform.OS === 'web') {
-    form.append(campo, await (await fetch(uri)).blob(), nombre);
-  } else {
-    form.append(campo, { uri, name: nombre, type: tipo } as unknown as Blob);
-  }
 }
 
 /** Sube la captura (el back la valida con IA y la registra). Con la IA de por medio puede tardar: espera hasta 90 s. */

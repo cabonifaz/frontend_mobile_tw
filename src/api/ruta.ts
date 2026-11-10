@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { agregarArchivo } from './archivosLocales';
 import { solicitar } from './cliente';
 import { entorno } from '@/config/entorno';
 import { mockRuta } from './mockRuta';
@@ -148,15 +148,7 @@ export async function registrarDemora(token: string, idOs: number, d: NuevaDemor
   form.append('longitud', d.ubicacion.longitud.toFixed(7));
   form.append('precisionMetros', d.ubicacion.precisionMetros.toFixed(1));
   form.append('capturadoEn', d.capturadoEn);
-  if (d.fotoUri) {
-    if (Platform.OS === 'web') {
-      // En web la cámara devuelve un data URI: se convierte a archivo
-      const blob = await (await fetch(d.fotoUri)).blob();
-      form.append('foto', blob, 'evidencia.jpg');
-    } else {
-      form.append('foto', { uri: d.fotoUri, name: 'evidencia.jpg', type: 'image/jpeg' } as unknown as Blob);
-    }
-  }
+  if (d.fotoUri) await agregarArchivo(form, 'foto', d.fotoUri, 'evidencia.jpg', 'image/jpeg');
   const r = await solicitar<ResultadoDemora>(`${ruta(idOs)}/demoras`, { token, metodo: 'POST', cuerpo: form });
   return { mensaje: r.mensaje, datos: r.datos ?? null };
 }
@@ -420,13 +412,7 @@ export async function registrarEquipoNuevo(token: string, idOs: number, e: Nuevo
   form.append('modelo', e.modelo.trim());
   form.append('idSuministro', String(e.idSuministro));
   form.append('ubicacion', e.ubicacion.trim());
-  if (Platform.OS === 'web') {
-    // En web la cámara devuelve un data URI: se convierte a archivo
-    const blob = await (await fetch(e.fotoUri)).blob();
-    form.append('foto', blob, 'placa.jpg');
-  } else {
-    form.append('foto', { uri: e.fotoUri, name: 'placa.jpg', type: 'image/jpeg' } as unknown as Blob);
-  }
+  await agregarArchivo(form, 'foto', e.fotoUri, 'placa.jpg', 'image/jpeg');
   const r = await solicitar<ResultadoEquipoNuevo>(`${ruta(idOs)}/equipos/nuevo`, { token, metodo: 'POST', cuerpo: form });
   return { mensaje: r.mensaje, datos: r.datos ?? null };
 }

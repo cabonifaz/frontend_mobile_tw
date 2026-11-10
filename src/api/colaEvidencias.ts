@@ -1,6 +1,7 @@
 import { entorno } from '@/config/entorno';
 import { borrar, guardar, leer } from '@/sesion/almacenamiento';
 import { INTENTOS_MAXIMOS, clasificarFallo } from '@/utilidades/demoras';
+import { sistemaArchivos } from './archivosLocales';
 import { validarSesion } from './autenticacion';
 import { ErrorApi } from './cliente';
 import { capturarEvidencia, type CodigoEvidencia } from './evidencias';
@@ -45,21 +46,6 @@ export interface CapturaPendiente {
   capturadoEn: string;
   duracionSeg: number | null;
   intentos: number;
-}
-
-type Fs = typeof import('expo-file-system');
-let modulo: Fs | null | undefined;
-
-/** El módulo de archivos de Expo; null si la app instalada no lo trae. */
-function sistemaArchivos(): Fs | null {
-  if (modulo !== undefined) return modulo;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    modulo = require('expo-file-system') as Fs;
-  } catch {
-    modulo = null;
-  }
-  return modulo;
 }
 
 /** ¿Se puede guardar una captura en el teléfono? */
