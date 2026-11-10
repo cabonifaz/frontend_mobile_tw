@@ -37,15 +37,18 @@ export const mockJefatura = {
       return {
         areaCodigo: 'servicio_tecnico', areaNombre: 'Servicio Técnico', sede: 'Lima',
         programados: 9, enRuta: 5, enEjecucion: 3, conDemora: 1, aprobacionesPendientes: pendientes().length,
+        alertasCriticas: 2, informesPorRevisar: 3, miEquipoTotal: 10, miEquipoEnLabores: 8, agendaConflictos: 1, viaticosPorRevisar: 4,
       };
     if (token.includes('jefe.ops'))
       return {
         areaCodigo: 'operaciones', areaNombre: 'Operaciones', sede: 'Lima Central',
         programados: 15, enRuta: 7, enEjecucion: 5, conDemora: 1, aprobacionesPendientes: pendientes().length,
+        alertasCriticas: 1, agendaConflictos: 1, viaticosPorRevisar: 4,
       };
     return {
       areaCodigo: 'metrologia', areaNombre: 'Metrología', sede: 'Laboratorio Lima',
       programados: 6, enRuta: 2, enEjecucion: 2, conDemora: 0, aprobacionesPendientes: pendientes().length,
+      certificadosPendientes: 2, ticketsCorrelativo: 4, miEquipoTotal: 6, miEquipoEnLabores: 5, viaticosPorRevisar: 1,
     };
   },
 

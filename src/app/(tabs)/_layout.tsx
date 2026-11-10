@@ -51,6 +51,8 @@ export default function LayoutPestanas() {
   const enCuenta = pathname === '/mi-cuenta';
   // HU-19: la fuente consultada y los guardados del asistente marcan la pestaña "Asistente".
   const enAsistente = ['/asistente-fuente', '/asistente-guardados'].includes(pathname);
+  // Jefatura entra al Asistente IA desde la tarjeta del menú (su barra no tiene pestaña Asistente): ahí queda marcada la pestaña Menú.
+  const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente'));
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
   const enDetalleAprobacion = pathname === '/aprobacion-salida';
   const itemActivo = {
@@ -90,14 +92,14 @@ export default function LayoutPestanas() {
         options={{
           title: 'Menú',
           // En las pantallas de la ruta del técnico la pestaña Menú se pinta como activa
-          ...(enServicios
+          ...(menuMarcado
             ? {
                 tabBarItemStyle: itemActivo,
                 tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600', color: colores.blanco },
               }
             : {}),
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid-outline" color={enServicios ? colores.blanco : (color as string)} size={size} />
+            <Ionicons name="grid-outline" color={menuMarcado ? colores.blanco : (color as string)} size={size} />
           ),
         }}
       />

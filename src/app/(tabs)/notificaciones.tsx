@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import {
   marcarNotificacionLeida,
@@ -17,12 +17,25 @@ import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { conLeidas, destinoNotificacion, pendientesComoLista, type DestinoNotificacion } from '@/utilidades/notificaciones';
+import {
+  conLeidas,
+  destinoNotificacion,
+  filtrarNotificaciones,
+  filtroInicial,
+  pendientesComoLista,
+  tituloNotificacion,
+  type DestinoNotificacion,
+  type FiltroNotificaciones,
+} from '@/utilidades/notificaciones';
+import { perfilDe } from '@/utilidades/perfil';
 
 /**
- * Pestaña Notificaciones (HU-02 / HU-04): avisos del técnico agrupados por día (Hoy, Ayer, fecha),
- * filtro Todas / No leídas, punto azul en las no leídas. Al tocar una queda leída (también en el servidor).
+ * Pestaña Notificaciones (HU-02 / HU-04 / HU-28): avisos agrupados por día (Hoy, Ayer, fecha),
+ * filtro Todas / No leídas (y Críticas para el jefe), punto azul en las no leídas. Al tocar una queda leída (también en el servidor).
  * La autorización de salida aprobada muestra los pendientes que el jefe aprobó y lleva al servicio.
+ * Jefatura (HU-28): recibe además los avisos de error crítico de ensayo (HU-10), evidencia forzada (HU-12), equipo nuevo por aprobar y alertas del
+ * Control de Campo; "Críticas" es la prioridad que ya clasifica el Centro de Notificaciones. La tarjeta "Alertas de Campo" del menú abre esta pestaña
+ * con el filtro Críticas (`?filtro=criticas`).
  */
 type IconoIon =
   | 'checkmark-circle'
@@ -32,13 +45,19 @@ type IconoIon =
   | 'ribbon-outline'
   | 'receipt-outline'
   | 'calendar-outline'
+  | 'alert-circle'
   | 'alert-circle-outline'
   | 'time-outline'
+  | 'hand-left-outline'
+  | 'camera-outline'
+  | 'add-circle-outline'
+  | 'stop-circle-outline'
+  | 'warning-outline'
   | 'notifications-outline';
 const iconos: Record<TipoNotificacion, { nombre: IconoIon; color: string }> = {
   autorizacion_aprobada: { nombre: 'checkmark-circle', color: colores.verde },
   autorizacion_rechazada: { nombre: 'close-circle', color: colores.rojo },
-  autorizacion_solicitud: { nombre: 'shield-checkmark-outline', color: colores.primario },
+  autorizacion_solicitud: { nombre: 'hand-left-outline', color: colores.naranja },
   solicitud_enviada: { nombre: 'paper-plane-outline', color: colores.primario },
   correlativo: { nombre: 'ribbon-outline', color: colores.primario },
   gasto_aprobado: { nombre: 'receipt-outline', color: colores.verde },
@@ -46,6 +65,11 @@ const iconos: Record<TipoNotificacion, { nombre: IconoIon; color: string }> = {
   gasto_rechazado: { nombre: 'close-circle', color: colores.rojo },
   servicio: { nombre: 'calendar-outline', color: colores.primario },
   demora: { nombre: 'time-outline', color: colores.naranja },
+  ensayo_critico: { nombre: 'alert-circle', color: colores.rojo },
+  evidencia_forzada: { nombre: 'camera-outline', color: colores.naranja },
+  equipo_nuevo: { nombre: 'add-circle-outline', color: colores.primario },
+  servicio_detenido: { nombre: 'stop-circle-outline', color: colores.rojo },
+  alerta_campo: { nombre: 'warning-outline', color: colores.naranja },
   general: { nombre: 'notifications-outline', color: colores.primario },
 };
 
@@ -68,7 +92,13 @@ export default function PantallaNotificaciones() {
   const usuario = sesion?.usuario;
   const token = sesion?.token ?? null;
   const d = useDiseno();
-  const [filtro, setFiltro] = useState<'todas' | 'no-leidas'>('todas');
+  const esJefe = perfilDe(usuario) === 'jefatura';
+  // El filtro que llega por la ruta ("Alertas de Campo" → ?filtro=criticas) vale mientras el jefe no elija otro; una nueva visita con otro valor lo reemplaza
+  const params = useLocalSearchParams<{ filtro?: string }>();
+  const [elegido, setElegido] = useState<{ desde: string; valor: FiltroNotificaciones } | null>(null);
+  const desde = filtroInicial(params.filtro);
+  const filtro: FiltroNotificaciones = elegido && elegido.desde === desde ? elegido.valor : esJefe ? desde : 'todas';
+  const setFiltro = (valor: FiltroNotificaciones) => setElegido({ desde, valor });
   const [leidas, setLeidas] = useState<Set<number>>(new Set());
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (tk) => {
@@ -79,7 +109,7 @@ export default function PantallaNotificaciones() {
 
   const lista = useMemo(() => conLeidas(datos?.lista ?? [], leidas), [datos, leidas]);
   const noLeidas = lista.filter((n) => !n.leida).length;
-  const visibles = filtro === 'todas' ? lista : lista.filter((n) => !n.leida);
+  const visibles = filtrarNotificaciones(lista, filtro);
 
   // La marca local es inmediata; el servidor se actualiza aparte y, si falla, la próxima recarga muestra su estado real.
   const marcarLeida = (n: Notificacion) => {
@@ -128,6 +158,7 @@ export default function PantallaNotificaciones() {
         <View style={estilos.filtros}>
           <Chip texto="Todas" activo={filtro === 'todas'} onPress={() => setFiltro('todas')} />
           <Chip texto={`No leídas (${noLeidas})`} activo={filtro === 'no-leidas'} onPress={() => setFiltro('no-leidas')} />
+          {esJefe && <Chip texto="Críticas" activo={filtro === 'criticas'} onPress={() => setFiltro('criticas')} />}
           {noLeidas > 0 && (
             <Pressable onPress={marcarTodas} accessibilityRole="button" style={estilos.marcarTodas} testID="marcar-todas">
               <Text style={estilos.marcarTodasTexto}>Marcar todas como leídas</Text>
@@ -144,7 +175,9 @@ export default function PantallaNotificaciones() {
             <View style={estilos.circulo}>
               <Ionicons name="notifications-outline" size={32} color={colores.primario} />
             </View>
-            <Text style={estilos.vacioTitulo}>{filtro === 'todas' ? 'Aún no tienes notificaciones' : 'No tienes notificaciones sin leer'}</Text>
+            <Text style={estilos.vacioTitulo}>
+              {filtro === 'todas' ? 'Aún no tienes notificaciones' : filtro === 'criticas' ? 'No tienes notificaciones críticas' : 'No tienes notificaciones sin leer'}
+            </Text>
             <Text style={estilos.vacioTexto}>Aquí verás los avisos de tus servicios, autorizaciones, correlativos y gastos.</Text>
           </View>
         ) : (
@@ -153,19 +186,20 @@ export default function PantallaNotificaciones() {
               <Text style={estilos.seccion}>{etiquetaDia(clave)}</Text>
               <View style={estilos.tarjeta}>
                 {items.map((n, i) => {
-                  const destino = destinoNotificacion(n);
+                  const destino = destinoNotificacion(n, esJefe);
+                  const titulo = tituloNotificacion(n);
                   const pendientes = n.tipo === 'autorizacion_aprobada' ? pendientesComoLista(n.pendientesAprobados) : [];
                   return (
                     <View key={n.id} style={[estilos.fila, i > 0 && estilos.filaBorde]}>
                       <Pressable
                         onPress={() => marcarLeida(n)}
                         accessibilityRole="button"
-                        accessibilityLabel={`${n.leida ? '' : 'No leída. '}${n.titulo}. ${n.cuerpo}`}
+                        accessibilityLabel={`${n.leida ? '' : 'No leída. '}${n.critica ? 'Crítica. ' : ''}${titulo}. ${n.cuerpo}`}
                         style={({ pressed }) => [estilos.filaContenido, pressed && { opacity: 0.7 }]}
                       >
                         <Ionicons name={iconos[n.tipo].nombre} size={24} color={iconos[n.tipo].color} style={{ marginTop: 1 }} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[estilos.filaTitulo, !n.leida && estilos.filaTituloNoLeida]}>{n.titulo}</Text>
+                          <Text style={[estilos.filaTitulo, !n.leida && estilos.filaTituloNoLeida]}>{titulo}</Text>
                           <Text style={estilos.filaCuerpo}>{n.cuerpo}</Text>
                           <Text style={estilos.filaHora}>{n.fecha.slice(11, 16)}</Text>
                         </View>

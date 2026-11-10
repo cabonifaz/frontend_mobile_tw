@@ -21,7 +21,7 @@ export type Icono =
 
 export interface Indicador {
   texto: string;
-  tono: 'amarillo' | 'azul' | 'gris';
+  tono: 'amarillo' | 'azul' | 'gris' | 'rojo' | 'verde';
 }
 
 export interface ModuloMenu {

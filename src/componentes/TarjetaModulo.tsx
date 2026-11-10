@@ -19,6 +19,8 @@ const tonos = {
   amarillo: { fondo: colores.amarilloFondo, texto: colores.amarilloTexto },
   azul: { fondo: colores.azulFondo, texto: colores.azulTexto },
   gris: { fondo: colores.grisFondo, texto: colores.grisTexto },
+  rojo: { fondo: colores.rojoEtiquetaFondo, texto: colores.rojoEtiquetaTexto },
+  verde: { fondo: colores.verdeEtiquetaFondo, texto: colores.verdeEtiquetaTexto },
 } as const;
 
 /** Tarjeta de la cuadrícula del menú principal (HU-02). */
