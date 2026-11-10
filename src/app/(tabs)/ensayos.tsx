@@ -17,6 +17,7 @@ import { colores, radios } from '@/tema/colores';
 import {
   FORMAS,
   calcularGrupo,
+  claveError,
   calcularPesaje,
   cargaExcentricidadSugerida,
   cargasPesajeSugeridas,
@@ -172,7 +173,17 @@ function Contenido(props: {
   const [tab, setTab] = useState<'pesaje' | 'excentricidad'>('pesaje');
   const [abierto, setAbierto] = useState<number | null>(0);
   const [vista, setVista] = useState<'ensayo' | 'resumen'>(c.finalizado ? 'resumen' : 'ensayo');
-  const [aceptado, setAceptado] = useState<string | null>(() => (c.aceptaError ? JSON.stringify({ pesaje, grupos, forma: formaInicial }) : null));
+  // Errores críticos que el técnico ya aceptó con "Guardar de todas formas" (y de los que ya se avisó): no se vuelven a mostrar
+  const [aceptados, setAceptados] = useState<string[]>(() =>
+    c.aceptaError
+      ? [
+          ...ensayos.pesaje.filter((x) => x.critico && x.indicacion != null).map((x) => claveError({ tipo: 'pesaje', indice: x.orden - 1, indicacion: x.indicacion as number })),
+          ...ensayos.excentricidad
+            .filter((x) => x.critico && x.indicacion != null)
+            .map((x) => claveError({ tipo: 'excentricidad', indice: x.grupo - 1, posicion: x.posicion, indicacion: x.indicacion as number })),
+        ]
+      : [],
+  );
   const [motivoAceptado, setMotivoAceptado] = useState<string | null>(c.motivoErrorCritico);
   const [mensaje, setMensaje] = useState<Mensaje>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -181,11 +192,13 @@ function Contenido(props: {
   const [motivo, setMotivo] = useState('');
   const refs = useRef<Record<string, TextInputInstance | null>>({});
 
-  const firma = JSON.stringify({ pesaje, grupos, forma });
-  const estaAceptado = aceptado !== null && aceptado === firma;
   const criticos = erroresCriticos(clase, e, pesaje, grupos);
-  const sinAceptar = criticos.length > 0 && !estaAceptado;
-  const bloqueo = motivoNoFinaliza(clase, e, pesaje, grupos, forma, estaAceptado);
+  const pendientes = criticos.filter((k) => !aceptados.includes(claveError(k)));
+  const sinAceptar = pendientes.length > 0;
+  const estaAceptado = criticos.length > 0 && !sinAceptar;
+  const bloqueo = motivoNoFinaliza(clase, e, pesaje, grupos, forma, !sinAceptar);
+  // Corregir / repetir / llamar actúan sobre el error que sigue sin aceptar (si ya están todos aceptados, sobre cualquiera)
+  const enfoque = sinAceptar ? pendientes : criticos;
   const puede = c.puedeRegistrar && c.evaluable;
   const pCalc = calcularPesaje(clase, e, pesaje);
   const pesajeListo = pCalc.length > 0 && pCalc.every((f) => f.completa && f.resultado === 'conforme');
@@ -221,7 +234,7 @@ function Contenido(props: {
     try {
       const r = await guardarEnsayos(props.token, props.idOs, props.idOsEquipo, cuerpo);
       if (motivoError) {
-        setAceptado(firma);
+        setAceptados(criticos.map(claveError));
         setMotivoAceptado(motivoError);
       }
       setMensaje({ tipo: 'info', texto: r.mensaje });
@@ -245,7 +258,7 @@ function Contenido(props: {
   }
 
   async function llamarAhora() {
-    const primero = criticos[0];
+    const primero = enfoque[0];
     const detalle = primero ? textoErrorCritico(primero, unidad).replace(' Revisa la digitación o repite el ensayo.', '') : 'Error en la calibración';
     try {
       const r = await registrarLlamadaEnsayo(props.token, props.idOs, props.idOsEquipo, detalle);
@@ -259,7 +272,7 @@ function Contenido(props: {
   }
 
   function corregir() {
-    const k = criticos[0];
+    const k = enfoque[0];
     if (!k) return;
     if (k.tipo === 'pesaje') {
       setTab('pesaje');
@@ -272,9 +285,9 @@ function Contenido(props: {
   }
 
   function repetir() {
-    setPesaje((ps) => ps.map((p, i) => (criticos.some((k) => k.tipo === 'pesaje' && k.indice === i) ? { ...p, indicacion: '' } : p)));
+    setPesaje((ps) => ps.map((p, i) => (enfoque.some((k) => k.tipo === 'pesaje' && k.indice === i) ? { ...p, indicacion: '' } : p)));
     setGrupos((gs) =>
-      gs.map((g, gi) => ({ ...g, lecturas: g.lecturas.map((l, pi) => (criticos.some((k) => k.tipo === 'excentricidad' && k.indice === gi && k.posicion === pi + 1) ? '' : l)) })),
+      gs.map((g, gi) => ({ ...g, lecturas: g.lecturas.map((l, pi) => (enfoque.some((k) => k.tipo === 'excentricidad' && k.indice === gi && k.posicion === pi + 1) ? '' : l)) })),
     );
     corregir();
   }
@@ -519,13 +532,13 @@ function Contenido(props: {
           </>
         )}
 
-        {sinAceptar && criticos[0] && (
+        {sinAceptar && pendientes[0] && (
           <View style={estilos.critico} testID="error-critico">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="alert-circle-outline" size={20} color={colores.rojoEtiquetaTexto} />
               <Text style={estilos.criticoTitulo}>ERROR CRÍTICO</Text>
             </View>
-            <Text style={estilos.criticoTexto}>{textoErrorCritico(criticos[0], unidad)}</Text>
+            <Text style={estilos.criticoTexto}>{textoErrorCritico(pendientes[0], unidad)}</Text>
             <View style={estilos.criticoFila}>
               <BotonCritico icono="create-outline" texto="Corregir lectura" onPress={corregir} variante="azul" testID="corregir-lectura" />
               <BotonCritico icono="refresh-outline" texto="Repetir ensayo" onPress={repetir} variante="rojo" testID="repetir-ensayo" />
@@ -626,8 +639,8 @@ function Contenido(props: {
               <Text style={estilos.modalTitulo}>Guardar con error crítico</Text>
             </View>
             <Text style={estilos.hojaSub}>
-              {criticos[0]
-                ? `El ensayo se guardará con la lectura de ${formatoMiles(criticos[0].carga)} ${unidad} fuera de EMP (${formatoError(criticos[0].error)} ${unidad} frente a ${formatoEmp(criticos[0].emp)} ${unidad}).`
+              {pendientes[0]
+                ? `El ensayo se guardará con la lectura de ${formatoMiles(pendientes[0].carga)} ${unidad} fuera de EMP (${formatoError(pendientes[0].error)} ${unidad} frente a ${formatoEmp(pendientes[0].emp)} ${unidad}).`
                 : 'El ensayo se guardará con lecturas fuera de EMP.'}
             </Text>
             <View style={estilos.avisoRojo}>

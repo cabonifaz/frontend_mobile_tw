@@ -167,20 +167,27 @@ export interface ErrorCritico {
   indice: number;
   posicion?: number;
   carga: number;
+  /** Lo que se leyó en el equipo (I). */
+  indicacion: number;
   error: number;
   emp: number;
+}
+
+/** Identifica un error crítico concreto (dónde está y con qué lectura): sirve para no avisar dos veces del mismo error ya aceptado. */
+export function claveError(k: Pick<ErrorCritico, 'tipo' | 'indice' | 'posicion' | 'indicacion'>): string {
+  return `${k.tipo}|${k.indice}|${k.posicion ?? 0}|${k.indicacion}`;
 }
 
 /** Lecturas fuera del EMP (error crítico), la más grave primero. */
 export function erroresCriticos(clase: string | null, e: number | null, pesaje: FilaPesaje[], grupos: GrupoExcentricidad[]): ErrorCritico[] {
   const lista: ErrorCritico[] = [];
   calcularPesaje(clase, e, pesaje).forEach((f, i) => {
-    if (f.resultado === 'no_conforme' && f.error != null && f.emp != null) lista.push({ tipo: 'pesaje', indice: i, carga: leerLectura(pesaje[i].carga) ?? 0, error: f.error, emp: f.emp });
+    if (f.resultado === 'no_conforme' && f.error != null && f.emp != null) lista.push({ tipo: 'pesaje', indice: i, carga: leerLectura(pesaje[i].carga) ?? 0, indicacion: leerLectura(pesaje[i].indicacion) ?? 0, error: f.error, emp: f.emp });
   });
   grupos.forEach((g, gi) =>
     calcularGrupo(clase, e, g).forEach((f, pi) => {
       if (f.resultado === 'no_conforme' && f.error != null && f.emp != null) {
-        lista.push({ tipo: 'excentricidad', indice: gi, posicion: pi + 1, carga: leerLectura(g.carga) ?? 0, error: f.error, emp: f.emp });
+        lista.push({ tipo: 'excentricidad', indice: gi, posicion: pi + 1, carga: leerLectura(g.carga) ?? 0, indicacion: leerLectura(g.lecturas[pi]) ?? 0, error: f.error, emp: f.emp });
       }
     }),
   );
