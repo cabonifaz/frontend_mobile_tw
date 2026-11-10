@@ -49,6 +49,8 @@ export default function LayoutPestanas() {
     '/solicitud-gasto',
   ].includes(pathname);
   const enCuenta = pathname === '/mi-cuenta';
+  // HU-19: la fuente consultada y los guardados del asistente marcan la pestaña "Asistente".
+  const enAsistente = ['/asistente-fuente', '/asistente-guardados'].includes(pathname);
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
   const enDetalleAprobacion = pathname === '/aprobacion-salida';
   const itemActivo = {
@@ -135,9 +137,25 @@ export default function LayoutPestanas() {
             ? { title: 'Asistente', ...sinBoton }
             : {
                 title: 'Asistente',
-                tabBarIcon: ({ color, size }) => <Ionicons name="headset-outline" color={color as string} size={size} />,
+                // En la fuente consultada y en Guardados la pestaña Asistente se pinta como activa
+                ...(enAsistente
+                  ? {
+                      tabBarItemStyle: itemActivo,
+                      tabBarLabelStyle: { fontSize: tamanoEtiqueta, fontWeight: '600', color: colores.blanco },
+                    }
+                  : {}),
+                tabBarIcon: ({ color, size }) => <Ionicons name="headset-outline" color={enAsistente ? colores.blanco : (color as string)} size={size} />,
               }
         }
+      />
+      {/* HU-19: fuente consultada y guardados del asistente (se entra desde la pestaña Asistente). */}
+      <Tabs.Screen
+        name="asistente-fuente"
+        options={{ title: 'Fuente consultada', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="asistente-guardados"
+        options={{ title: 'Guardados', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       <Tabs.Screen
         name="perfil"

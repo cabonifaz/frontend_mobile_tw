@@ -79,6 +79,11 @@ const config: ExpoConfig = {
       },
     ],
     [
+      // HU-19: consulta por voz al Asistente IA (graba hasta 30 s y la IA del servidor lo transcribe; el audio no se guarda)
+      'expo-audio',
+      { microphonePermission: 'La app usa el micrófono para que consultes al Asistente IA con tu voz.' },
+    ],
+    [
       'expo-location',
       {
         locationWhenInUsePermission:
