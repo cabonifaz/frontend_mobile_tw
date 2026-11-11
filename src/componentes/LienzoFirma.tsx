@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, type ComponentRef, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import type { Trazos } from '@/api/firmas';
 import { colores, radios } from '@/tema/colores';
@@ -93,6 +93,16 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
   const [vivos, setVivos] = useState<Trazos>(trazos);
   const trazosRef = useRef(trazos);
   const dibujando = useRef(false);
+  const lienzoRef = useRef<ComponentRef<typeof View>>(null);
+  /** Esquina del lienzo en la pantalla: los toques se leen con pageX/pageY, que no dependen de qué vista toca el dedo (locationX/Y dan valores falsos al ir muy rápido). */
+  const origen = useRef<{ x: number; y: number } | null>(null);
+  const medirOrigen = () => lienzoRef.current?.measure((_x, _y, _w, _h, px, py) => { origen.current = { x: px, y: py }; });
+  const posicion = (e: GestureResponderEvent): [number, number] => {
+    const { ancho, alto } = medidaRef.current;
+    const o = origen.current;
+    const n = e.nativeEvent;
+    return o ? normalizarPunto(n.pageX - o.x, n.pageY - o.y, ancho, alto) : normalizarPunto(n.locationX, n.locationY, ancho, alto);
+  };
   const medidaRef = useRef(medida);
   useEffect(() => {
     medidaRef.current = medida;
@@ -108,8 +118,8 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
   function alTocar(e: GestureResponderEvent) {
     dibujando.current = true;
     onTocando?.(true);
-    const { ancho, alto } = medidaRef.current;
-    const siguiente = iniciarTrazo(trazosRef.current, normalizarPunto(e.nativeEvent.locationX, e.nativeEvent.locationY, ancho, alto));
+    medirOrigen();
+    const siguiente = iniciarTrazo(trazosRef.current, normalizarPunto(e.nativeEvent.locationX, e.nativeEvent.locationY, medidaRef.current.ancho, medidaRef.current.alto));
     trazosRef.current = siguiente;
     setVivos(siguiente);
   }
@@ -121,8 +131,7 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
   }
 
   function alMover(e: GestureResponderEvent) {
-    const { ancho, alto } = medidaRef.current;
-    const siguiente = agregarPuntoTactil(trazosRef.current, normalizarPunto(e.nativeEvent.locationX, e.nativeEvent.locationY, ancho, alto));
+    const siguiente = agregarPuntoTactil(trazosRef.current, posicion(e));
     if (siguiente !== trazosRef.current) {
       trazosRef.current = siguiente;
       setVivos(siguiente);
@@ -132,10 +141,11 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
   function alMedir(e: LayoutChangeEvent) {
     const { width, height } = e.nativeEvent.layout;
     setMedida({ ancho: width, alto: height });
+    setTimeout(medirOrigen, 0);
   }
 
   return (
-    <View style={[estilos.lienzo, error && estilos.lienzoError]} onLayout={alMedir}
+    <View ref={lienzoRef} collapsable={false} style={[estilos.lienzo, error && estilos.lienzoError]} onLayout={alMedir}
       onStartShouldSetResponder={() => !deshabilitado}
       onMoveShouldSetResponder={() => !deshabilitado}
       onResponderTerminationRequest={() => false}
