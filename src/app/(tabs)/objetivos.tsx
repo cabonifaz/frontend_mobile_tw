@@ -7,6 +7,7 @@ import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { accionEquipoOEncolar } from '@/api/colaEquipos';
 import { llegadaPendiente, sincronizarLlegadas } from '@/api/colaLlegadas';
+import { obtenerResumenFirmas } from '@/api/firmas';
 import { horaRespaldo } from '@/api/respaldo';
 import { obtenerLlegadaConRespaldo, obtenerObjetivosConRespaldo, type AccionEquipo, type ObjetivoEquipo, type Objetivos } from '@/api/ruta';
 import { Aviso } from '@/componentes/Aviso';
@@ -62,6 +63,9 @@ export default function PantallaObjetivos() {
     }
   }, `${params.id ?? ''}|${params.v ?? ''}`);
 
+  // HU-17: acceso a la firma de informes cuando la OS ya tiene informes generados (consulta ligera: si falla, simplemente no se muestra)
+  const { datos: firmas, recargar: recargarFirmas } = useConsulta(async (token) => (idValido ? obtenerResumenFirmas(token, idOs) : null), `firmas|${params.id ?? ''}`);
+
   // Al volver de "Seleccionar equipo" se relee. El Hard Stop solo se muestra con la pantalla enfocada
   // (las pestañas quedan montadas: sin esto el candado seguiría encima de otras pantallas).
   const primeraVez = useRef(true);
@@ -70,9 +74,12 @@ export default function PantallaObjetivos() {
     useCallback(() => {
       setEnfocada(true);
       if (primeraVez.current) primeraVez.current = false;
-      else void recargar();
+      else {
+        void recargar();
+        void recargarFirmas();
+      }
       return () => setEnfocada(false);
-    }, [recargar]),
+    }, [recargar, recargarFirmas]),
   );
 
   const pendientes = useAccionesEquipos(idUsuario, idOs);
@@ -182,6 +189,22 @@ export default function PantallaObjetivos() {
               <Contador valor={o.contadores.pendientes} texto="Pendientes" color={colores.primario} />
               <Contador valor={o.contadores.observados} texto={o.contadores.observados === 1 ? 'Observado' : 'Observados'} color={colores.rojo} />
             </View>
+
+            {!!firmas && firmas.completos > 0 && (
+              <Pressable
+                onPress={() => router.push({ pathname: '/firma-informes', params: { id: String(idOs) } })}
+                style={estilos.accesoFirma}
+                accessibilityRole="button"
+                testID="acceso-firma-informes"
+              >
+                <Ionicons name="create-outline" size={24} color={colores.primario} />
+                <View style={{ flex: 1 }}>
+                  <Text style={estilos.accesoFirmaTitulo}>Firma de informes</Text>
+                  <Text style={estilos.accesoFirmaTexto}>{firmas.cerrado ? 'Servicio cerrado' : `${firmas.firmados} de ${firmas.informes} informes firmados · Constancia de servicio`}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colores.textoSecundario} />
+              </Pressable>
+            )}
 
             <View style={{ marginTop: 10 }}>
               <FilaTiempos
@@ -437,6 +460,9 @@ const estilos = StyleSheet.create({
   subtitulo: { color: colores.textoSecundario, fontSize: 14, marginBottom: 12 },
   seccion: { marginTop: 18, fontSize: 12.5, fontWeight: '700', letterSpacing: 1.4, color: colores.textoSecundario },
   contadores: { flexDirection: 'row', gap: 8 },
+  accesoFirma: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colores.primarioSuave, borderWidth: 1, borderColor: '#BFDBFE', borderRadius: radios.tarjeta, padding: 14, marginTop: 10 },
+  accesoFirmaTitulo: { fontSize: 16.5, fontWeight: '800', color: colores.titulo },
+  accesoFirmaTexto: { fontSize: 13.5, color: colores.textoSecundario, marginTop: 2 },
   contador: { flex: 1, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
   contadorValor: { fontSize: 22, fontWeight: '700' },
   contadorTexto: { fontSize: 12.5, color: colores.textoSecundario },

@@ -1,20 +1,22 @@
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
+import { generarInforme, validarCierre, type CierreEquipo } from '@/api/informe';
 import { horaRespaldo } from '@/api/respaldo';
 import { obtenerTrabajoEquipoConRespaldo, type EtapaTrabajo } from '@/api/trabajo';
 import { Aviso } from '@/componentes/Aviso';
 import { CertificadoModal } from '@/componentes/CertificadoModal';
+import { CierreEquipoModal } from '@/componentes/CierreEquipoModal';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { avanceEtapas } from '@/utilidades/trabajo';
+import { avanceEtapas, etapasPorResolver, rutaDeEtapa, textoEstadoEtapa, textoPendientesPorResolver } from '@/utilidades/trabajo';
 
 /**
  * HU-08 — Trabajo en el equipo.
@@ -22,7 +24,9 @@ import { avanceEtapas } from '@/utilidades/trabajo';
  *  - Las 5 etapas con su estado: Variables ambientales (HU-09), Registro fotográfico, Ensayos y Calibración (bloqueada hasta guardar las variables),
  *    Cabecera del informe y Correlativo y certificado (HU-14: solicitud a Metrología, Mis tickets y el modal "Correlativo y certificado"). Las que aún no tienen
  *    pantalla avisan que se habilitan más adelante.
- *  - "Finalizar trabajo en equipo" se habilita cuando las 5 etapas están conformes (la decide el back).
+ *  - HU-16 · Hard Stop: "Finalizar trabajo en equipo" siempre responde. El servidor valida las 5 etapas con una sola regla: con pendientes muestra "No es posible
+ *    finalizar el trabajo en el equipo" (pendientes por etapa; "Revisar pendientes" marca en rojo las etapas y ofrece "Ir al primer pendiente"); con todo conforme,
+ *    "Validación completa" y "Generar informe técnico", que completa el equipo y sigue a Firma de informes (HU-17).
  */
 export default function PantallaTrabajoEquipo() {
   const { sesion } = useSesion();
@@ -36,6 +40,13 @@ export default function PantallaTrabajoEquipo() {
   // HU-14: "Usar correlativo" (desde Mis tickets o la solicitud) llega con `usar=<marca>` (distinta cada vez) y abre el modal "Correlativo y certificado"
   const [usarAtendido, setUsarAtendido] = useState<string | null>(null);
   const modalCertificado = valido && !!params.usar && params.usar !== usarAtendido;
+  // HU-16: Hard Stop de cierre
+  const [cierre, setCierre] = useState<CierreEquipo | null>(null);
+  const [cierreAbierto, setCierreAbierto] = useState(false);
+  const [errorCierre, setErrorCierre] = useState<string | null>(null);
+  const [generando, setGenerando] = useState(false);
+  const [revisando, setRevisando] = useState(false);
+  const token = sesion?.token ?? '';
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     if (!valido) throw new ErrorApi('Servicio o equipo no válido.', 400, 1);
@@ -63,11 +74,51 @@ export default function PantallaTrabajoEquipo() {
     setMensaje(null);
     if (e.estado === 'bloqueado') return setMensaje({ tipo: 'info', texto: `${e.nombre}: ${e.detalle ?? 'etapa bloqueada.'}` });
     if (!e.disponible) return setMensaje({ tipo: 'info', texto: `${e.nombre} se habilita en la siguiente etapa de la app.` });
-    const params = { id: String(idOs), equipo: String(idOsEquipo) };
-    if (e.codigo === 'variables') router.push({ pathname: '/variables-ambientales', params });
-    if (e.codigo === 'ensayos') router.push({ pathname: '/ensayos', params });
-    if (e.codigo === 'fotos') router.push({ pathname: '/registro-fotografico', params });
-    if (e.codigo === 'correlativo') router.push({ pathname: '/solicitud-correlativo', params });
+    const ruta = rutaDeEtapa(e.codigo);
+    if (!ruta) return;
+    // La cabecera del informe recibe el equipo como `eq` (ruta /cabecera-informe?id&eq&tab); las demás pantallas, como `equipo`
+    const params = ruta === '/cabecera-informe' ? { id: String(idOs), eq: String(idOsEquipo), tab: 'datos' } : { id: String(idOs), equipo: String(idOsEquipo) };
+    router.push({ pathname: ruta, params } as Href);
+  }
+
+  /** HU-16: el servidor valida las 5 etapas y la app muestra el modal que corresponda. */
+  async function abrirCierre() {
+    setMensaje(null);
+    setErrorCierre(null);
+    setCierre(null);
+    setCierreAbierto(true);
+    try {
+      setCierre(await validarCierre(token, idOs, idOsEquipo));
+    } catch (e) {
+      setErrorCierre(e instanceof Error ? e.message : 'No se pudo validar el cierre del equipo.');
+    }
+  }
+
+  async function generar() {
+    setGenerando(true);
+    setErrorCierre(null);
+    try {
+      await generarInforme(token, idOs, idOsEquipo);
+      setCierreAbierto(false);
+      void recargar();
+      router.push({ pathname: '/firma-informes', params: { id: String(idOs) } } as Href);
+    } catch (e) {
+      setErrorCierre(e instanceof Error ? e.message : 'No se pudo generar el informe técnico.');
+    } finally {
+      setGenerando(false);
+    }
+  }
+
+  function revisarPendientes() {
+    setCierreAbierto(false);
+    setRevisando(true);
+    void recargar();
+  }
+
+  function irAEtapaDesdeCierre(codigo: string) {
+    setCierreAbierto(false);
+    const e = t?.etapas.find((x) => x.codigo === codigo);
+    if (e) abrirEtapa(e);
   }
 
   function alCerrarCertificado(guardado: boolean) {
@@ -79,6 +130,7 @@ export default function PantallaTrabajoEquipo() {
   }
 
   const avance = avanceEtapas(c?.etapasConformes ?? 0, c?.etapasTotal ?? 5);
+  const porResolver = t ? etapasPorResolver(t.etapas) : [];
 
   return (
     <SafeAreaView style={estilos.area} edges={['top']}>
@@ -154,12 +206,18 @@ export default function PantallaTrabajoEquipo() {
               </View>
             </View>
 
+            {revisando && porResolver.length > 0 && (
+              <View style={estilos.bannerRojo} testID="banner-pendientes">
+                <Ionicons name="alert-circle" size={22} color={colores.rojo} />
+                <Text style={estilos.bannerRojoTexto}>{textoPendientesPorResolver(porResolver.length)}</Text>
+              </View>
+            )}
             <Text style={estilos.seccion}>ETAPAS</Text>
             {t.etapas.map((e) => (
               <Pressable
                 key={e.codigo}
                 onPress={() => abrirEtapa(e)}
-                style={[estilos.etapa, e.estado === 'bloqueado' && { opacity: 0.7 }]}
+                style={[estilos.etapa, e.estado === 'bloqueado' && { opacity: 0.7 }, revisando && e.estado !== 'conforme' && estilos.etapaRoja]}
                 accessibilityRole="button"
                 testID={`etapa-${e.codigo}`}
               >
@@ -189,23 +247,41 @@ export default function PantallaTrabajoEquipo() {
             </View>
 
             <View style={{ marginTop: 14 }}>
+              {revisando && porResolver.length > 0 && (
+                <Pressable onPress={() => abrirEtapa(porResolver[0])} style={estilos.irPrimero} accessibilityRole="button" testID="ir-primer-pendiente">
+                  <Ionicons name="arrow-forward" size={20} color={colores.primario} />
+                  <Text style={estilos.irPrimeroTexto}>Ir al primer pendiente</Text>
+                </Pressable>
+              )}
               <Pressable
-                onPress={() => setMensaje({ tipo: 'info', texto: 'La generación del informe técnico se habilita en la siguiente etapa de la app.' })}
-                disabled={!c.puedeFinalizar}
-                style={[estilos.finalizar, c.puedeFinalizar ? estilos.finalizarActivo : estilos.finalizarBloqueado]}
+                onPress={() => void abrirCierre()}
+                style={[estilos.finalizar, estilos.finalizarActivo, revisando && porResolver.length > 0 && { marginTop: 10 }]}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: !c.puedeFinalizar }}
                 testID="finalizar-trabajo"
               >
-                <Ionicons name={c.puedeFinalizar ? 'checkmark-done' : 'lock-closed-outline'} size={22} color={colores.blanco} />
+                <Ionicons name="checkmark-done" size={22} color={colores.blanco} />
                 <Text style={estilos.finalizarTexto}>Finalizar trabajo en equipo</Text>
               </Pressable>
-              <Text style={estilos.ayuda}>Se habilita cuando todas las etapas estén conformes.</Text>
+              <Text style={estilos.ayuda}>Si falta algo o no está conforme, el sistema no deja cerrar (Hard Stop).</Text>
             </View>
           </>
         )}
       </ScrollView>
       <CertificadoModal visible={modalCertificado} idOs={idOs} idOsEquipo={idOsEquipo} onCerrar={alCerrarCertificado} />
+      <CierreEquipoModal
+        visible={cierreAbierto}
+        cierre={cierre}
+        error={errorCierre}
+        generando={generando}
+        onRevisar={revisarPendientes}
+        onIrEtapa={irAEtapaDesdeCierre}
+        onGenerar={() => void generar()}
+        onIrFirma={() => {
+          setCierreAbierto(false);
+          router.push({ pathname: '/firma-informes', params: { id: String(idOs) } } as Href);
+        }}
+        onCerrar={() => setCierreAbierto(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -238,11 +314,12 @@ const etapaEstilos: Record<string, { texto: string; fondo: string; color: string
   en_curso: { texto: 'EN CURSO', fondo: colores.azulFondo, color: colores.azulTexto },
   pendiente: { texto: 'PENDIENTE', fondo: colores.amarilloFondo, color: colores.amarilloTexto },
   bloqueado: { texto: 'BLOQUEADO', fondo: colores.grisFondo, color: colores.grisTexto },
+  no_conforme: { texto: 'NO CONFORME', fondo: colores.rojoEtiquetaFondo, color: colores.rojoEtiquetaTexto },
 };
 
 function EtiquetaEtapa({ estado }: { estado: string }) {
   const s = etapaEstilos[estado] ?? etapaEstilos.pendiente;
-  return <Etiqueta texto={s.texto} fondo={s.fondo} color={s.color} />;
+  return <Etiqueta texto={textoEstadoEtapa(estado)} fondo={s.fondo} color={s.color} />;
 }
 
 const estilos = StyleSheet.create({
@@ -280,6 +357,11 @@ const estilos = StyleSheet.create({
   },
   etapaNombre: { fontSize: 18, fontWeight: '700', color: colores.titulo },
   etapaDetalle: { fontSize: 15, color: colores.textoSecundario, marginTop: 3, lineHeight: 20 },
+  etapaRoja: { borderColor: colores.rojo, borderWidth: 1.5, backgroundColor: '#FFF7F7' },
+  bannerRojo: { flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radios.tarjeta, padding: 14, marginTop: 16 },
+  bannerRojoTexto: { flex: 1, color: colores.titulo, fontSize: 15.5, lineHeight: 21 },
+  irPrimero: { minHeight: 52, borderRadius: radios.boton, borderWidth: 1.5, borderColor: colores.primario, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colores.blanco },
+  irPrimeroTexto: { color: colores.primario, fontSize: 17, fontWeight: '700' },
   info: { flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: colores.primarioSuave, borderRadius: radios.tarjeta, padding: 14, marginTop: 16 },
   infoTexto: { flex: 1, color: colores.titulo, fontSize: 16, lineHeight: 22 },
   finalizar: { minHeight: 56, borderRadius: radios.boton, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },

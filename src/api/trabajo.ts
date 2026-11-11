@@ -9,7 +9,8 @@ import { conRespaldo, type ConRespaldo } from './respaldo';
  * El back decide todo (Hard Stop, estado del equipo, tipo de orden OS/OM según la RQ, bloqueo de Ensayos): la app solo muestra.
  */
 
-export type EstadoEtapa = 'conforme' | 'en_curso' | 'pendiente' | 'bloqueado';
+/** no_conforme = Ensayos finalizados con error crítico: bloquea el cierre (HU-16). */
+export type EstadoEtapa = 'conforme' | 'en_curso' | 'pendiente' | 'bloqueado' | 'no_conforme';
 export type CodigoEtapa = 'variables' | 'fotos' | 'ensayos' | 'cabecera' | 'correlativo';
 
 export interface EtapaTrabajo {
@@ -127,7 +128,7 @@ function trabajoDemo(idOs: number, idOsEquipo: number): TrabajoEquipo {
       { orden: 2, codigo: 'fotos', nombre: 'Registro fotográfico', estado: 'pendiente', disponible: true, detalle: 'Fotos del equipo y del informe a mano' },
       { orden: 3, codigo: 'ensayos', nombre: 'Ensayos y Calibración', estado: v ? 'pendiente' : 'bloqueado', disponible: true,
         detalle: v ? 'Verificación de pesaje tras el ajuste' : 'Se habilita al guardar las variables ambientales' },
-      { orden: 4, codigo: 'cabecera', nombre: 'Cabecera del informe', estado: 'pendiente', disponible: false, detalle: 'Datos · Detalle Serv. · Observación y pruebas' },
+      { orden: 4, codigo: 'cabecera', nombre: 'Cabecera del informe', estado: 'pendiente', disponible: true, detalle: 'Datos · Detalle Serv. · Observación y pruebas' },
       { orden: 5, codigo: 'correlativo', nombre: 'Correlativo y certificado', estado: 'pendiente', disponible: true, detalle: 'Correlativo de Metrología → N° de certificado' },
     ],
   };

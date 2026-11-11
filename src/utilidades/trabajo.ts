@@ -56,3 +56,60 @@ export function avanceEtapas(conformes: number, total: number): { texto: string;
   const c = Math.max(0, Math.min(conformes, t));
   return { texto: `${c} de ${t} etapas`, fraccion: c / t };
 }
+
+// ── HU-16 · Hard Stop de "Finalizar trabajo en equipo" ───────────────────────────────────────────
+// El SERVIDOR valida las 5 etapas (SP_ValidarCierreEquipoMovil); aquí solo se arman los textos y a qué pantalla lleva cada etapa.
+
+/** Una etapa conforme está resuelta; en curso, pendiente, bloqueada o no conforme bloquean el cierre. */
+export function etapaResuelta(estado: string): boolean {
+  return estado === 'conforme';
+}
+
+/** Las etapas que bloquean el cierre, en su orden. */
+export function etapasPorResolver<T extends { estado: string; orden: number }>(etapas: T[]): T[] {
+  return etapas.filter((e) => !etapaResuelta(e.estado)).sort((a, b) => a.orden - b.orden);
+}
+
+/** "Hay 4 etapas incompletas o no conformes:" (singular: "Hay 1 etapa incompleta o no conforme:"). */
+export function textoNoSePuedeFinalizar(n: number): string {
+  return n === 1 ? 'Hay 1 etapa incompleta o no conforme:' : `Hay ${n} etapas incompletas o no conformes:`;
+}
+
+/** Banner de "Revisar pendientes": "4 pendientes por resolver. Toca una etapa marcada en rojo para completarla." */
+export function textoPendientesPorResolver(n: number): string {
+  return `${n} ${n === 1 ? 'pendiente por resolver' : 'pendientes por resolver'}. Toca una etapa marcada en rojo para completarla.`;
+}
+
+/** Pantalla de cada etapa (HU-09 variables · HU-11 fotos · HU-10 ensayos · HU-15 cabecera · HU-14 correlativo). */
+export function rutaDeEtapa(codigo: string): '/variables-ambientales' | '/registro-fotografico' | '/ensayos' | '/cabecera-informe' | '/solicitud-correlativo' | null {
+  switch (codigo) {
+    case 'variables':
+      return '/variables-ambientales';
+    case 'fotos':
+      return '/registro-fotografico';
+    case 'ensayos':
+      return '/ensayos';
+    case 'cabecera':
+      return '/cabecera-informe';
+    case 'correlativo':
+      return '/solicitud-correlativo';
+    default:
+      return null;
+  }
+}
+
+/** Etiqueta de una etapa: CONFORME · EN CURSO · PENDIENTE · BLOQUEADO · NO CONFORME. */
+export function textoEstadoEtapa(estado: string): string {
+  switch (estado) {
+    case 'conforme':
+      return 'CONFORME';
+    case 'en_curso':
+      return 'EN CURSO';
+    case 'bloqueado':
+      return 'BLOQUEADO';
+    case 'no_conforme':
+      return 'NO CONFORME';
+    default:
+      return 'PENDIENTE';
+  }
+}

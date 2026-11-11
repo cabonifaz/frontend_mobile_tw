@@ -43,6 +43,8 @@ export default function LayoutPestanas() {
     '/variables-ambientales',
     '/ensayos',
     '/registro-fotografico',
+    // Cabecera del informe (HU-15)
+    '/cabecera-informe',
     // Viáticos y Gastos (HU-25 / HU-26)
     '/viaticos-gastos',
     '/viatico',
@@ -50,6 +52,11 @@ export default function LayoutPestanas() {
     // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
     '/solicitud-correlativo',
     '/mis-tickets',
+    // Firma de informes y constancia de servicio (HU-17)
+    '/firma-informes',
+    '/firma',
+    '/constancia',
+    '/constancia-formato-fisico',
   ].includes(pathname);
   const enCuenta = pathname === '/mi-cuenta';
   // HU-19: la fuente consultada y los guardados del asistente marcan la pestaña "Asistente".
@@ -173,6 +180,10 @@ export default function LayoutPestanas() {
       {/* HU-14 / HU-34: correlativos de Metrología (solicitud y tickets del técnico; solicitudes del Jefe de Metrología). */}
       <Tabs.Screen name="solicitud-correlativo" options={{ title: 'Solicitud de correlativo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="mis-tickets" options={{ title: 'Mis tickets', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="firma-informes" options={{ title: 'Lista de informes', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="firma" options={{ title: 'Firma del responsable', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="constancia" options={{ title: 'Constancia de servicio', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="constancia-formato-fisico" options={{ title: 'Formato físico', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="correlativos" options={{ title: 'Correlativos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen
         name="perfil"
@@ -245,6 +256,11 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="registro-fotografico"
         options={{ title: 'Registro fotográfico', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-15: cabecera del informe del equipo (Datos · Detalle Serv. · Observación y pruebas). */}
+      <Tabs.Screen
+        name="cabecera-informe"
+        options={{ title: 'Cabecera del informe', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-31: detalle de una solicitud de salida (se entra desde Aprobaciones). */}
       <Tabs.Screen
