@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colores } from '@/tema/colores';
-import { proyectar, segmentos, type PuntoGeo } from '@/utilidades/panelCampo';
+import { guiones, proyectar, segmentos, type PuntoGeo } from '@/utilidades/panelCampo';
 
 export interface PinMapa extends PuntoGeo {
   clave: string;
@@ -17,6 +17,8 @@ interface Props {
   pines: PinMapa[];
   /** Recorrido GPS: se dibuja como una línea que une los puntos en orden. */
   ruta?: PuntoGeo[];
+  /** Ruta prevista (salida → planta): línea de guiones. Los extremos entran en el encuadre aunque estén lejos. */
+  trayecto?: PuntoGeo[];
   alto?: number;
   /** Texto cuando no hay nada que dibujar. */
   vacio?: string;
@@ -27,11 +29,12 @@ interface Props {
  * proporción a su latitud y longitud sobre un fondo de calles decorativas. Sirve para ver quién está dónde respecto a los demás, no para navegar:
  * para el mapa real de la ruta hay un botón que abre la app de mapas del teléfono.
  */
-export function MapaEsquematico({ pines, ruta = [], alto = 260, vacio = 'Aún no hay posiciones GPS de hoy.' }: Props) {
+export function MapaEsquematico({ pines, ruta = [], trayecto = [], alto = 260, vacio = 'Aún no hay posiciones GPS de hoy.' }: Props) {
   const [ancho, setAncho] = useState(0);
-  const posiciones = ancho > 0 ? proyectar([...pines, ...ruta], ancho, alto, 30) : [];
+  const posiciones = ancho > 0 ? proyectar([...pines, ...ruta, ...trayecto], ancho, alto, 30) : [];
   const dePines = posiciones.slice(0, pines.length);
-  const deRuta = posiciones.slice(pines.length);
+  const deRuta = posiciones.slice(pines.length, pines.length + ruta.length);
+  const deTrayecto = posiciones.slice(pines.length + ruta.length);
 
   return (
     <View style={[estilos.mapa, { height: alto }]} onLayout={(e) => setAncho(e.nativeEvent.layout.width)} accessibilityLabel="Mapa esquemático">
@@ -44,6 +47,14 @@ export function MapaEsquematico({ pines, ruta = [], alto = 260, vacio = 'Aún no
       <View style={[estilos.calleV, { left: '16%' }]} />
       <View style={[estilos.calleV, { left: '56%' }]} />
       <View style={[estilos.calleV, { left: '84%' }]} />
+
+      {guiones(deTrayecto).map((s, i) => (
+        <View
+          key={`g${i}`}
+          pointerEvents="none"
+          style={{ position: 'absolute', left: s.izquierda, top: s.arriba, width: s.largo, height: 3, borderRadius: 1.5, backgroundColor: '#64748B', transform: [{ rotate: `${s.angulo}deg` }] }}
+        />
+      ))}
 
       {segmentos(deRuta).map((s, i) => (
         <View
@@ -71,7 +82,7 @@ export function MapaEsquematico({ pines, ruta = [], alto = 260, vacio = 'Aún no
         );
       })}
 
-      {pines.length === 0 && ruta.length === 0 && (
+      {pines.length === 0 && ruta.length === 0 && trayecto.length === 0 && (
         <View style={estilos.vacio}>
           <Text style={estilos.vacioTexto}>{vacio}</Text>
         </View>

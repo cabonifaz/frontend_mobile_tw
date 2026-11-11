@@ -63,8 +63,10 @@ export default function PantallaRutaServicio() {
   const posicion = r && r.latitud !== null && r.longitud !== null ? { latitud: r.latitud, longitud: r.longitud } : null;
   const destino = r && r.destinoLatitud !== null && r.destinoLongitud !== null ? { latitud: r.destinoLatitud, longitud: r.destinoLongitud } : null;
   const origen = r && r.origenLatitud !== null && r.origenLongitud !== null ? { latitud: r.origenLatitud, longitud: r.origenLongitud } : null;
+  // Ruta prevista: del punto de salida (o, sin él, de la posición actual) a la planta
+  const trayecto = destino ? [...(origen ? [origen] : posicion ? [posicion] : []), destino] : [];
   const pines: PinMapa[] = [
-    ...(origen ? [{ clave: 'origen', ...origen, texto: 'TW', color: '#64748B', tamano: 34, etiqueta: 'Salida de la sede' }] : []),
+    ...(origen ? [{ clave: 'origen', ...origen, texto: 'TW', color: '#64748B', tamano: 34, etiqueta: 'Punto de salida' }] : []),
     ...(destino ? [{ clave: 'destino', ...destino, texto: 'CL', color: '#0F172A', tamano: 34, etiqueta: 'Planta del cliente' }] : []),
     ...(posicion && r ? [{ clave: 'tecnico', ...posicion, texto: inicialesDe(r.tecnico), color: colorPin(r.estado), tamano: 42, etiqueta: r.tecnico ?? 'Técnico' }] : []),
   ];
@@ -109,7 +111,12 @@ export default function PantallaRutaServicio() {
           <Aviso tipo="error" mensaje={error ?? 'No se pudo cargar la ruta.'} />
         ) : (
           <>
-            <MapaEsquematico pines={pines} ruta={recorrido} alto={280} vacio="El técnico aún no envía su ubicación hoy." />
+            <MapaEsquematico pines={pines} ruta={recorrido} trayecto={trayecto.length === 2 ? trayecto : []} alto={280} vacio="El técnico aún no envía su ubicación hoy." />
+            {!!destino && (
+              <Text style={estilos.leyenda} testID="leyenda-mapa">
+                TW salida · CL planta · ┅ ruta prevista · ━ recorrido real
+              </Text>
+            )}
             <View style={estilos.mapaPie}>
               <Text style={estilos.nota}>{r.minutosUbicacion === null ? 'Sin posición GPS hoy.' : `Última posición ${haceMinutos(r.minutosUbicacion)}.`}</Text>
               <Pressable
@@ -256,6 +263,7 @@ const estilos = StyleSheet.create({
   stat: { flex: 1, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
   statValor: { fontSize: 20, fontWeight: '800', color: colores.titulo },
   statTexto: { fontSize: 13, color: colores.textoSecundario, marginTop: 2 },
+  leyenda: { fontSize: 12, color: colores.textoSecundario, marginTop: 6 },
   destino: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: colores.primarioSuave, borderWidth: 1, borderColor: '#BFD7F5', borderRadius: radios.tarjeta, padding: 14, marginTop: 12 },
   destinoTitulo: { fontSize: 12.5, fontWeight: '800', color: colores.primario, letterSpacing: 0.4 },
   destinoNombre: { fontSize: 16, fontWeight: '800', color: colores.titulo, marginTop: 1 },

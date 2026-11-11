@@ -230,6 +230,28 @@ export function segmentos(puntos: PuntoPantalla[], grosor = 4): Segmento[] {
   return salida;
 }
 
+/** Línea de guiones entre los puntos en orden (la ruta prevista, a diferencia del recorrido real que va continuo). */
+export function guiones(puntos: PuntoPantalla[], largoGuion = 9, hueco = 6, grosor = 3): Segmento[] {
+  const salida: Segmento[] = [];
+  for (let i = 1; i < puntos.length; i++) {
+    const a = puntos[i - 1];
+    const b = puntos[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const total = Math.hypot(dx, dy);
+    if (total < 1) continue;
+    const angulo = (Math.atan2(dy, dx) * 180) / Math.PI;
+    for (let d = 0; d < total; d += largoGuion + hueco) {
+      const largo = Math.min(largoGuion, total - d);
+      const centro = d + largo / 2;
+      const cx = a.x + (dx * centro) / total;
+      const cy = a.y + (dy * centro) / total;
+      salida.push({ izquierda: cx - largo / 2, arriba: cy - grosor / 2, largo, angulo });
+    }
+  }
+  return salida;
+}
+
 // ── Enlaces ────────────────────────────────────────────────────────────────────────────────────────────
 
 /** `tel:` con el teléfono de la ficha, solo dígitos (y el + inicial). null si no hay un número usable. */
