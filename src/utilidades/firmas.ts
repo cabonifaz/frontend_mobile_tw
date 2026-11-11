@@ -146,17 +146,24 @@ export const CURVAS_POR_TANDA = 20;
  * entrega pocos puntos, las esquinas se redondean; con puntos juntos queda igual que líneas rectas. Lo ya dibujado no cambia al llegar un punto nuevo y el último
  * tramo llega recto hasta el dedo. "continua" = la tanda empieza en el punto medio de la anterior; "final" = incluye el tramo hasta el último punto.
  */
-export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number, opciones: { continua?: boolean; final?: boolean } = {}): SegmentoTinta[] {
-  const { continua = false, final = true } = opciones;
+/** ¿El trazo gira bruscamente en `p` (más de ~70°)? Ahí se conserva la esquina real (una "v", una "n"…) en vez de redondearla. */
+export function esAgudo(a: [number, number], p: [number, number], c: [number, number], ancho = 1, alto = 1): boolean {
+  const ux = (p[0] - a[0]) * ancho, uy = (p[1] - a[1]) * alto, vx = (c[0] - p[0]) * ancho, vy = (c[1] - p[1]) * alto;
+  const m = Math.hypot(ux, uy) * Math.hypot(vx, vy);
+  return m > 0 && (ux * vx + uy * vy) / m < 0.3;
+}
+
+export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number, opciones: { continua?: boolean; final?: boolean; inicioAgudo?: boolean } = {}): SegmentoTinta[] {
+  const { continua = false, final = true, inicioAgudo = false } = opciones;
   if (trazo.length === 0) return [];
   const P = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
   if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
   const n = P.length;
   const mitad = (u: { x: number; y: number }, v: { x: number; y: number }) => ({ x: (u.x + v.x) / 2, y: (u.y + v.y) / 2 });
-  let ini = continua ? mitad(P[0], P[1]) : P[0];
+  let ini = continua && !inicioAgudo ? mitad(P[0], P[1]) : P[0];
   const pts: { x: number; y: number }[] = [ini];
   for (let i = 1; i < n - 1; i++) {
-    const fin = mitad(P[i], P[i + 1]);
+    const fin = esAgudo(trazo[i - 1], trazo[i], trazo[i + 1], ancho, alto) ? P[i] : mitad(P[i], P[i + 1]);
     const pasos = Math.min(14, Math.max(1, Math.ceil((Math.hypot(P[i].x - ini.x, P[i].y - ini.y) + Math.hypot(fin.x - P[i].x, fin.y - P[i].y)) / 3)));
     for (let k = 1; k <= pasos; k++) {
       const t = k / pasos, u = 1 - t;
