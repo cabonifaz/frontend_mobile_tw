@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import type { Trazos } from '@/api/firmas';
 import { colores, radios } from '@/tema/colores';
-import { agregarPuntoTactil, ASPECTO_FIRMA, iniciarTrazo, CURVAS_POR_TANDA, normalizarPunto, segmentosTinta } from '@/utilidades/firmas';
+import { agregarPuntoTactil, ASPECTO_FIRMA, iniciarTrazo, TRAMOS_POR_TANDA, normalizarPunto, segmentosTinta } from '@/utilidades/firmas';
 
 /**
  * HU-17 — Lienzo para dibujar la firma con el dedo, SIN dependencias nativas: cada tramo del trazo es una vista fina girada. Lo que se guarda son TRAZOS normalizados
@@ -13,12 +13,12 @@ const GROSOR = 2.6;
 /** Tinta azul oscura, como la de un bolígrafo. */
 const TINTA = colores.titulo;
 
-interface PropsTanda { puntos: [number, number][]; ancho: number; alto: number; color: string; grosor: number; continua: boolean; final: boolean }
+interface PropsTanda { puntos: [number, number][]; ancho: number; alto: number; color: string; grosor: number }
 
 /** Una tanda del trazo (memorizada: las completas no se vuelven a calcular; al dibujar solo cambia la última). */
 const Tanda = memo(
-  function Tanda({ puntos, ancho, alto, color, grosor, continua, final }: PropsTanda) {
-    const segs = useMemo(() => segmentosTinta(puntos, ancho, alto, grosor, { continua, final }), [puntos, ancho, alto, grosor, continua, final]);
+  function Tanda({ puntos, ancho, alto, color, grosor }: PropsTanda) {
+    const segs = useMemo(() => segmentosTinta(puntos, ancho, alto, grosor), [puntos, ancho, alto, grosor]);
     return (
       <>
         {segs.map((s, i) => (
@@ -33,24 +33,19 @@ const Tanda = memo(
   (a, b) => {
     const ua = a.puntos[a.puntos.length - 1], ub = b.puntos[b.puntos.length - 1];
     return a.puntos.length === b.puntos.length && ua[0] === ub[0] && ua[1] === ub[1] && a.puntos[0][0] === b.puntos[0][0] && a.puntos[0][1] === b.puntos[0][1] &&
-      a.ancho === b.ancho && a.alto === b.alto && a.color === b.color && a.grosor === b.grosor && a.continua === b.continua && a.final === b.final;
+      a.ancho === b.ancho && a.alto === b.alto && a.color === b.color && a.grosor === b.grosor;
   },
 );
 
 /** Un trazo dibujado, partido en tandas. */
 function TrazoDibujado({ puntos, ancho, alto, color, grosor }: { puntos: [number, number][]; ancho: number; alto: number; color: string; grosor: number }) {
   const n = puntos.length;
-  const tandas: { desde: number; hasta: number; final: boolean }[] = [];
-  let a = 1;
-  while (a + CURVAS_POR_TANDA <= n - 2) {
-    tandas.push({ desde: a - 1, hasta: a + CURVAS_POR_TANDA + 1, final: false });
-    a += CURVAS_POR_TANDA;
-  }
-  tandas.push({ desde: a - 1 < 0 ? 0 : a - 1, hasta: n, final: true });
+  const tandas: [number, number][][] = [];
+  for (let d = 0; d < n - 1 || d === 0; d += TRAMOS_POR_TANDA) tandas.push(puntos.slice(d, Math.min(n, d + TRAMOS_POR_TANDA + 1)));
   return (
     <>
       {tandas.map((t, i) => (
-        <Tanda key={i} puntos={puntos.slice(t.desde, t.hasta)} ancho={ancho} alto={alto} color={color} grosor={grosor} continua={t.desde > 0} final={t.final} />
+        <Tanda key={i} puntos={t} ancho={ancho} alto={alto} color={color} grosor={grosor} />
       ))}
     </>
   );

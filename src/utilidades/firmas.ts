@@ -37,30 +37,18 @@ export function iniciarTrazo(t: Trazos, p: [number, number]): Trazos {
   return [...t, [p]];
 }
 
-/** Filtro de captura: el punto nuevo avanza solo una parte hacia donde está el dedo, así el temblor de la mano no entra al trazo (casi sin retraso). */
-export function suavizarEntrada(t: Trazos, p: [number, number]): [number, number] {
-  const ultimo = t.length > 0 ? t[t.length - 1] : null;
-  const previo = ultimo && ultimo.length > 0 ? ultimo[ultimo.length - 1] : null;
-  if (!previo) return p;
-  // Adaptativo: movimiento corto (temblor, curvas lentas) = filtra más; movimiento largo (trazo rápido) = sigue casi directo al dedo.
-  const d = Math.hypot(p[0] - previo[0], p[1] - previo[1]);
-  const k = Math.min(0.85, Math.max(0.3, 0.3 + (d / 0.02) * 0.55));
-  return [redondear(previo[0] + (p[0] - previo[0]) * k), redondear(previo[1] + (p[1] - previo[1]) * k)];
-}
-
 /** Distancia en "píxeles equivalentes" (el alto del lienzo es ASPECTO_FIRMA veces menor que el ancho). */
 const distanciaLienzo = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], (a[1] - b[1]) / ASPECTO_FIRMA);
-/** Separación mínima entre puntos guardados (≈ 3-4 px): el ruido del dedo cae dentro de ese margen y la curva queda lisa. */
-const SEPARACION_CAPTURA = 0.011;
+/** Separación mínima entre puntos guardados (≈ 0,5 px): solo evita duplicados; los puntos son los reales del dedo, como en Paint. */
+const SEPARACION_CAPTURA = 0.002;
 
-/** Captura de un punto táctil: se guarda solo si el dedo avanzó lo suficiente respecto al último punto guardado, y entra ya filtrado. */
+/** Captura de un punto táctil tal cual lo entrega la pantalla (sin filtros ni suavizado); se ignora solo si no se movió. */
 export function agregarPuntoTactil(t: Trazos, crudo: [number, number]): Trazos {
   if (t.length === 0 || totalPuntos(t) >= MAX_PUNTOS) return t;
   const ultimo = t[t.length - 1];
   const previo = ultimo[ultimo.length - 1];
   if (previo && distanciaLienzo(crudo, previo) < SEPARACION_CAPTURA) return t;
-  const p = suavizarEntrada(t, crudo);
-  return [...t.slice(0, -1), [...ultimo, p]];
+  return [...t.slice(0, -1), [...ultimo, crudo]];
 }
 
 /** Agrega un punto al último trazo (el dedo se mueve); ignora los que casi no se movieron. */
@@ -150,37 +138,19 @@ export interface SegmentoTinta extends Segmento {
  * Trazo suave: curvas suaves por los puntos tocados para que no se formen esquinas, sin retrasarse del dedo.
  * Grosor parejo. Solo se calcula al dibujar: lo guardado sigue siendo los puntos normalizados.
  */
-/** Curvas que se dibujan por tandas: cada tanda es estable y solo se recalcula la última (así el dibujo sigue al dedo sin retraso). */
-export const CURVAS_POR_TANDA = 20;
+/** Tramos por tanda: cada tanda se memoriza y al dibujar solo se recalcula la última. */
+export const TRAMOS_POR_TANDA = 40;
 
-export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number, opciones: { continua?: boolean; final?: boolean } = {}): SegmentoTinta[] {
-  const { continua = false, final = true } = opciones;
+/** Como Paint: los puntos reales unidos con líneas rectas de grosor parejo y puntas redondas (los tramos se solapan, sin grietas ni esquinas). */
+export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number): SegmentoTinta[] {
   if (trazo.length === 0) return [];
   const P = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
   if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
-  const n = P.length;
-  const mitad = (a: { x: number; y: number }, b: { x: number; y: number }) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-  // Curvas cuadráticas por los puntos medios (los puntos tocados son los controles): lo ya dibujado no cambia al llegar un punto nuevo
-  // y la línea siempre llega hasta el dedo (el último tramo es recto hasta la punta).
-  const pts: { x: number; y: number; w: number }[] = [{ x: P[0].x, y: P[0].y, w: grosor }];
-  let ini = continua ? mitad(P[0], P[1]) : P[0];
-  if (continua) pts[0] = { x: ini.x, y: ini.y, w: grosor };
-  for (let i = 1; i < n - 1; i++) {
-    const fin = mitad(P[i], P[i + 1]);
-    const pasos = Math.min(12, Math.max(1, Math.ceil((Math.hypot(P[i].x - ini.x, P[i].y - ini.y) + Math.hypot(fin.x - P[i].x, fin.y - P[i].y)) / 2)));
-    for (let k = 1; k <= pasos; k++) {
-      const t = k / pasos, u = 1 - t;
-      pts.push({ x: u * u * ini.x + 2 * u * t * P[i].x + t * t * fin.x, y: u * u * ini.y + 2 * u * t * P[i].y + t * t * fin.y, w: grosor });
-    }
-    ini = fin;
-  }
-  if (final) pts.push({ x: P[n - 1].x, y: P[n - 1].y, w: grosor });
   const res: SegmentoTinta[] = [];
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1], b = pts[i];
-    const g = (a.w + b.w) / 2;
-    const largo = Math.hypot(b.x - a.x, b.y - a.y) + g * 1.8;
-    res.push({ izquierda: (a.x + b.x) / 2 - largo / 2, arriba: (a.y + b.y) / 2 - g / 2, largo, angulo: Math.atan2(b.y - a.y, b.x - a.x), grosor: g });
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1], b = P[i];
+    const largo = Math.hypot(b.x - a.x, b.y - a.y) + grosor;
+    res.push({ izquierda: (a.x + b.x) / 2 - largo / 2, arriba: (a.y + b.y) / 2 - grosor / 2, largo, angulo: Math.atan2(b.y - a.y, b.x - a.x), grosor });
   }
   return res;
 }
