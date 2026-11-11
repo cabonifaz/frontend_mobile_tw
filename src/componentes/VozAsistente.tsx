@@ -73,17 +73,21 @@ function Grabadora({ token, onEnviar, onCerrar, audio }: Props & { audio: Modulo
   async function detenerGrabacion(): Promise<string | null> {
     if (!grabando.current) return null;
     grabando.current = false;
+    let uri: string | null = null;
     try {
       await recorder.stop();
+      // Se lee dentro del try: si el modal se cerró mientras se detenía (Cancelar), la grabadora ya se liberó y leer `uri` lanzaría
+      // "Cannot use shared object that was already released".
+      uri = recorder.uri ?? null;
     } catch {
-      // ya estaba detenida
+      // ya estaba detenida o liberada
     }
     try {
       await audio.setAudioModeAsync({ allowsRecording: false });
     } catch {
       // nada que restaurar
     }
-    return recorder.uri ?? null;
+    return uri;
   }
 
   async function transcribir(uri: string | null, duracion: number) {
@@ -109,6 +113,7 @@ function Grabadora({ token, onEnviar, onCerrar, audio }: Props & { audio: Modulo
   async function detener() {
     const duracion = (Date.now() - inicio.current) / 1000;
     const uri = await detenerGrabacion();
+    if (cerrada.current) return; // se canceló mientras se detenía: no hay nada que transcribir ni estado que actualizar
     await transcribir(uri, duracion);
   }
 
@@ -172,7 +177,7 @@ function Grabadora({ token, onEnviar, onCerrar, audio }: Props & { audio: Modulo
 
   function cancelar() {
     cerrada.current = true;
-    void detenerGrabacion();
+    void detenerGrabacion().catch(() => undefined);
     onCerrar();
   }
 
