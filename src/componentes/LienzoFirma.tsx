@@ -9,9 +9,9 @@ import { agregarPunto, ASPECTO_FIRMA, iniciarTrazo, normalizarPunto, segmentosTi
  * (cada punto entre 0 y 1 del lienzo, que siempre tiene la misma proporción), así la misma firma se vuelve a dibujar en cualquier tamaño y en el PDF de la constancia.
  */
 
-const GROSOR = 3.2;
+const GROSOR = 2.6;
 /** Tinta azul oscura, como la de un bolígrafo. */
-const TINTA = '#16224A';
+const TINTA = colores.titulo;
 
 /** Un trazo dibujado (memorizado: al dibujar solo se vuelve a pintar el último). */
 const TrazoDibujado = memo(function TrazoDibujado({ puntos, ancho, alto, color, grosor }: { puntos: [number, number][]; ancho: number; alto: number; color: string; grosor: number }) {

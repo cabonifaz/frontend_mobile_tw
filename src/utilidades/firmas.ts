@@ -116,14 +116,13 @@ export function segmentos(t: Trazos, ancho: number, alto: number, grosor: number
 }
 
 export interface SegmentoTinta extends Segmento {
-  /** Grosor propio del tramo (px): la tinta es más fina al rápido y en las puntas, más gruesa al lento. */
+  /** Grosor del tramo (px), parejo en todo el trazo. */
   grosor: number;
 }
 
 /**
- * Tinta realista de un trazo: curva suave (Catmull-Rom) por los puntos tocados y grosor variable según la velocidad
- * (puntos más separados = pluma más rápida = línea más fina), con punta fina al inicio y al final.
- * Solo se calcula al dibujar: lo guardado sigue siendo los puntos normalizados.
+ * Trazo suave: curva (Catmull-Rom) por los puntos tocados, con el temblor del dedo promediado, para que no se formen esquinas al escribir.
+ * Grosor parejo. Solo se calcula al dibujar: lo guardado sigue siendo los puntos normalizados.
  */
 export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number): SegmentoTinta[] {
   if (trazo.length === 0) return [];
@@ -131,21 +130,7 @@ export function segmentosTinta(trazo: [number, number][], ancho: number, alto: n
   // Quita el temblor del dedo: cada punto interior se promedia con sus vecinos (las puntas se respetan).
   const P = crudo.map((p, i) => (i === 0 || i === crudo.length - 1 ? p : { x: (crudo[i - 1].x + 2 * p.x + crudo[i + 1].x) / 4, y: (crudo[i - 1].y + 2 * p.y + crudo[i + 1].y) / 4 }));
   if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
-  // Grosor por punto: velocidad ≈ distancia al anterior (los eventos llegan a ritmo fijo), suavizada.
-  const ref = Math.max(6, ancho * 0.03);
-  const w: number[] = [];
-  let previo = grosor;
-  for (let i = 0; i < P.length; i++) {
-    const d = i === 0 ? 0 : Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y);
-    const objetivo = grosor * Math.min(1.2, Math.max(0.8, 1.2 - (d / ref) * 0.4));
-    previo = i === 0 ? objetivo : previo * 0.88 + objetivo * 0.12;
-    w.push(previo);
-  }
   const n = P.length;
-  const afinado = (i: number) => {
-    const borde = Math.min(i, n - 1 - i);
-    return borde >= 3 ? 1 : 0.6 + 0.4 * (borde / 3);
-  };
   const pts: { x: number; y: number; w: number }[] = [];
   for (let i = 0; i < n - 1; i++) {
     const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n - 1, i + 2)];
@@ -153,11 +138,10 @@ export function segmentosTinta(trazo: [number, number][], ancho: number, alto: n
     for (let k = 0; k < pasos; k++) {
       const t = k / pasos, t2 = t * t, t3 = t2 * t;
       const f = (a: number, b: number, c: number, d: number) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-      const ww = (w[i] + (w[i + 1] - w[i]) * t) * (afinado(i) + (afinado(i + 1) - afinado(i)) * t);
-      pts.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y), w: ww });
+            pts.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y), w: grosor });
     }
   }
-  pts.push({ x: P[n - 1].x, y: P[n - 1].y, w: w[n - 1] * afinado(n - 1) });
+  pts.push({ x: P[n - 1].x, y: P[n - 1].y, w: grosor });
   const res: SegmentoTinta[] = [];
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
