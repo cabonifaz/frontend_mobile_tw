@@ -170,6 +170,10 @@ export interface ResumenRuta {
   origenLongitud: number | null;
   eta: string | null;
   etaProgramada: string | null;
+  /** HU-20: llegada estimada desde la posición actual (en ruta; referencial: línea recta × 1,3 a la velocidad promedio) y dirección de la planta. Opcionales: un back anterior no los envía. */
+  etaMinutos?: number | null;
+  etaEstimada?: string | null;
+  destinoDireccion?: string | null;
   demoraTexto: string | null;
   demoraOrigen: 'tecnico' | 'asistente' | string | null;
   contactoNombre: string | null;

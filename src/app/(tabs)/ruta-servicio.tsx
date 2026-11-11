@@ -15,6 +15,7 @@ import { useDiseno } from '@/hooks/useDiseno';
 import { useRefrescoAutomatico } from '@/hooks/useRefrescoAutomatico';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
+import { textoDuracion } from '@/utilidades/jornada';
 import {
   colorBadge,
   colorPin,
@@ -124,9 +125,30 @@ export default function PantallaRutaServicio() {
 
             <View style={estilos.stats}>
               <Stat valor={textoVelocidad(r.velocidadKmh)} texto="Velocidad" />
-              <Stat valor={r.eta ?? '—'} texto="ETA" color={r.eta && r.etaProgramada && r.eta > r.etaProgramada ? colores.naranja : undefined} />
+              <Stat
+                valor={r.etaEstimada ?? r.eta ?? '—'}
+                texto={r.etaEstimada ? 'Llegada est.' : 'ETA'}
+                color={(r.etaEstimada ?? r.eta) && r.etaProgramada && (r.etaEstimada ?? r.eta)! > r.etaProgramada ? colores.naranja : undefined}
+              />
               <Stat valor={textoDistancia(r.distanciaM)} texto="Distancia" />
             </View>
+
+            {(!!r.destinoNombre || !!r.destinoDireccion) && (
+              <View style={estilos.destino} testID="destino-servicio">
+                <Ionicons name="flag-outline" size={22} color={colores.primario} />
+                <View style={{ flex: 1 }}>
+                  <Text style={estilos.destinoTitulo}>{r.estado === 'en_ruta' ? 'Se dirige a' : 'Planta del servicio'}</Text>
+                  <Text style={estilos.destinoNombre}>{r.destinoNombre ?? r.destinoDireccion}</Text>
+                  {!!r.destinoDireccion && r.destinoDireccion !== r.destinoNombre && <Text style={estilos.destinoDetalle}>{r.destinoDireccion}</Text>}
+                  {r.etaEstimada && r.etaMinutos != null ? (
+                    <Text style={estilos.destinoEta}>
+                      Llegaría a las {r.etaEstimada} (≈ {textoDuracion(r.etaMinutos)}){r.etaProgramada ? ' · programado ' + r.etaProgramada : ''}
+                    </Text>
+                  ) : null}
+                  {!destino && <Text style={estilos.destinoDetalle}>La planta no tiene coordenadas registradas: no se puede dibujar el destino ni calcular la llegada.</Text>}
+                </View>
+              </View>
+            )}
 
             {!!r.demoraTexto && (
               <View style={estilos.demora} testID="demora-registrada">
@@ -159,7 +181,7 @@ export default function PantallaRutaServicio() {
                 })
               )}
             </View>
-            <Text style={estilos.nota}>La distancia es en línea recta hasta la planta; la velocidad y la ETA son referenciales.</Text>
+            <Text style={estilos.nota}>La distancia es en línea recta hasta la planta; la velocidad y la hora de llegada estimada son referenciales.</Text>
 
             {!!mensaje && (
               <View style={{ marginTop: 12 }} testID="mensaje-ruta">
@@ -234,6 +256,11 @@ const estilos = StyleSheet.create({
   stat: { flex: 1, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
   statValor: { fontSize: 20, fontWeight: '800', color: colores.titulo },
   statTexto: { fontSize: 13, color: colores.textoSecundario, marginTop: 2 },
+  destino: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: colores.primarioSuave, borderWidth: 1, borderColor: '#BFD7F5', borderRadius: radios.tarjeta, padding: 14, marginTop: 12 },
+  destinoTitulo: { fontSize: 12.5, fontWeight: '800', color: colores.primario, letterSpacing: 0.4 },
+  destinoNombre: { fontSize: 16, fontWeight: '800', color: colores.titulo, marginTop: 1 },
+  destinoDetalle: { fontSize: 13.5, color: colores.textoSecundario, marginTop: 2, lineHeight: 19 },
+  destinoEta: { fontSize: 14.5, fontWeight: '700', color: colores.titulo, marginTop: 4 },
   demora: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: radios.tarjeta, padding: 14, marginTop: 12 },
   demoraTexto: { flex: 1, color: colores.titulo, fontSize: 15.5, lineHeight: 22 },
   seccion: { fontSize: 14, fontWeight: '800', letterSpacing: 1.2, color: colores.textoSecundario, marginTop: 20, marginBottom: 10 },
