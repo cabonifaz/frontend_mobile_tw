@@ -34,7 +34,11 @@ import {
   fallaGuardadaACuerpo,
   fallaVacia,
   progresoInforme,
+  diferenciaExcentricidad,
   progresoObservacion,
+  resumenPruebasGenerales,
+  textoLecturasDentro,
+  textoPosicion,
   textoConPrueba,
   textoEstadoEquipo,
   textoFallas,
@@ -523,7 +527,11 @@ export default function PantallaCabeceraInforme() {
                           resumen={pruebas === 'pendiente' ? 'Finaliza Ensayos y Calibración para ver el resumen' : pruebas === 'no_conforme' ? 'Hay lecturas fuera de EMP' : 'Pesaje y excentricidad conformes'}
                           testID="bloque-pruebas"
                         >
-                          <PruebasGeneralesVista p={cab.pruebasGenerales} unidad={unidad} />
+                          <PruebasGeneralesVista
+                            p={cab.pruebasGenerales}
+                            unidad={unidad}
+                            onIrAEnsayos={editable ? () => router.push({ pathname: '/ensayos', params: { id: String(idOs), equipo: String(idOsEquipo) } }) : undefined}
+                          />
                           <Text style={estilos.ayuda}>Comentario de las pruebas (opcional)</Text>
                           <TextInput
                             value={comentario}
@@ -781,35 +789,193 @@ function TarjetaFalla(props: { falla: CuerpoFalla; clase: string | null; e: numb
   );
 }
 
-function PruebasGeneralesVista({ p, unidad }: { p: CabeceraInforme['pruebasGenerales']; unidad: string }) {
-  if (!p.finalizado) return <Text style={estilos.ayuda}>Todavía no se finalizaron los ensayos: se muestran aquí al finalizar Ensayos y Calibración.</Text>;
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={estilos.ayuda}>Pruebas generales del equipo (formato de calibración resumido) · el técnico digita L e I</Text>
-      <View style={estilos.minitabla}>
-        <Text style={estilos.minicabecera}>Pesaje · L ({unidad}) · I ({unidad}) · E · EMP</Text>
-        {p.pesaje.map((l) => (
-          <View key={l.orden} style={estilos.minifila}>
-            <Text style={estilos.minicelda}>{formatoMiles(l.carga)}</Text>
-            <Text style={estilos.minicelda}>{formatoMiles(l.indicacion)}</Text>
-            <Text style={[estilos.minicelda, { fontWeight: '800' }, l.resultado === 'no_conforme' && { color: colores.rojo }]}>{formatoError(l.error)}</Text>
-            <Text style={estilos.minicelda}>{l.emp == null ? '—' : `±${formatoMiles(l.emp)}`}</Text>
-            <Ionicons name={l.resultado === 'no_conforme' ? 'close-circle' : 'checkmark-circle'} size={18} color={l.resultado === 'no_conforme' ? colores.rojo : colores.verde} />
-          </View>
-        ))}
+/** Posición de cada lectura sobre el plato (HU-10): 1 centro, 2 arriba-izquierda, 3 abajo-izquierda, 4 abajo-derecha, 5 arriba-derecha. */
+const LUGAR_POSICION: Record<number, { left?: `${number}%`; right?: `${number}%`; top?: number; bottom?: number }> = {
+  1: { left: '35%', top: 52 },
+  2: { left: '3%', top: 8 },
+  3: { left: '3%', bottom: 8 },
+  4: { right: '3%', bottom: 8 },
+  5: { right: '3%', top: 8 },
+};
+
+/**
+ * "Pruebas generales (formato resumido)": solo lectura de lo que guardó Ensayos y Calibración (HU-10). Muestra el resumen (cuántas lecturas están dentro del EMP),
+ * la tabla de pesaje con su error E = I − L, el plato de la excentricidad con cada posición y, si hay un error crítico, qué lecturas se salieron y cómo corregirlo.
+ */
+function PruebasGeneralesVista({ p, unidad, onIrAEnsayos }: { p: CabeceraInforme['pruebasGenerales']; unidad: string; onIrAEnsayos?: () => void }) {
+  if (!p.finalizado) {
+    return (
+      <View style={estilos.pgVacio}>
+        <Ionicons name="time-outline" size={22} color={colores.textoSecundario} />
+        <Text style={[estilos.ayuda, { flex: 1 }]}>Todavía no se finalizaron los ensayos: se muestran aquí al finalizar Ensayos y Calibración.</Text>
+        {onIrAEnsayos && (
+          <Pressable onPress={onIrAEnsayos} accessibilityRole="button" testID="ir-a-ensayos">
+            <Text style={estilos.enlaceTexto}>Ir a Ensayos</Text>
+          </Pressable>
+        )}
       </View>
-      {p.excentricidad.map((g) => (
-        <Text key={g.grupo} style={estilos.excentricidad}>
-          Excentricidad · carga {formatoMiles(g.carga)} {unidad} · Pos. 1-{g.lecturas.length}: {g.lecturas.map((l) => formatoMiles(l.indicacion)).join(' · ')}
-          {g.lecturas.some((l) => l.resultado === 'no_conforme') ? '  ✗ No conforme' : '  ✓ Conforme'}
-        </Text>
-      ))}
-      {!!p.errorCritico && <Text style={[estilos.excentricidad, { color: colores.rojoEtiquetaTexto }]}>Se guardó con error crítico: {p.errorCritico}</Text>}
+    );
+  }
+  const r = resumenPruebasGenerales(p);
+  const mal = r.fuera > 0 || !!p.errorCritico;
+  return (
+    <View style={{ gap: 12 }} testID="pruebas-generales">
+      <View style={[estilos.pgResumen, mal ? estilos.pgResumenMal : estilos.pgResumenBien]} testID="pruebas-resumen">
+        <Ionicons name={mal ? 'alert-circle' : 'checkmark-circle'} size={28} color={mal ? colores.rojo : colores.verde} />
+        <View style={{ flex: 1 }}>
+          <Text style={[estilos.pgResumenTitulo, { color: mal ? colores.rojoEtiquetaTexto : colores.verdeEtiquetaTexto }]}>{mal ? 'Hay lecturas fuera de EMP' : 'Todas las lecturas están dentro de EMP'}</Text>
+          <Text style={estilos.pgResumenDetalle}>{textoLecturasDentro(r)}</Text>
+        </View>
+      </View>
+
+      <View style={estilos.pgChips}>
+        <View style={[estilos.pgChip, r.pesaje.dentro < r.pesaje.total && estilos.pgChipMal]}>
+          <Text style={[estilos.pgChipTexto, r.pesaje.dentro < r.pesaje.total && { color: colores.rojoEtiquetaTexto }]}>Pesaje {r.pesaje.dentro}/{r.pesaje.total}</Text>
+        </View>
+        <View style={[estilos.pgChip, r.excentricidad.dentro < r.excentricidad.total && estilos.pgChipMal]}>
+          <Text style={[estilos.pgChipTexto, r.excentricidad.dentro < r.excentricidad.total && { color: colores.rojoEtiquetaTexto }]}>
+            Excentricidad {r.excentricidad.dentro}/{r.excentricidad.total}
+          </Text>
+        </View>
+      </View>
+      <Text style={estilos.ayuda}>Tomado de Ensayos y Calibración (solo lectura). E = I − L; EMP = error máximo permitido para esa carga.</Text>
+
+      {/* Pesaje */}
+      <View style={estilos.pgCaja}>
+        <View style={estilos.pgCajaTitulo}>
+          <Ionicons name="scale-outline" size={18} color={colores.titulo} />
+          <Text style={estilos.pgTitulo}>Pesaje</Text>
+          <Text style={estilos.pgUnidad}>({unidad})</Text>
+        </View>
+        <View style={estilos.pgFila}>
+          {['Carga L', 'Indicación I', 'Error E', 'EMP'].map((t, i) => (
+            <Text key={t} style={[estilos.pgCabecera, { flex: i === 3 ? 0.8 : 1 }]}>
+              {t}
+            </Text>
+          ))}
+          <View style={{ width: 24 }} />
+        </View>
+        {p.pesaje.map((l, i) => {
+          const fuera = l.resultado === 'no_conforme';
+          return (
+            <View key={l.orden} style={[estilos.pgFila, i % 2 === 1 && estilos.pgFilaAlterna, fuera && estilos.pgFilaFuera]} testID={`pesaje-${l.orden}`}>
+              <Text style={[estilos.pgCelda, { flex: 1 }]}>{formatoMiles(l.carga)}</Text>
+              <Text style={[estilos.pgCelda, { flex: 1 }]}>{formatoMiles(l.indicacion)}</Text>
+              <Text style={[estilos.pgCelda, { flex: 1, fontWeight: '800' }, fuera && { color: colores.rojo }]}>{formatoError(l.error)}</Text>
+              <Text style={[estilos.pgCelda, { flex: 0.8 }]}>{l.emp == null ? '—' : `±${formatoMiles(l.emp)}`}</Text>
+              <Ionicons name={fuera ? 'close-circle' : 'checkmark-circle'} size={22} color={fuera ? colores.rojo : colores.verde} />
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Excentricidad: una tarjeta por carga, con las posiciones sobre el plato */}
+      {p.excentricidad.map((g) => {
+        const fuera = g.lecturas.some((l) => l.resultado === 'no_conforme');
+        const dif = diferenciaExcentricidad(g.lecturas);
+        const emp = g.lecturas.find((l) => l.emp != null)?.emp ?? null;
+        const plato = g.lecturas.length === 5 && g.lecturas.every((l) => LUGAR_POSICION[l.orden]);
+        return (
+          <View key={g.grupo} style={estilos.pgCaja} testID={`excentricidad-${g.grupo}`}>
+            <View style={estilos.pgCajaTitulo}>
+              <Ionicons name="apps-outline" size={18} color={colores.titulo} />
+              <Text style={estilos.pgTitulo}>Excentricidad · carga {formatoMiles(g.carga)} {unidad}</Text>
+              <View style={[estilos.pgEtiqueta, fuera ? estilos.pgChipMal : estilos.pgEtiquetaOk]}>
+                <Text style={[estilos.pgChipTexto, { color: fuera ? colores.rojoEtiquetaTexto : colores.verdeEtiquetaTexto }]}>{fuera ? 'NO CONFORME' : 'CONFORME'}</Text>
+              </View>
+            </View>
+            {plato ? (
+              <View style={estilos.pgPlato}>
+                {g.lecturas.map((l) => {
+                  const mala = l.resultado === 'no_conforme';
+                  return (
+                    <View key={l.orden} style={[estilos.pgPosicion, LUGAR_POSICION[l.orden], mala && estilos.pgPosicionMala]} testID={`posicion-${l.orden}`}>
+                      <Text style={estilos.pgPosicionNumero}>{l.orden === 1 ? '1 · centro' : l.orden}</Text>
+                      <Text style={[estilos.pgPosicionValor, mala && { color: colores.rojo }]}>{formatoMiles(l.indicacion)}</Text>
+                      <Text style={[estilos.pgPosicionError, mala && { color: colores.rojo }]}>E {formatoError(l.error)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              g.lecturas.map((l) => (
+                <View key={l.orden} style={[estilos.pgFila, l.resultado === 'no_conforme' && estilos.pgFilaFuera]}>
+                  <Text style={[estilos.pgCelda, { flex: 1.4, textAlign: 'left' }]}>{textoPosicion(l.orden) || `Pos. ${l.orden}`}</Text>
+                  <Text style={[estilos.pgCelda, { flex: 1 }]}>{formatoMiles(l.indicacion)}</Text>
+                  <Text style={[estilos.pgCelda, { flex: 1, fontWeight: '800' }]}>{formatoError(l.error)}</Text>
+                </View>
+              ))
+            )}
+            <Text style={estilos.pgPie}>
+              {dif == null ? 'Sin diferencia que calcular' : `Diferencia entre posiciones: ${formatoMiles(dif)} ${unidad}`}
+              {emp == null ? '' : ` · EMP ±${formatoMiles(emp)} ${unidad}`}
+            </Text>
+          </View>
+        );
+      })}
+
+      {/* Error crítico: qué lecturas se salieron y qué hacer */}
+      {mal && (
+        <View style={estilos.pgCritico} testID="error-critico">
+          <View style={estilos.pgCajaTitulo}>
+            <Ionicons name="warning" size={20} color={colores.rojo} />
+            <Text style={[estilos.pgTitulo, { color: colores.rojoEtiquetaTexto }]}>Error crítico en los ensayos</Text>
+          </View>
+          {!!p.errorCritico && <Text style={estilos.pgCriticoTexto}>Motivo guardado: {p.errorCritico}</Text>}
+          {r.lecturasFuera.map((l, i) => (
+            <Text key={i} style={estilos.pgCriticoLinea}>
+              • {l.tipo === 'pesaje' ? 'Pesaje' : `Excentricidad · ${textoPosicion(l.posicion) || 'posición'}`} · carga {formatoMiles(l.carga)} {unidad} → E {formatoError(l.error)} {unidad}
+              {l.emp == null ? '' : ` (EMP ±${formatoMiles(l.emp)})`}
+            </Text>
+          ))}
+          <Text style={estilos.pgCriticoTexto}>Mientras haya una lectura fuera de EMP no se puede finalizar el trabajo en el equipo: corrige la lectura o repite el ensayo.</Text>
+          {onIrAEnsayos && (
+            <Pressable onPress={onIrAEnsayos} style={estilos.pgBotonEnsayos} accessibilityRole="button" testID="corregir-en-ensayos">
+              <Ionicons name="create-outline" size={18} color={colores.blanco} />
+              <Text style={estilos.pgBotonEnsayosTexto}>Corregir en Ensayos y Calibración</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
 const estilos = StyleSheet.create({
+  // Pruebas generales (resumen, tabla de pesaje, plato de excentricidad y error crítico)
+  pgVacio: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colores.grisFondo, borderRadius: 12, padding: 12 },
+  pgResumen: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, padding: 14, borderWidth: 1 },
+  pgResumenBien: { backgroundColor: colores.verdeFondo, borderColor: colores.verdeBorde },
+  pgResumenMal: { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' },
+  pgResumenTitulo: { fontSize: 16.5, fontWeight: '800' },
+  pgResumenDetalle: { fontSize: 14.5, color: colores.textoSecundario, marginTop: 2 },
+  pgChips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  pgChip: { backgroundColor: colores.verdeEtiquetaFondo, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  pgChipMal: { backgroundColor: colores.rojoEtiquetaFondo },
+  pgChipTexto: { fontSize: 13, fontWeight: '800', color: colores.verdeEtiquetaTexto },
+  pgCaja: { borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: 14, padding: 12, gap: 4, backgroundColor: colores.blanco },
+  pgCajaTitulo: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
+  pgTitulo: { fontSize: 16, fontWeight: '800', color: colores.titulo, flexShrink: 1 },
+  pgUnidad: { fontSize: 14, color: colores.textoSecundario },
+  pgEtiqueta: { marginLeft: 'auto', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  pgEtiquetaOk: { backgroundColor: colores.verdeEtiquetaFondo },
+  pgFila: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 8 },
+  pgFilaAlterna: { backgroundColor: '#F8FAFC' },
+  pgFilaFuera: { backgroundColor: '#FEF2F2' },
+  pgCabecera: { fontSize: 12.5, fontWeight: '800', color: colores.textoSecundario, textAlign: 'center', letterSpacing: 0.2 },
+  pgCelda: { fontSize: 16, color: colores.titulo, textAlign: 'center' },
+  pgPlato: { height: 168, borderRadius: 14, backgroundColor: '#EEF2F7', borderWidth: 1, borderColor: colores.bordeSuave, position: 'relative' },
+  pgPosicion: { position: 'absolute', width: '30%', alignItems: 'center', backgroundColor: colores.blanco, borderRadius: 10, borderWidth: 1, borderColor: '#BBF7D0', paddingVertical: 6 },
+  pgPosicionMala: { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' },
+  pgPosicionNumero: { fontSize: 12, fontWeight: '800', color: colores.textoSecundario },
+  pgPosicionValor: { fontSize: 16.5, fontWeight: '800', color: colores.titulo },
+  pgPosicionError: { fontSize: 13, fontWeight: '700', color: colores.verdeEtiquetaTexto },
+  pgPie: { fontSize: 13.5, color: colores.textoSecundario, marginTop: 6 },
+  pgCritico: { borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 14, padding: 14, gap: 6 },
+  pgCriticoTexto: { fontSize: 14.5, color: colores.rojoEtiquetaTexto, lineHeight: 20 },
+  pgCriticoLinea: { fontSize: 15, color: colores.titulo, fontWeight: '700', lineHeight: 21 },
+  pgBotonEnsayos: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colores.rojo, borderRadius: 12, minHeight: 46, marginTop: 6 },
+  pgBotonEnsayosTexto: { color: colores.blanco, fontWeight: '800', fontSize: 15.5 },
   area: { flex: 1, backgroundColor: colores.fondo },
   contenido: { paddingTop: 18, paddingBottom: 28, width: '100%', alignSelf: 'center' },
   tituloFila: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },

@@ -194,6 +194,49 @@ export function estadoPruebasGenerales(p: PruebasGenerales): 'conforme' | 'no_co
   return p.errorCritico || todas.some((l) => l.resultado === 'no_conforme') ? 'no_conforme' : 'conforme';
 }
 
+/** Una lectura fuera de EMP de Ensayos y Calibración, lista para mostrarla ("2,000 → +48 · EMP ±5"). */
+export interface LecturaFueraEmp {
+  tipo: 'pesaje' | 'excentricidad';
+  carga: number | null;
+  error: number | null;
+  emp: number | null;
+  /** Solo en excentricidad: 1 centro, 2 a 5 esquinas. */
+  posicion: number | null;
+}
+
+export interface ResumenPruebasGenerales {
+  lecturas: number;
+  dentro: number;
+  fuera: number;
+  pesaje: { total: number; dentro: number };
+  excentricidad: { total: number; dentro: number };
+  lecturasFuera: LecturaFueraEmp[];
+}
+
+/** Resumen de "Pruebas generales": cuántas lecturas hay, cuántas están dentro del EMP y cuáles se salieron (lo que ya guardó Ensayos y Calibración, HU-10). */
+export function resumenPruebasGenerales(p: PruebasGenerales): ResumenPruebasGenerales {
+  const fuera = (l: { resultado: string | null }) => l.resultado === 'no_conforme';
+  const ecc = p.excentricidad.flatMap((g) => g.lecturas.map((l) => ({ g, l })));
+  const lecturasFuera: LecturaFueraEmp[] = [
+    ...p.pesaje.filter(fuera).map((l) => ({ tipo: 'pesaje' as const, carga: l.carga, error: l.error, emp: l.emp, posicion: null })),
+    ...ecc.filter((x) => fuera(x.l)).map((x) => ({ tipo: 'excentricidad' as const, carga: x.g.carga, error: x.l.error, emp: x.l.emp, posicion: x.l.orden })),
+  ];
+  const pes = { total: p.pesaje.length, dentro: p.pesaje.filter((l) => !fuera(l)).length };
+  const exc = { total: ecc.length, dentro: ecc.filter((x) => !fuera(x.l)).length };
+  return { lecturas: pes.total + exc.total, dentro: pes.dentro + exc.dentro, fuera: lecturasFuera.length, pesaje: pes, excentricidad: exc, lecturasFuera };
+}
+
+/** "8 de 9 lecturas dentro de EMP". */
+export function textoLecturasDentro(r: Pick<ResumenPruebasGenerales, 'lecturas' | 'dentro'>): string {
+  return `${r.dentro} de ${r.lecturas} ${r.lecturas === 1 ? 'lectura dentro' : 'lecturas dentro'} de EMP`;
+}
+
+/** Diferencia entre la indicación más alta y la más baja de las posiciones de una carga (el "desvío" de la excentricidad); null con menos de 2 lecturas. */
+export function diferenciaExcentricidad(lecturas: { indicacion: number | null }[]): number | null {
+  const v = lecturas.map((l) => l.indicacion).filter((x): x is number => typeof x === 'number');
+  return v.length < 2 ? null : Math.round((Math.max(...v) - Math.min(...v)) * 10000) / 10000;
+}
+
 export function diagnosticoCompleto(d: { severidadGeneral: string | null; estadoEquipo: string | null }): boolean {
   return !!d.severidadGeneral && !!d.estadoEquipo;
 }
