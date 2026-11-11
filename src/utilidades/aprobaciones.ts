@@ -6,6 +6,7 @@ export type FiltroAprobaciones = 'todas' | TipoAprobacion;
 
 export const etiquetaTipo: Record<TipoAprobacion, { plural: string; kicker: string }> = {
   salida: { plural: 'Salidas', kicker: 'AUTORIZACIÓN DE SALIDA' },
+  llegada: { plural: 'Llegadas', kicker: 'LLEGADA FORZADA' },
   evidencia: { plural: 'Evidencias', kicker: 'EVIDENCIA FORZADA' },
   ensayo: { plural: 'Ensayos', kicker: 'ENSAYO GUARDADO CON ERROR' },
   gasto: { plural: 'Gastos', kicker: 'SOLICITUD DE GASTO' },

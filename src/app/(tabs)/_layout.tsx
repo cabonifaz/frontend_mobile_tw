@@ -69,7 +69,7 @@ export default function LayoutPestanas() {
   const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio', '/correlativos'].includes(pathname);
   const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente' || enPanelCampo));
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
-  const enDetalleAprobacion = pathname === '/aprobacion-salida';
+  const enDetalleAprobacion = pathname === '/aprobacion-salida' || pathname === '/aprobacion-llegada';
   const itemActivo = {
     borderRadius: 12,
     overflow: 'hidden' as const,
@@ -269,6 +269,11 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="aprobacion-salida"
         options={{ title: 'Autorización de salida', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-06 / HU-31: detalle de una llegada forzada (se entra desde Aprobaciones). */}
+      <Tabs.Screen
+        name="aprobacion-llegada"
+        options={{ title: 'Llegada forzada', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-25 / HU-26: viáticos asignados al programar y gastos rendidos (se entra desde el menú). */}
       <Tabs.Screen

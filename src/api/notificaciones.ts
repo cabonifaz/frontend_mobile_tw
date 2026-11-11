@@ -17,6 +17,10 @@ export type TipoNotificacion =
   | 'autorizacion_rechazada'
   | 'autorizacion_solicitud'
   | 'solicitud_enviada'
+  /** HU-06: un técnico pide registrar su llegada fuera del radio (le llega al encargado) y la respuesta que recibe el técnico. */
+  | 'llegada_forzada_solicitud'
+  | 'llegada_forzada_aprobada'
+  | 'llegada_forzada_rechazada'
   | 'gasto_aprobado'
   | 'gasto_observado'
   | 'gasto_rechazado'

@@ -59,6 +59,9 @@ const iconos: Record<TipoNotificacion, { nombre: IconoIon; color: string }> = {
   autorizacion_rechazada: { nombre: 'close-circle', color: colores.rojo },
   autorizacion_solicitud: { nombre: 'hand-left-outline', color: colores.naranja },
   solicitud_enviada: { nombre: 'paper-plane-outline', color: colores.primario },
+  llegada_forzada_solicitud: { nombre: 'hand-left-outline', color: colores.naranja },
+  llegada_forzada_aprobada: { nombre: 'checkmark-circle', color: colores.verde },
+  llegada_forzada_rechazada: { nombre: 'close-circle', color: colores.rojo },
   correlativo: { nombre: 'ribbon-outline', color: colores.primario },
   correlativo_asignado: { nombre: 'ribbon-outline', color: colores.primario },
   correlativo_solicitado: { nombre: 'paper-plane-outline', color: colores.primario },
@@ -133,6 +136,8 @@ export default function PantallaNotificaciones() {
     marcarLeida(n);
     if (destino.pantalla === 'servicio' && destino.idOs) router.push({ pathname: '/detalle-servicio', params: { id: String(destino.idOs) } });
     else if (destino.pantalla === 'aprobacion' && destino.idOs) router.push({ pathname: '/aprobacion-salida', params: { id: String(destino.idOs) } });
+    else if (destino.pantalla === 'aprobacion_llegada' && destino.idOs) router.push({ pathname: '/aprobacion-llegada', params: { id: String(destino.idOs) } });
+    else if (destino.pantalla === 'llegada' && destino.idOs) router.push({ pathname: '/llegada', params: { id: String(destino.idOs) } });
     else if (destino.pantalla === 'gastos') router.push({ pathname: '/viaticos-gastos', params: { tab: 'solicitudes' } });
     else if (destino.pantalla === 'tickets') router.push('/mis-tickets');
     else if (destino.pantalla === 'correlativos') router.push('/correlativos');

@@ -86,11 +86,16 @@ export function enlaceMapaPlanta(
   return `https://www.google.com/maps/search/?api=1&query=${punto}`;
 }
 
+/** HU-06: capturas de ubicación fuera del rango que hacen falta para poder pedir la llegada forzada. */
+export const INTENTOS_LLEGADA_FORZADA = 5;
+
 /** Título de la tarjeta de validación según el resultado. */
 export function tituloValidacion(resultado: ValidacionLlegada['resultado']): string {
   switch (resultado) {
     case 'valida':
       return 'Ubicación válida';
+    case 'autorizada':
+      return 'Llegada autorizada por Jefatura';
     case 'sin_referencia':
       return 'Sin coordenada de la planta';
     case 'precision_baja':

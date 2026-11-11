@@ -6,6 +6,9 @@ const TIPOS: readonly TipoNotificacion[] = [
   'autorizacion_rechazada',
   'autorizacion_solicitud',
   'solicitud_enviada',
+  'llegada_forzada_solicitud',
+  'llegada_forzada_aprobada',
+  'llegada_forzada_rechazada',
   'gasto_aprobado',
   'gasto_observado',
   'gasto_rechazado',
@@ -38,7 +41,7 @@ export function pendientesComoLista(texto: string | null | undefined): string[] 
 
 /** A qué pantalla lleva la tarjeta de una notificación. */
 export interface DestinoNotificacion {
-  pantalla: 'servicio' | 'aprobacion' | 'gastos' | 'tickets' | 'correlativos';
+  pantalla: 'servicio' | 'aprobacion' | 'aprobacion_llegada' | 'llegada' | 'gastos' | 'tickets' | 'correlativos';
   /** Id de la OS (servicio y aprobación). */
   idOs?: number;
   etiqueta: string;
@@ -58,6 +61,12 @@ export function destinoNotificacion(n: Pick<Notificacion, 'tipo' | 'entidadTipo'
     case 'servicio':
     case 'demora':
       return idOs && !jefatura ? { pantalla: 'servicio', idOs, etiqueta: 'Ir al servicio' } : null;
+    // HU-06: el jefe abre la solicitud; el técnico vuelve a Registrar llegada (donde ve la respuesta)
+    case 'llegada_forzada_solicitud':
+      return idOs && jefatura ? { pantalla: 'aprobacion_llegada', idOs, etiqueta: 'Revisar solicitud' } : null;
+    case 'llegada_forzada_aprobada':
+    case 'llegada_forzada_rechazada':
+      return idOs && !jefatura ? { pantalla: 'llegada', idOs, etiqueta: 'Ir a registrar llegada' } : null;
     case 'autorizacion_solicitud':
       return idOs ? { pantalla: 'aprobacion', idOs, etiqueta: 'Revisar solicitud' } : null;
     // HU-14: el técnico abre Mis tickets; HU-34: el Jefe de Metrología abre Correlativos (solo si lo mira como jefe)

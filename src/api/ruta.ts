@@ -187,6 +187,8 @@ export interface Llegada {
   motivoNoRegistra?: string | null;
   /** HU-20: punto de salida del viaje (para dibujar la ruta prevista hasta la planta). Opcional: un back anterior no lo envía. */
   origen?: { latitud: number; longitud: number } | null;
+  /** HU-06: la solicitud de llegada forzada de esta OS (la que se pide tras 5 capturas fuera del rango). Opcional: un back anterior no lo envía. */
+  forzada?: { estado: 'pendiente' | 'aprobada' | 'rechazada'; comentario: string | null; jefe: string | null; resueltaEn: string | null } | null;
 }
 
 /** La llegada ya quedó registrada (o ya lo estaba: reintento, `yaRegistrada`). `diferida` = se guardó sin conexión y llegó después. */
@@ -200,7 +202,8 @@ export interface ResultadoLlegada {
   diferida: boolean;
 }
 
-export type ResultadoValidacion = 'valida' | 'fuera_rango' | 'sin_referencia' | 'precision_baja';
+/** `autorizada` = fuera del rango, pero Jefatura aprobó la llegada forzada: se puede confirmar (una vez). */
+export type ResultadoValidacion = 'valida' | 'fuera_rango' | 'sin_referencia' | 'precision_baja' | 'autorizada';
 
 export interface ValidacionLlegada {
   resultado: ResultadoValidacion;
@@ -219,6 +222,20 @@ export async function obtenerLlegada(token: string, idOs: number): Promise<Llega
 export async function validarLlegada(token: string, idOs: number, u: Ubicacion): Promise<ValidacionLlegada> {
   if (entorno.usarMock) return mockRuta.validar(u);
   return (await solicitar<ValidacionLlegada>(`${ruta(idOs)}/llegada/validar`, { token, metodo: 'POST', cuerpo: u })).datos!;
+}
+
+/**
+ * HU-06: pide a Jefatura que autorice la llegada estando fuera del radio (la app lo ofrece tras 5 capturas fuera del rango).
+ * Necesita conexión: no se guarda para después. Devuelve el mensaje del servidor (a quién se avisó).
+ */
+export async function solicitarLlegadaForzada(token: string, idOs: number, u: Ubicacion, intentos: number, motivo: string): Promise<string> {
+  if (entorno.usarMock) return 'Solicitud enviada (demostración).';
+  const r = await solicitar<boolean>(`${ruta(idOs)}/llegada/forzada`, {
+    token,
+    metodo: 'POST',
+    cuerpo: { latitud: u.latitud, longitud: u.longitud, precisionMetros: u.precisionMetros, intentos, motivo: motivo.trim() || null },
+  });
+  return r.mensaje;
 }
 
 /**

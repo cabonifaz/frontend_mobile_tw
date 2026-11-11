@@ -24,6 +24,7 @@ import { etiquetaTipo, filtrarAprobaciones, haceTexto, separarUrgentes, type Fil
  */
 const icono: Record<TipoAprobacion, keyof typeof Ionicons.glyphMap> = {
   salida: 'hand-left-outline',
+  llegada: 'navigate-circle-outline',
   evidencia: 'camera-outline',
   ensayo: 'speedometer-outline',
   gasto: 'receipt-outline',
@@ -88,7 +89,7 @@ export default function PantallaAprobaciones() {
               <View style={estilos.vacio}>
                 <Ionicons name="checkmark-done-circle-outline" size={44} color={colores.textoTenue} />
                 <Text style={estilos.vacioTitulo}>No tienes nada pendiente</Text>
-                <Text style={estilos.vacioTexto}>Cuando un técnico de tu área pida tu visto bueno, aparecerá aquí.</Text>
+                <Text style={estilos.vacioTexto}>Cuando un técnico de tu área pida tu visto bueno o una llegada forzada, aparecerá aquí.</Text>
               </View>
             ) : (
               <>
@@ -130,8 +131,9 @@ function Tarjeta({ aprobacion: a, urgente = false }: { aprobacion: Aprobacion; u
   return (
     <Pressable
       onPress={() => {
-        // Hoy solo existen las solicitudes de salida; las demás se abrirán con su propio detalle.
+        // Salidas (HU-04) y llegadas forzadas (HU-06); las demás se abrirán con su propio detalle.
         if (a.tipo === 'salida') router.push({ pathname: '/aprobacion-salida', params: { id: String(a.id) } });
+        else if (a.tipo === 'llegada') router.push({ pathname: '/aprobacion-llegada', params: { id: String(a.id) } });
       }}
       accessibilityRole="button"
       accessibilityLabel={`${etiquetaTipo[a.tipo]?.kicker ?? a.titulo}, ${quien}`}

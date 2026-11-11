@@ -10,7 +10,7 @@ import type { ItemChecklist } from './servicios';
  * Hoy reúne las solicitudes de salida de los técnicos (HU-04). Las evidencias forzadas, los ensayos con error y los gastos se
  * suman cuando existan sus módulos (la lista `tipos` dice qué hay). Solo ve las de su área según la RQ.
  */
-export type TipoAprobacion = 'salida' | 'evidencia' | 'ensayo' | 'gasto';
+export type TipoAprobacion = 'salida' | 'llegada' | 'evidencia' | 'ensayo' | 'gasto';
 
 export interface Aprobacion {
   tipo: TipoAprobacion;
@@ -68,6 +68,32 @@ export interface AprobacionSalida {
   areaAutoriza: string | null;
 }
 
+/** HU-06: solicitud de llegada forzada (el técnico fuera del radio pide registrar su llegada). */
+export interface SolicitudLlegada {
+  idSolicitud: number;
+  idOs: number;
+  numeroOs: string;
+  cliente: string | null;
+  sede: string | null;
+  tecnico: string | null;
+  estado: 'pendiente' | 'aprobada' | 'rechazada';
+  motivo: string | null;
+  /** Veces que volvió a capturar su ubicación estando fuera del rango. */
+  intentos: number;
+  latitud: number | null;
+  longitud: number | null;
+  precisionMetros: number | null;
+  distanciaMetros: number | null;
+  latPlanta: number | null;
+  lonPlanta: number | null;
+  radioMetros: number;
+  area: string | null;
+  solicitadaEn: string | null;
+  jefe: string | null;
+  resueltaEn: string | null;
+  comentario: string | null;
+}
+
 export async function obtenerAprobaciones(token: string): Promise<BandejaAprobaciones> {
   if (entorno.usarMock) return mockJefatura.aprobaciones();
   const r = await solicitar<BandejaAprobaciones>('/api/movil/aprobaciones', { token });
@@ -84,6 +110,24 @@ export async function obtenerAprobacionSalida(token: string, idOs: number): Prom
 export async function resolverAprobacionSalida(token: string, idOs: number, aprobar: boolean, texto: string): Promise<string> {
   if (entorno.usarMock) return mockJefatura.resolver(idOs, aprobar);
   const r = await solicitar<boolean>(`/api/movil/aprobaciones/salidas/${encodeURIComponent(String(idOs))}`, {
+    token,
+    metodo: 'PUT',
+    cuerpo: { aprobar, comentario: texto.trim() },
+  });
+  return r.mensaje;
+}
+
+/** GET api/movil/aprobaciones/llegadas/{idOs} → SP_ObtenerLlegadasForzadas (la solicitud más reciente de la OS). */
+export async function obtenerAprobacionLlegada(token: string, idOs: number): Promise<SolicitudLlegada> {
+  if (entorno.usarMock) throw new Error('Sin datos de demostración para la llegada forzada.');
+  const r = await solicitar<SolicitudLlegada>(`/api/movil/aprobaciones/llegadas/${encodeURIComponent(String(idOs))}`, { token });
+  return r.datos!;
+}
+
+/** PUT api/movil/aprobaciones/llegadas/{idOs} → SP_ResolverLlegadaForzada. El texto es obligatorio (condición al autorizar, motivo al rechazar). */
+export async function resolverAprobacionLlegada(token: string, idOs: number, aprobar: boolean, texto: string): Promise<string> {
+  if (entorno.usarMock) return aprobar ? 'Llegada autorizada.' : 'Llegada no autorizada.';
+  const r = await solicitar<boolean>(`/api/movil/aprobaciones/llegadas/${encodeURIComponent(String(idOs))}`, {
     token,
     metodo: 'PUT',
     cuerpo: { aprobar, comentario: texto.trim() },
