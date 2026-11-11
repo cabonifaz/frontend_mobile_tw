@@ -121,25 +121,27 @@ export interface SegmentoTinta extends Segmento {
 }
 
 /**
- * Trazo suave: curva (Catmull-Rom) por los puntos tocados, con el temblor del dedo promediado, para que no se formen esquinas al escribir.
+ * Trazo suave: curvas suaves por los puntos tocados para que no se formen esquinas, sin retrasarse del dedo.
  * Grosor parejo. Solo se calcula al dibujar: lo guardado sigue siendo los puntos normalizados.
  */
 export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number): SegmentoTinta[] {
   if (trazo.length === 0) return [];
-  const crudo = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
-  // Quita el temblor del dedo: cada punto interior se promedia con sus vecinos (las puntas se respetan).
-  const P = crudo.map((p, i) => (i === 0 || i === crudo.length - 1 ? p : { x: (crudo[i - 1].x + 2 * p.x + crudo[i + 1].x) / 4, y: (crudo[i - 1].y + 2 * p.y + crudo[i + 1].y) / 4 }));
+  const P = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
   if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
   const n = P.length;
-  const pts: { x: number; y: number; w: number }[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n - 1, i + 2)];
-    const pasos = Math.min(16, Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 1.5)));
-    for (let k = 0; k < pasos; k++) {
-      const t = k / pasos, t2 = t * t, t3 = t2 * t;
-      const f = (a: number, b: number, c: number, d: number) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-            pts.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y), w: grosor });
+  const mitad = (a: { x: number; y: number }, b: { x: number; y: number }) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  // Curvas cuadráticas por los puntos medios (los puntos tocados son los controles): lo ya dibujado no cambia al llegar un punto nuevo
+  // y la línea siempre llega hasta el dedo (el último tramo es recto hasta la punta).
+  const pts: { x: number; y: number; w: number }[] = [{ x: P[0].x, y: P[0].y, w: grosor }];
+  let ini = P[0];
+  for (let i = 1; i < n - 1; i++) {
+    const fin = mitad(P[i], P[i + 1]);
+    const pasos = Math.min(12, Math.max(1, Math.ceil((Math.hypot(P[i].x - ini.x, P[i].y - ini.y) + Math.hypot(fin.x - P[i].x, fin.y - P[i].y)) / 2)));
+    for (let k = 1; k <= pasos; k++) {
+      const t = k / pasos, u = 1 - t;
+      pts.push({ x: u * u * ini.x + 2 * u * t * P[i].x + t * t * fin.x, y: u * u * ini.y + 2 * u * t * P[i].y + t * t * fin.y, w: grosor });
     }
+    ini = fin;
   }
   pts.push({ x: P[n - 1].x, y: P[n - 1].y, w: grosor });
   const res: SegmentoTinta[] = [];
