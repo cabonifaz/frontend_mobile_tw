@@ -14,7 +14,7 @@ export const MIN_EXTENSION = 0.08;
 export const MAX_PUNTOS = 2000;
 export const MAX_TRAZOS = 40;
 /** Distancia mínima entre dos puntos (en fracción del lienzo) para guardar uno nuevo: evita miles de puntos. */
-const DISTANCIA_MINIMA = 0.003;
+const DISTANCIA_MINIMA = 0.0035;
 
 // ── Dibujo ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,10 @@ export function suavizarEntrada(t: Trazos, p: [number, number]): [number, number
   const ultimo = t.length > 0 ? t[t.length - 1] : null;
   const previo = ultimo && ultimo.length > 0 ? ultimo[ultimo.length - 1] : null;
   if (!previo) return p;
-  return [redondear(previo[0] + (p[0] - previo[0]) * 0.55), redondear(previo[1] + (p[1] - previo[1]) * 0.55)];
+  // Adaptativo: movimiento corto (temblor, curvas lentas) = filtra más; movimiento largo (trazo rápido) = sigue casi directo al dedo.
+  const d = Math.hypot(p[0] - previo[0], p[1] - previo[1]);
+  const k = Math.min(0.85, Math.max(0.3, 0.3 + (d / 0.02) * 0.55));
+  return [redondear(previo[0] + (p[0] - previo[0]) * k), redondear(previo[1] + (p[1] - previo[1]) * k)];
 }
 
 /** Agrega un punto al último trazo (el dedo se mueve); ignora los que casi no se movieron. */
@@ -161,7 +164,7 @@ export function segmentosTinta(trazo: [number, number][], ancho: number, alto: n
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
     const g = (a.w + b.w) / 2;
-    const largo = Math.hypot(b.x - a.x, b.y - a.y) + g * 1.2;
+    const largo = Math.hypot(b.x - a.x, b.y - a.y) + g * 1.8;
     res.push({ izquierda: (a.x + b.x) / 2 - largo / 2, arriba: (a.y + b.y) / 2 - g / 2, largo, angulo: Math.atan2(b.y - a.y, b.x - a.x), grosor: g });
   }
   return res;
