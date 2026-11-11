@@ -470,7 +470,10 @@ function Contenido(props: {
                             refs.current[`e-${gi}-l`] = r;
                           }}
                           value={g.carga}
-                          onChangeText={(t) => setGrupos((gs) => gs.map((x, j) => (j === gi ? { ...x, carga: t } : x)))}
+                          // Una carga de prueba nueva invalida las indicaciones de la anterior: se borran solas (las lecturas ya no corresponden a esa carga)
+                          onChangeText={(t) =>
+                            setGrupos((gs) => gs.map((x, j) => (j === gi ? { ...x, carga: t, lecturas: t === x.carga ? x.lecturas : x.lecturas.map(() => '') } : x)))
+                          }
                           editable={puede}
                           keyboardType="decimal-pad"
                           style={[estilos.celdaEntrada, { minWidth: 110, textAlign: 'center' }]}
