@@ -99,3 +99,12 @@ export function tituloValidacion(resultado: ValidacionLlegada['resultado']): str
       return 'Fuera del rango permitido';
   }
 }
+
+/**
+ * Minutos estimados para llegar a la planta (HU-20): distancia en línea recta × 1,3 (por las calles) a una velocidad promedio (30 km/h por defecto,
+ * la misma que usa el servidor en SEG_VELOCIDAD_PROMEDIO_KMH). Es referencial; mínimo 1 minuto.
+ */
+export function etaMinutosDesde(distanciaMetros: number, velocidadKmh = 30): number {
+  const v = Math.max(5, velocidadKmh);
+  return Math.max(1, Math.ceil(((distanciaMetros * 1.3) / 1000 / v) * 60));
+}

@@ -10,6 +10,7 @@ import { horaRespaldo } from '@/api/respaldo';
 import { obtenerLlegadaConRespaldo, validarLlegada, type ReferenciaGps, type Ubicacion, type ValidacionLlegada } from '@/api/ruta';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
+import { MapaEsquematico } from '@/componentes/MapaEsquematico';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
@@ -18,9 +19,11 @@ import { useUbicacion } from '@/hooks/useUbicacion';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { horaDe, horaLimaAhora } from '@/utilidades/formato';
+import { textoDuracion } from '@/utilidades/jornada';
 import {
   distanciaAPlanta,
   enlaceMapaPlanta,
+  etaMinutosDesde,
   evaluarLlegadaLocal,
   textoCoordenada,
   textoDistancia,
@@ -263,6 +266,26 @@ export default function PantallaLlegada() {
               )}
             </View>
 
+            {!!l.referencia && !!gps.ubicacion && (
+              <View style={{ marginTop: 14 }} testID="mapa-trayecto">
+                <MapaEsquematico
+                  alto={230}
+                  vacio=""
+                  pines={[
+                    ...(l.origen ? [{ clave: 'origen', ...l.origen, texto: 'TW', color: '#64748B', tamano: 34, etiqueta: 'Punto de salida' }] : []),
+                    { clave: 'planta', latitud: l.referencia.latitud, longitud: l.referencia.longitud, texto: 'CL', color: '#0F172A', tamano: 34, etiqueta: 'Planta del cliente' },
+                    { clave: 'yo', latitud: gps.ubicacion.latitud, longitud: gps.ubicacion.longitud, texto: 'YO', color: colores.primario, tamano: 38, etiqueta: 'Tu ubicación' },
+                  ]}
+                  trayecto={[l.origen ?? gps.ubicacion, { latitud: l.referencia.latitud, longitud: l.referencia.longitud }]}
+                />
+                <Text style={estilos.leyenda}>{l.origen ? 'TW salida · ' : ''}CL planta · YO tu ubicación · ┅ ruta prevista</Text>
+                {distancia !== null && distancia > l.referencia.radioMetros && (
+                  <Text style={estilos.etaTexto} testID="eta-llegada">
+                    Llegarías en ≈ {textoDuracion(etaMinutosDesde(distancia))} (estimado en línea recta)
+                  </Text>
+                )}
+              </View>
+            )}
             <Mapa referencia={l.referencia} ubicacion={gps.ubicacion} />
 
             {!!gps.mensaje && (
@@ -401,6 +424,8 @@ const estilos = StyleSheet.create({
   gpsTexto: { color: colores.primario, fontWeight: '600', fontSize: 14, flexShrink: 1 },
   enlaceMapa: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, alignSelf: 'flex-start' },
   enlaceMapaTexto: { color: colores.primario, fontSize: 13, fontWeight: '600' },
+  leyenda: { fontSize: 12, color: colores.textoSecundario, marginTop: 6 },
+  etaTexto: { fontSize: 14.5, fontWeight: '700', color: colores.titulo, marginTop: 4 },
   mapa: {
     marginTop: 14,
     backgroundColor: '#E5E9F0',

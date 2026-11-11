@@ -185,6 +185,8 @@ export interface Llegada {
   precisionMaximaMetros: number;
   /** Por qué no se puede registrar (cuando `puedeRegistrar` es falso). */
   motivoNoRegistra?: string | null;
+  /** HU-20: punto de salida del viaje (para dibujar la ruta prevista hasta la planta). Opcional: un back anterior no lo envía. */
+  origen?: { latitud: number; longitud: number } | null;
 }
 
 /** La llegada ya quedó registrada (o ya lo estaba: reintento, `yaRegistrada`). `diferida` = se guardó sin conexión y llegó después. */
