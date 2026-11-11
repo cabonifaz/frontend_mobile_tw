@@ -14,7 +14,7 @@ export const MIN_EXTENSION = 0.08;
 export const MAX_PUNTOS = 2000;
 export const MAX_TRAZOS = 40;
 /** Distancia mínima entre dos puntos (en fracción del lienzo) para guardar uno nuevo: evita miles de puntos. */
-const DISTANCIA_MINIMA = 0.0015;
+const DISTANCIA_MINIMA = 0.003;
 
 // ── Dibujo ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -35,6 +35,14 @@ export function totalPuntos(t: Trazos): number {
 export function iniciarTrazo(t: Trazos, p: [number, number]): Trazos {
   if (t.length >= MAX_TRAZOS || totalPuntos(t) >= MAX_PUNTOS) return t;
   return [...t, [p]];
+}
+
+/** Filtro de captura: el punto nuevo avanza solo una parte hacia donde está el dedo, así el temblor de la mano no entra al trazo (casi sin retraso). */
+export function suavizarEntrada(t: Trazos, p: [number, number]): [number, number] {
+  const ultimo = t.length > 0 ? t[t.length - 1] : null;
+  const previo = ultimo && ultimo.length > 0 ? ultimo[ultimo.length - 1] : null;
+  if (!previo) return p;
+  return [redondear(previo[0] + (p[0] - previo[0]) * 0.55), redondear(previo[1] + (p[1] - previo[1]) * 0.55)];
 }
 
 /** Agrega un punto al último trazo (el dedo se mueve); ignora los que casi no se movieron. */
