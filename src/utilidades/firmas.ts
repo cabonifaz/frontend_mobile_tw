@@ -115,6 +115,57 @@ export function segmentos(t: Trazos, ancho: number, alto: number, grosor: number
   return res;
 }
 
+export interface SegmentoTinta extends Segmento {
+  /** Grosor propio del tramo (px): la tinta es más fina al rápido y en las puntas, más gruesa al lento. */
+  grosor: number;
+}
+
+/**
+ * Tinta realista de un trazo: curva suave (Catmull-Rom) por los puntos tocados y grosor variable según la velocidad
+ * (puntos más separados = pluma más rápida = línea más fina), con punta fina al inicio y al final.
+ * Solo se calcula al dibujar: lo guardado sigue siendo los puntos normalizados.
+ */
+export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number): SegmentoTinta[] {
+  if (trazo.length === 0) return [];
+  const P = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
+  if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
+  // Grosor por punto: velocidad ≈ distancia al anterior (los eventos llegan a ritmo fijo), suavizada.
+  const ref = Math.max(6, ancho * 0.03);
+  const w: number[] = [];
+  let previo = grosor;
+  for (let i = 0; i < P.length; i++) {
+    const d = i === 0 ? 0 : Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y);
+    const objetivo = grosor * Math.min(1.35, Math.max(0.55, 1.35 - (d / ref) * 0.8));
+    previo = i === 0 ? objetivo : previo * 0.6 + objetivo * 0.4;
+    w.push(previo);
+  }
+  const n = P.length;
+  const afinado = (i: number) => {
+    const borde = Math.min(i, n - 1 - i);
+    return borde >= 3 ? 1 : 0.45 + 0.55 * (borde / 3);
+  };
+  const pts: { x: number; y: number; w: number }[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n - 1, i + 2)];
+    const pasos = Math.min(10, Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2.5)));
+    for (let k = 0; k < pasos; k++) {
+      const t = k / pasos, t2 = t * t, t3 = t2 * t;
+      const f = (a: number, b: number, c: number, d: number) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      const ww = (w[i] + (w[i + 1] - w[i]) * t) * (afinado(i) + (afinado(i + 1) - afinado(i)) * t);
+      pts.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y), w: ww });
+    }
+  }
+  pts.push({ x: P[n - 1].x, y: P[n - 1].y, w: w[n - 1] * afinado(n - 1) });
+  const res: SegmentoTinta[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const g = (a.w + b.w) / 2;
+    const largo = Math.hypot(b.x - a.x, b.y - a.y) + g * 0.8;
+    res.push({ izquierda: (a.x + b.x) / 2 - largo / 2, arriba: (a.y + b.y) / 2 - g / 2, largo, angulo: Math.atan2(b.y - a.y, b.x - a.x), grosor: g });
+  }
+  return res;
+}
+
 // ── Lista de informes ────────────────────────────────────────────────────────────────────────────────────────────
 
 /** "47:12:05": lo que queda de la aceptación tácita. */

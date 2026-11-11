@@ -2,24 +2,26 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import type { Trazos } from '@/api/firmas';
 import { colores, radios } from '@/tema/colores';
-import { agregarPunto, ASPECTO_FIRMA, iniciarTrazo, normalizarPunto, segmentos } from '@/utilidades/firmas';
+import { agregarPunto, ASPECTO_FIRMA, iniciarTrazo, normalizarPunto, segmentosTinta } from '@/utilidades/firmas';
 
 /**
  * HU-17 — Lienzo para dibujar la firma con el dedo, SIN dependencias nativas: cada tramo del trazo es una vista fina girada. Lo que se guarda son TRAZOS normalizados
  * (cada punto entre 0 y 1 del lienzo, que siempre tiene la misma proporción), así la misma firma se vuelve a dibujar en cualquier tamaño y en el PDF de la constancia.
  */
 
-const GROSOR = 2.6;
+const GROSOR = 3.2;
+/** Tinta azul oscura, como la de un bolígrafo. */
+const TINTA = '#16224A';
 
 /** Un trazo dibujado (memorizado: al dibujar solo se vuelve a pintar el último). */
 const TrazoDibujado = memo(function TrazoDibujado({ puntos, ancho, alto, color, grosor }: { puntos: [number, number][]; ancho: number; alto: number; color: string; grosor: number }) {
-  const segs = useMemo(() => segmentos([puntos], ancho, alto, grosor), [puntos, ancho, alto, grosor]);
+  const segs = useMemo(() => segmentosTinta(puntos, ancho, alto, grosor), [puntos, ancho, alto, grosor]);
   return (
     <>
       {segs.map((s, i) => (
         <View
           key={i}
-          style={{ position: 'absolute', left: s.izquierda, top: s.arriba, width: s.largo, height: grosor, borderRadius: grosor / 2, backgroundColor: color, transform: [{ rotate: `${s.angulo}rad` }] }}
+          style={{ position: 'absolute', left: s.izquierda, top: s.arriba, width: s.largo, height: s.grosor, borderRadius: s.grosor / 2, backgroundColor: color, transform: [{ rotate: `${s.angulo}rad` }] }}
         />
       ))}
     </>
@@ -35,7 +37,7 @@ function Capa({ trazos, ancho, alto, color, grosor }: { trazos: Trazos; ancho: n
 }
 
 /** Una firma ya guardada (solo lectura), del ancho que se pida. */
-export function FirmaVista({ trazos, ancho, color = colores.titulo }: { trazos: Trazos; ancho: number; color?: string }) {
+export function FirmaVista({ trazos, ancho, color = TINTA }: { trazos: Trazos; ancho: number; color?: string }) {
   const alto = ancho / ASPECTO_FIRMA;
   return (
     <View style={{ width: ancho, height: alto }} accessibilityLabel="Firma">
@@ -98,7 +100,7 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
       onResponderRelease={() => onTocando?.(false)}
       onResponderTerminate={() => onTocando?.(false)}
       testID="lienzo-firma" accessibilityLabel="Lienzo para firmar">
-      <Capa trazos={trazos} ancho={medida.ancho} alto={medida.alto} color={colores.titulo} grosor={GROSOR} />
+      <Capa trazos={trazos} ancho={medida.ancho} alto={medida.alto} color={TINTA} grosor={GROSOR} />
       <View pointerEvents="none" style={estilos.pie}>
         <View style={estilos.linea} />
         <Text style={estilos.etiqueta}>{etiqueta}</Text>
