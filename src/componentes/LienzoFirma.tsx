@@ -88,20 +88,36 @@ interface Props {
 /** El lienzo para firmar: el dedo dibuja; `onCambio` entrega los trazos normalizados. */
 export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', error = false, deshabilitado = false }: Props) {
   const [medida, setMedida] = useState({ ancho: 0, alto: 0 });
+  // Mientras el dedo dibuja, los trazos viven aquí dentro (solo se vuelve a pintar el lienzo, no toda la pantalla: así la pantalla no junta los toques y no se pierden puntos
+  // al firmar rápido). La pantalla recibe los trazos al levantar el dedo.
+  const [vivos, setVivos] = useState<Trazos>(trazos);
   const trazosRef = useRef(trazos);
+  const dibujando = useRef(false);
   const medidaRef = useRef(medida);
   useEffect(() => {
-    trazosRef.current = trazos;
     medidaRef.current = medida;
   });
+  useEffect(() => {
+    if (!dibujando.current) {
+      trazosRef.current = trazos;
+      setVivos(trazos);
+    }
+  }, [trazos]);
 
   // Sistema de respuesta táctil de la vista (sin PanResponder): el lienzo toma el gesto y no lo suelta, así el desplazamiento de la pantalla no lo interrumpe.
   function alTocar(e: GestureResponderEvent) {
+    dibujando.current = true;
     onTocando?.(true);
     const { ancho, alto } = medidaRef.current;
     const siguiente = iniciarTrazo(trazosRef.current, normalizarPunto(e.nativeEvent.locationX, e.nativeEvent.locationY, ancho, alto));
     trazosRef.current = siguiente;
-    onCambio(siguiente);
+    setVivos(siguiente);
+  }
+
+  function alSoltar() {
+    dibujando.current = false;
+    onCambio(trazosRef.current);
+    onTocando?.(false);
   }
 
   function alMover(e: GestureResponderEvent) {
@@ -109,7 +125,7 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
     const siguiente = agregarPuntoTactil(trazosRef.current, normalizarPunto(e.nativeEvent.locationX, e.nativeEvent.locationY, ancho, alto));
     if (siguiente !== trazosRef.current) {
       trazosRef.current = siguiente;
-      onCambio(siguiente);
+      setVivos(siguiente);
     }
   }
 
@@ -125,10 +141,10 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
       onResponderTerminationRequest={() => false}
       onResponderGrant={alTocar}
       onResponderMove={alMover}
-      onResponderRelease={() => onTocando?.(false)}
-      onResponderTerminate={() => onTocando?.(false)}
+      onResponderRelease={alSoltar}
+      onResponderTerminate={alSoltar}
       testID="lienzo-firma" accessibilityLabel="Lienzo para firmar">
-      <Capa trazos={trazos} ancho={medida.ancho} alto={medida.alto} color={TINTA} grosor={GROSOR} />
+      <Capa trazos={vivos} ancho={medida.ancho} alto={medida.alto} color={TINTA} grosor={GROSOR} />
       <View pointerEvents="none" style={estilos.pie}>
         <View style={estilos.linea} />
         <Text style={estilos.etiqueta}>{etiqueta}</Text>
