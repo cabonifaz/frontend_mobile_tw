@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
 import type { Trazos } from '@/api/firmas';
 import { colores, radios } from '@/tema/colores';
-import { agregarPunto, ASPECTO_FIRMA, iniciarTrazo, CURVAS_POR_TANDA, normalizarPunto, segmentosTinta, suavizarEntrada } from '@/utilidades/firmas';
+import { agregarPuntoTactil, ASPECTO_FIRMA, iniciarTrazo, CURVAS_POR_TANDA, normalizarPunto, segmentosTinta } from '@/utilidades/firmas';
 
 /**
  * HU-17 — Lienzo para dibujar la firma con el dedo, SIN dependencias nativas: cada tramo del trazo es una vista fina girada. Lo que se guarda son TRAZOS normalizados
@@ -106,7 +106,7 @@ export function LienzoFirma({ trazos, onCambio, onTocando, etiqueta = 'Firma', e
 
   function alMover(e: GestureResponderEvent) {
     const { ancho, alto } = medidaRef.current;
-    const siguiente = agregarPunto(trazosRef.current, suavizarEntrada(trazosRef.current, normalizarPunto(e.nativeEvent.locationX, e.nativeEvent.locationY, ancho, alto)));
+    const siguiente = agregarPuntoTactil(trazosRef.current, normalizarPunto(e.nativeEvent.locationX, e.nativeEvent.locationY, ancho, alto));
     if (siguiente !== trazosRef.current) {
       trazosRef.current = siguiente;
       onCambio(siguiente);

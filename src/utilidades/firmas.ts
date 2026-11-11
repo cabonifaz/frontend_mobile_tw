@@ -48,6 +48,21 @@ export function suavizarEntrada(t: Trazos, p: [number, number]): [number, number
   return [redondear(previo[0] + (p[0] - previo[0]) * k), redondear(previo[1] + (p[1] - previo[1]) * k)];
 }
 
+/** Distancia en "píxeles equivalentes" (el alto del lienzo es ASPECTO_FIRMA veces menor que el ancho). */
+const distanciaLienzo = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], (a[1] - b[1]) / ASPECTO_FIRMA);
+/** Separación mínima entre puntos guardados (≈ 3-4 px): el ruido del dedo cae dentro de ese margen y la curva queda lisa. */
+const SEPARACION_CAPTURA = 0.011;
+
+/** Captura de un punto táctil: se guarda solo si el dedo avanzó lo suficiente respecto al último punto guardado, y entra ya filtrado. */
+export function agregarPuntoTactil(t: Trazos, crudo: [number, number]): Trazos {
+  if (t.length === 0 || totalPuntos(t) >= MAX_PUNTOS) return t;
+  const ultimo = t[t.length - 1];
+  const previo = ultimo[ultimo.length - 1];
+  if (previo && distanciaLienzo(crudo, previo) < SEPARACION_CAPTURA) return t;
+  const p = suavizarEntrada(t, crudo);
+  return [...t.slice(0, -1), [...ultimo, p]];
+}
+
 /** Agrega un punto al último trazo (el dedo se mueve); ignora los que casi no se movieron. */
 export function agregarPunto(t: Trazos, p: [number, number]): Trazos {
   if (t.length === 0 || totalPuntos(t) >= MAX_PUNTOS) return t;
