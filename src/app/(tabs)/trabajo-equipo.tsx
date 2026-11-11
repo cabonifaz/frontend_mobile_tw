@@ -16,7 +16,7 @@ import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { avanceEtapas, etapasPorResolver, rutaDeEtapa, textoEstadoEtapa, textoPendientesPorResolver } from '@/utilidades/trabajo';
+import { avanceEtapas, etapaResuelta, etapasPorResolver, rutaDeEtapa, textoEstadoEtapa, textoPendientesPorResolver } from '@/utilidades/trabajo';
 
 /**
  * HU-08 — Trabajo en el equipo.
@@ -217,7 +217,7 @@ export default function PantallaTrabajoEquipo() {
               <Pressable
                 key={e.codigo}
                 onPress={() => abrirEtapa(e)}
-                style={[estilos.etapa, e.estado === 'bloqueado' && { opacity: 0.7 }, revisando && e.estado !== 'conforme' && estilos.etapaRoja]}
+                style={[estilos.etapa, e.estado === 'bloqueado' && { opacity: 0.7 }, revisando && !etapaResuelta(e.estado) && estilos.etapaRoja]}
                 accessibilityRole="button"
                 testID={`etapa-${e.codigo}`}
               >
@@ -315,6 +315,7 @@ const etapaEstilos: Record<string, { texto: string; fondo: string; color: string
   pendiente: { texto: 'PENDIENTE', fondo: colores.amarilloFondo, color: colores.amarilloTexto },
   bloqueado: { texto: 'BLOQUEADO', fondo: colores.grisFondo, color: colores.grisTexto },
   no_conforme: { texto: 'NO CONFORME', fondo: colores.rojoEtiquetaFondo, color: colores.rojoEtiquetaTexto },
+  notificado: { texto: 'NOTIFICADO', fondo: colores.amarilloFondo, color: colores.amarilloTexto },
 };
 
 function EtiquetaEtapa({ estado }: { estado: string }) {

@@ -60,9 +60,9 @@ export function avanceEtapas(conformes: number, total: number): { texto: string;
 // ── HU-16 · Hard Stop de "Finalizar trabajo en equipo" ───────────────────────────────────────────
 // El SERVIDOR valida las 5 etapas (SP_ValidarCierreEquipoMovil); aquí solo se arman los textos y a qué pantalla lleva cada etapa.
 
-/** Una etapa conforme está resuelta; en curso, pendiente, bloqueada o no conforme bloquean el cierre. */
+/** Una etapa conforme (o con las lecturas fuera de EMP ya notificadas al encargado) está resuelta; en curso, pendiente, bloqueada o no conforme bloquean el cierre. */
 export function etapaResuelta(estado: string): boolean {
-  return estado === 'conforme';
+  return estado === 'conforme' || estado === 'notificado';
 }
 
 /** Las etapas que bloquean el cierre, en su orden. */
@@ -98,11 +98,13 @@ export function rutaDeEtapa(codigo: string): '/variables-ambientales' | '/regist
   }
 }
 
-/** Etiqueta de una etapa: CONFORME · EN CURSO · PENDIENTE · BLOQUEADO · NO CONFORME. */
+/** Etiqueta de una etapa: CONFORME · NOTIFICADO · EN CURSO · PENDIENTE · BLOQUEADO · NO CONFORME. */
 export function textoEstadoEtapa(estado: string): string {
   switch (estado) {
     case 'conforme':
       return 'CONFORME';
+    case 'notificado':
+      return 'NOTIFICADO';
     case 'en_curso':
       return 'EN CURSO';
     case 'bloqueado':

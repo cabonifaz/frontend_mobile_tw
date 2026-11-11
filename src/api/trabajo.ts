@@ -9,8 +9,11 @@ import { conRespaldo, type ConRespaldo } from './respaldo';
  * El back decide todo (Hard Stop, estado del equipo, tipo de orden OS/OM según la RQ, bloqueo de Ensayos): la app solo muestra.
  */
 
-/** no_conforme = Ensayos finalizados con error crítico: bloquea el cierre (HU-16). */
-export type EstadoEtapa = 'conforme' | 'en_curso' | 'pendiente' | 'bloqueado' | 'no_conforme';
+/**
+ * no_conforme = Ensayos finalizados con error crítico y NADIE notificado: bloquea el cierre (HU-16).
+ * notificado  = Ensayos con lecturas fuera de EMP y el encargado ya fue avisado: cuenta como resuelto y deja generar el informe.
+ */
+export type EstadoEtapa = 'conforme' | 'en_curso' | 'pendiente' | 'bloqueado' | 'no_conforme' | 'notificado';
 export type CodigoEtapa = 'variables' | 'fotos' | 'ensayos' | 'cabecera' | 'correlativo';
 
 export interface EtapaTrabajo {

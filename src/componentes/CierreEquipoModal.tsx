@@ -68,12 +68,17 @@ export function CierreEquipoModal({ visible, cierre, error, generando, onRevisar
                 <Ionicons name="shield-checkmark" size={36} color={colores.verde} />
               </View>
               <Text style={[estilos.titulo, { color: colores.titulo }]}>Validación completa</Text>
-              <Text style={estilos.subtitulo}>Las {cierre.total} etapas están conformes.</Text>
+              <Text style={estilos.subtitulo}>
+                {cierre.etapas.some((e) => e.estado === 'notificado') ? `Las ${cierre.total} etapas están resueltas.` : `Las ${cierre.total} etapas están conformes.`}
+              </Text>
               <View style={estilos.lista}>
                 {cierre.etapas.map((e) => (
-                  <View key={e.codigo} style={estilos.filaEtapa}>
-                    <Text style={estilos.nombreEtapa}>{e.nombre}</Text>
-                    <Ionicons name="checkmark-circle" size={22} color={colores.verde} />
+                  <View key={e.codigo} style={{ paddingVertical: 2 }}>
+                    <View style={estilos.filaEtapa}>
+                      <Text style={estilos.nombreEtapa}>{e.nombre}</Text>
+                      <Ionicons name={e.estado === 'notificado' ? 'alert-circle' : 'checkmark-circle'} size={22} color={e.estado === 'notificado' ? colores.amarilloTexto : colores.verde} />
+                    </View>
+                    {e.estado === 'notificado' && !!e.detalle && <Text style={{ color: colores.amarilloTexto, fontSize: 13.5, marginTop: 2 }}>{e.detalle}</Text>}
                   </View>
                 ))}
               </View>

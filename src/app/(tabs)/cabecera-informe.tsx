@@ -928,7 +928,10 @@ function PruebasGeneralesVista({ p, unidad, onIrAEnsayos }: { p: CabeceraInforme
               {l.emp == null ? '' : ` (EMP ±${formatoMiles(l.emp)})`}
             </Text>
           ))}
-          <Text style={estilos.pgCriticoTexto}>Mientras haya una lectura fuera de EMP no se puede finalizar el trabajo en el equipo: corrige la lectura o repite el ensayo.</Text>
+          <Text style={estilos.pgCriticoTexto}>
+            Al guardar el ensayo con un motivo se avisa al encargado del área. Con el encargado notificado el informe se puede generar (queda registrado fuera de EMP); si no se avisó, el cierre
+            del equipo sigue bloqueado: corrige la lectura, repite el ensayo o guárdalo de todas formas con un motivo.
+          </Text>
           {onIrAEnsayos && (
             <Pressable onPress={onIrAEnsayos} style={estilos.pgBotonEnsayos} accessibilityRole="button" testID="corregir-en-ensayos">
               <Ionicons name="create-outline" size={18} color={colores.blanco} />
