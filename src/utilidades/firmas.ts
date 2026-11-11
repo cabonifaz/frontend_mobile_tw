@@ -14,7 +14,7 @@ export const MIN_EXTENSION = 0.08;
 export const MAX_PUNTOS = 2000;
 export const MAX_TRAZOS = 40;
 /** Distancia mínima entre dos puntos (en fracción del lienzo) para guardar uno nuevo: evita miles de puntos. */
-const DISTANCIA_MINIMA = 0.004;
+const DISTANCIA_MINIMA = 0.0015;
 
 // ── Dibujo ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -124,7 +124,11 @@ export interface SegmentoTinta extends Segmento {
  * Trazo suave: curvas suaves por los puntos tocados para que no se formen esquinas, sin retrasarse del dedo.
  * Grosor parejo. Solo se calcula al dibujar: lo guardado sigue siendo los puntos normalizados.
  */
-export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number): SegmentoTinta[] {
+/** Curvas que se dibujan por tandas: cada tanda es estable y solo se recalcula la última (así el dibujo sigue al dedo sin retraso). */
+export const CURVAS_POR_TANDA = 20;
+
+export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number, opciones: { continua?: boolean; final?: boolean } = {}): SegmentoTinta[] {
+  const { continua = false, final = true } = opciones;
   if (trazo.length === 0) return [];
   const P = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
   if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
@@ -133,7 +137,8 @@ export function segmentosTinta(trazo: [number, number][], ancho: number, alto: n
   // Curvas cuadráticas por los puntos medios (los puntos tocados son los controles): lo ya dibujado no cambia al llegar un punto nuevo
   // y la línea siempre llega hasta el dedo (el último tramo es recto hasta la punta).
   const pts: { x: number; y: number; w: number }[] = [{ x: P[0].x, y: P[0].y, w: grosor }];
-  let ini = P[0];
+  let ini = continua ? mitad(P[0], P[1]) : P[0];
+  if (continua) pts[0] = { x: ini.x, y: ini.y, w: grosor };
   for (let i = 1; i < n - 1; i++) {
     const fin = mitad(P[i], P[i + 1]);
     const pasos = Math.min(12, Math.max(1, Math.ceil((Math.hypot(P[i].x - ini.x, P[i].y - ini.y) + Math.hypot(fin.x - P[i].x, fin.y - P[i].y)) / 2)));
@@ -143,7 +148,7 @@ export function segmentosTinta(trazo: [number, number][], ancho: number, alto: n
     }
     ini = fin;
   }
-  pts.push({ x: P[n - 1].x, y: P[n - 1].y, w: grosor });
+  if (final) pts.push({ x: P[n - 1].x, y: P[n - 1].y, w: grosor });
   const res: SegmentoTinta[] = [];
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
