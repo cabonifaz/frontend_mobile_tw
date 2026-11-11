@@ -38,7 +38,7 @@ export interface ModuloMenu {
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 export const modulosMenu: ModuloMenu[] = [
-  { id: 'reloj-marcador', titulo: 'Reloj Marcador', icono: { familia: 'ion', nombre: 'time-outline' }, ruta: null },
+  { id: 'reloj-marcador', titulo: 'Reloj Marcador', icono: { familia: 'ion', nombre: 'time-outline' }, ruta: '/reloj-marcador' }, // HU-20
   {
     id: 'servicios-programados',
     titulo: 'Servicios Programados',

@@ -52,6 +52,8 @@ export default function LayoutPestanas() {
     // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
     '/solicitud-correlativo',
     '/mis-tickets',
+    // Reloj marcador de jornada (HU-20)
+    '/reloj-marcador',
     // Firma de informes y constancia de servicio (HU-17)
     '/firma-informes',
     '/firma',
@@ -180,6 +182,7 @@ export default function LayoutPestanas() {
       {/* HU-14 / HU-34: correlativos de Metrología (solicitud y tickets del técnico; solicitudes del Jefe de Metrología). */}
       <Tabs.Screen name="solicitud-correlativo" options={{ title: 'Solicitud de correlativo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="mis-tickets" options={{ title: 'Mis tickets', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="reloj-marcador" options={{ title: 'Reloj marcador', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="firma-informes" options={{ title: 'Lista de informes', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="firma" options={{ title: 'Firma del responsable', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       <Tabs.Screen name="constancia" options={{ title: 'Constancia de servicio', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />

@@ -3,6 +3,8 @@ import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { accionesPendientes, sincronizarAccionesEquipos } from '@/api/colaEquipos';
 import { capturasPendientes, sincronizarEvidencias } from '@/api/colaEvidencias';
+import { pendientesJornada, sincronizarJornada } from '@/api/colaJornada';
+import { enviarUbicacionJornada, obtenerJornada } from '@/api/jornada';
 import { pendientesLlegadas, sincronizarLlegadas } from '@/api/colaLlegadas';
 import { pendientesDeEnviar, sincronizarGuardados } from '@/api/guardadosAsistente';
 import { pendientesDe, sincronizarPendientes } from '@/api/colaDemoras';
@@ -12,6 +14,8 @@ import { enviarUbicacion, type ExtrasUbicacion } from '@/api/ubicacion';
 import { entorno } from '@/config/entorno';
 import { useSesion } from '@/sesion/SesionContext';
 import { perfilDe } from '@/utilidades/perfil';
+import { jornadaEnCurso } from '@/utilidades/jornada';
+import { jornadaReciente, olvidarJornada, recordarJornada } from '@/utilidades/jornadaActual';
 import { olvidarPosicion, recordarPosicion } from '@/utilidades/posicionActual';
 
 /** Estados de la OS en los que el back acepta la posición del técnico (SP_RegistrarUbicacionMovil). */
@@ -20,6 +24,7 @@ const CADA_LATIDO_MS = 45_000;
 const CADA_COLA_MS = 30_000;
 const LISTA_VIGENTE_MS = 120_000;
 const POSICION_VIGENTE_MS = 3 * 60_000;
+const JORNADA_VIGENTE_MS = 120_000;
 
 /**
  * Trabajo de fondo de la app mientras el técnico la tiene abierta (no pinta nada). Se monta en las pestañas, o sea, apenas
@@ -28,7 +33,9 @@ const POSICION_VIGENTE_MS = 3 * 60_000;
  *     está en primer plano (se pausa al salir, para cuidar la batería, y se retoma al volver).
  *  2. Seguimiento (HU-51): mientras el técnico tiene un servicio en curso (en ruta, en ejecución o en pausa) envía su posición al
  *     back cada ~45 s para el Seguimiento Operativo de la intranet. Sin servicio en curso no se envía nada; sin conexión se omite.
- *  3. Llegadas (HU-06), demoras (HU-05) y acciones sobre los equipos (HU-07: iniciar, pausar, reanudar) guardadas sin conexión: las envía al abrir
+ *     HU-20: con la JORNADA en curso (inicio de labores marcado, sin fin de labores) también envía su posición, aunque no haya un servicio en curso: es lo que
+ *     muestra al técnico en el mapa y alimenta la alerta de Jefatura «Sin movimiento» (10 min sin moverse).
+ *  3. Marcaciones de la jornada (HU-20), llegadas (HU-06), demoras (HU-05) y acciones sobre los equipos (HU-07: iniciar, pausar, reanudar) guardadas sin conexión: las envía al abrir
  *     la app, al volver a ella y cada 30 s mientras haya pendientes. Primero las llegadas (una demora de ingreso a planta y las acciones de los
  *     equipos necesitan la llegada registrada) y al final las acciones de los equipos.
  * El perfil de Jefatura no sale a ruta: no se le pide ubicación.
@@ -76,6 +83,17 @@ export function MonitorCampo() {
         }
         ultimoLatido.current = Date.now();
         for (const idOs of servicios.current.ids) await enviarUbicacion(token, idOs, pos.u, pos.extras).catch(() => undefined);
+        // HU-20: jornada en curso (el estado lo deja la pantalla «Reloj marcador»; si no lo conoce, se consulta al servidor cada 2 min)
+        let estadoJornada = jornadaReciente(JORNADA_VIGENTE_MS);
+        if (!estadoJornada) {
+          try {
+            estadoJornada = (await obtenerJornada(token)).estado;
+            recordarJornada(estadoJornada);
+          } catch {
+            estadoJornada = null;
+          }
+        }
+        if (estadoJornada && jornadaEnCurso(estadoJornada)) await enviarUbicacionJornada(token, pos.u, pos.extras).catch(() => undefined);
       } catch {
         // sin conexión: se intenta en el siguiente latido
       } finally {
@@ -138,6 +156,7 @@ export function MonitorCampo() {
       estadoApp.remove();
       pausarGps();
       olvidarPosicion();
+      olvidarJornada();
     };
   }, [activo, token]);
 
@@ -156,6 +175,8 @@ export function MonitorCampo() {
     async function enviar() {
       if (!token || AppState.currentState !== 'active') return;
       try {
+        // HU-20: marcaciones de la jornada hechas sin señal (en el orden en que se marcaron)
+        if ((await pendientesJornada(idUsuario)).length > 0) avisar((await sincronizarJornada(token, idUsuario)).avisos);
         // Primero las llegadas (una demora de ingreso a planta necesita la llegada registrada)
         if ((await pendientesLlegadas(idUsuario)).length > 0) avisar((await sincronizarLlegadas(token, idUsuario)).avisos);
         if ((await pendientesDe(idUsuario)).length > 0) avisar((await sincronizarPendientes(token, idUsuario)).avisos);
