@@ -127,7 +127,9 @@ export interface SegmentoTinta extends Segmento {
  */
 export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number): SegmentoTinta[] {
   if (trazo.length === 0) return [];
-  const P = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
+  const crudo = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
+  // Quita el temblor del dedo: cada punto interior se promedia con sus vecinos (las puntas se respetan).
+  const P = crudo.map((p, i) => (i === 0 || i === crudo.length - 1 ? p : { x: (crudo[i - 1].x + 2 * p.x + crudo[i + 1].x) / 4, y: (crudo[i - 1].y + 2 * p.y + crudo[i + 1].y) / 4 }));
   if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
   // Grosor por punto: velocidad ≈ distancia al anterior (los eventos llegan a ritmo fijo), suavizada.
   const ref = Math.max(6, ancho * 0.03);
@@ -135,19 +137,19 @@ export function segmentosTinta(trazo: [number, number][], ancho: number, alto: n
   let previo = grosor;
   for (let i = 0; i < P.length; i++) {
     const d = i === 0 ? 0 : Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y);
-    const objetivo = grosor * Math.min(1.35, Math.max(0.55, 1.35 - (d / ref) * 0.8));
-    previo = i === 0 ? objetivo : previo * 0.6 + objetivo * 0.4;
+    const objetivo = grosor * Math.min(1.2, Math.max(0.8, 1.2 - (d / ref) * 0.4));
+    previo = i === 0 ? objetivo : previo * 0.88 + objetivo * 0.12;
     w.push(previo);
   }
   const n = P.length;
   const afinado = (i: number) => {
     const borde = Math.min(i, n - 1 - i);
-    return borde >= 3 ? 1 : 0.45 + 0.55 * (borde / 3);
+    return borde >= 3 ? 1 : 0.6 + 0.4 * (borde / 3);
   };
   const pts: { x: number; y: number; w: number }[] = [];
   for (let i = 0; i < n - 1; i++) {
     const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n - 1, i + 2)];
-    const pasos = Math.min(10, Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2.5)));
+    const pasos = Math.min(16, Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 1.5)));
     for (let k = 0; k < pasos; k++) {
       const t = k / pasos, t2 = t * t, t3 = t2 * t;
       const f = (a: number, b: number, c: number, d: number) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
@@ -160,7 +162,7 @@ export function segmentosTinta(trazo: [number, number][], ancho: number, alto: n
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
     const g = (a.w + b.w) / 2;
-    const largo = Math.hypot(b.x - a.x, b.y - a.y) + g * 0.8;
+    const largo = Math.hypot(b.x - a.x, b.y - a.y) + g * 1.2;
     res.push({ izquierda: (a.x + b.x) / 2 - largo / 2, arriba: (a.y + b.y) / 2 - g / 2, largo, angulo: Math.atan2(b.y - a.y, b.x - a.x), grosor: g });
   }
   return res;
