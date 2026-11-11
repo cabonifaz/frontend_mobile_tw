@@ -138,19 +138,38 @@ export interface SegmentoTinta extends Segmento {
  * Trazo suave: curvas suaves por los puntos tocados para que no se formen esquinas, sin retrasarse del dedo.
  * Grosor parejo. Solo se calcula al dibujar: lo guardado sigue siendo los puntos normalizados.
  */
-/** Tramos por tanda: cada tanda se memoriza y al dibujar solo se recalcula la última. */
-export const TRAMOS_POR_TANDA = 40;
+/** Curvas por tanda: cada tanda se memoriza y al dibujar solo se recalcula la última. */
+export const CURVAS_POR_TANDA = 20;
 
-/** Como Paint: los puntos reales unidos con líneas rectas de grosor parejo y puntas redondas (los tramos se solapan, sin grietas ni esquinas). */
-export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number): SegmentoTinta[] {
+/**
+ * Puntos reales del dedo unidos con curvas suaves (cuadráticas por los puntos medios; los puntos tocados son los controles). Si el dedo va rápido y la pantalla
+ * entrega pocos puntos, las esquinas se redondean; con puntos juntos queda igual que líneas rectas. Lo ya dibujado no cambia al llegar un punto nuevo y el último
+ * tramo llega recto hasta el dedo. "continua" = la tanda empieza en el punto medio de la anterior; "final" = incluye el tramo hasta el último punto.
+ */
+export function segmentosTinta(trazo: [number, number][], ancho: number, alto: number, grosor: number, opciones: { continua?: boolean; final?: boolean } = {}): SegmentoTinta[] {
+  const { continua = false, final = true } = opciones;
   if (trazo.length === 0) return [];
   const P = trazo.map((p) => ({ x: p[0] * ancho, y: p[1] * alto }));
   if (P.length === 1) return [{ izquierda: P[0].x - grosor / 2, arriba: P[0].y - grosor / 2, largo: grosor, angulo: 0, grosor }];
+  const n = P.length;
+  const mitad = (u: { x: number; y: number }, v: { x: number; y: number }) => ({ x: (u.x + v.x) / 2, y: (u.y + v.y) / 2 });
+  let ini = continua ? mitad(P[0], P[1]) : P[0];
+  const pts: { x: number; y: number }[] = [ini];
+  for (let i = 1; i < n - 1; i++) {
+    const fin = mitad(P[i], P[i + 1]);
+    const pasos = Math.min(14, Math.max(1, Math.ceil((Math.hypot(P[i].x - ini.x, P[i].y - ini.y) + Math.hypot(fin.x - P[i].x, fin.y - P[i].y)) / 3)));
+    for (let k = 1; k <= pasos; k++) {
+      const t = k / pasos, u = 1 - t;
+      pts.push({ x: u * u * ini.x + 2 * u * t * P[i].x + t * t * fin.x, y: u * u * ini.y + 2 * u * t * P[i].y + t * t * fin.y });
+    }
+    ini = fin;
+  }
+  if (final) pts.push(P[n - 1]);
   const res: SegmentoTinta[] = [];
-  for (let i = 1; i < P.length; i++) {
-    const a = P[i - 1], b = P[i];
-    const largo = Math.hypot(b.x - a.x, b.y - a.y) + grosor;
-    res.push({ izquierda: (a.x + b.x) / 2 - largo / 2, arriba: (a.y + b.y) / 2 - grosor / 2, largo, angulo: Math.atan2(b.y - a.y, b.x - a.x), grosor });
+  for (let i = 1; i < pts.length; i++) {
+    const u = pts[i - 1], v = pts[i];
+    const largo = Math.hypot(v.x - u.x, v.y - u.y) + grosor;
+    res.push({ izquierda: (u.x + v.x) / 2 - largo / 2, arriba: (u.y + v.y) / 2 - grosor / 2, largo, angulo: Math.atan2(v.y - u.y, v.x - u.x), grosor });
   }
   return res;
 }
