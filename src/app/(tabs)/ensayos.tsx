@@ -18,9 +18,9 @@ import {
   FORMAS,
   calcularGrupo,
   claveError,
+  formatoDivision,
   calcularPesaje,
   cargaExcentricidadSugerida,
-  cargasPesajeSugeridas,
   diferenciaMaxima,
   erroresCriticos,
   estadoGrupo,
@@ -162,13 +162,12 @@ function Contenido(props: {
   const [pesaje, setPesaje] = useState<FilaPesaje[]>(() =>
     ensayos.pesaje.length > 0
       ? ensayos.pesaje.map((p) => ({ carga: String(p.carga), indicacion: p.indicacion == null ? '' : String(p.indicacion) }))
-      : (cargasPesajeSugeridas(c.capMaxima).length > 0 ? cargasPesajeSugeridas(c.capMaxima) : [0]).map((x) => ({ carga: x ? String(x) : '', indicacion: '' })),
+      : [{ carga: '', indicacion: '' }], // la primera vez no hay cargas puestas: las digita el técnico
   );
   const [grupos, setGrupos] = useState<GrupoExcentricidad[]>(() => {
     const g = agrupar(ensayos, formaInicial);
     if (g.length > 0) return g;
-    const sugerida = cargaExcentricidadSugerida(c.capMaxima, 1);
-    return [{ carga: sugerida ? String(sugerida) : '', lecturas: Array<string>(posicionesDe(formaInicial)).fill('') }];
+    return [{ carga: '', lecturas: Array<string>(posicionesDe(formaInicial)).fill('') }];
   });
   const [tab, setTab] = useState<'pesaje' | 'excentricidad'>('pesaje');
   const [abierto, setAbierto] = useState<number | null>(0);
@@ -214,8 +213,9 @@ function Contenido(props: {
   }
 
   function construir(finalizar: boolean, motivoError?: string) {
-    const pes = pesaje.map((p) => ({ carga: leerLectura(p.carga), indicacion: leerLectura(p.indicacion) }));
-    const ecc = grupos.map((g) => ({ carga: leerLectura(g.carga), lecturas: g.lecturas.map((l) => leerLectura(l)) }));
+    // Las filas totalmente vacías (sin carga ni lecturas; p. ej. la carga de excentricidad que aún no se digitó) no se envían
+    const pes = pesaje.filter((p) => p.carga.trim() || p.indicacion.trim()).map((p) => ({ carga: leerLectura(p.carga), indicacion: leerLectura(p.indicacion) }));
+    const ecc = grupos.filter((g) => g.carga.trim() || g.lecturas.some((l) => l.trim())).map((g) => ({ carga: leerLectura(g.carga), lecturas: g.lecturas.map((l) => leerLectura(l)) }));
     if (pes.some((p) => p.carga === null) || ecc.some((g) => g.carga === null)) return null;
     return {
       formaPlato: forma,
@@ -345,8 +345,8 @@ function Contenido(props: {
           <Chip k="CAP. MÁXIMA" v={c.capMaxima != null ? `${formatoMiles(c.capMaxima)} ${unidad}` : '—'} />
         </View>
         <View style={estilos.chips}>
-          <Chip k="d" v={c.d != null ? `${formatoMiles(c.d)} ${unidad}` : '—'} />
-          <Chip k="e" v={e != null ? `${formatoMiles(e)} ${unidad}` : '—'} />
+          <Chip k="d" v={formatoDivision(c.d, unidad)} />
+          <Chip k="e" v={formatoDivision(e, unidad)} />
         </View>
 
         {!c.evaluable && (
@@ -426,7 +426,7 @@ function Contenido(props: {
               )}
             </View>
             <Text style={estilos.formula}>
-              E = I − L · EMP según clase {clase ?? '—'} y e = {e != null ? `${formatoMiles(e)} ${unidad}` : '—'}.
+              E = I − L · EMP según clase {clase ?? '—'} y e = {formatoDivision(e, unidad)}.
             </Text>
             <EstadoValidacion {...estadoValidacionPesaje(clase, e, pesaje)} />
             <View style={{ marginTop: 14 }}>
@@ -664,6 +664,7 @@ function Contenido(props: {
               style={estilos.motivo}
               testID="motivo-error-critico"
             />
+            {mensaje?.tipo === 'error' && <Text style={{ color: '#B91C1C', fontSize: 14, fontWeight: '700', marginBottom: 8 }} testID="error-guardar-ensayo">{mensaje.texto}</Text>}
             <Pressable
               onPress={() => void guardar(false, motivo.trim())}
               disabled={motivo.trim().length < 3 || ocupado}

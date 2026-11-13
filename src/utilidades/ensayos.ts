@@ -69,6 +69,12 @@ export function formatoMiles(n: number | null | undefined): string {
   return `${r < 0 ? '-' : ''}${miles}${dec ? `.${dec}` : ''}`;
 }
 
+/** d y e: en gramos cuando son menores a 1 kg (0.001 kg → "1 g"), si no en la unidad de trabajo. */
+export function formatoDivision(n: number | null | undefined, unidad: string): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return unidad === 'kg' && n > 0 && n < 1 ? `${formatoMiles(Math.round(n * 1e7) / 1e4)} g` : `${formatoMiles(n)} ${unidad}`;
+}
+
 /** "+5", "−2", "0". */
 export function formatoError(n: number | null | undefined): string {
   if (n == null) return '—';
