@@ -134,3 +134,80 @@ export async function resolverAprobacionLlegada(token: string, idOs: number, apr
   });
   return r.mensaje;
 }
+
+// ── HU-31: evidencias forzadas, ensayos con error y gastos ───────────────────────────────────────────────────────
+
+export type TipoDetalleAprobacion = 'evidencia' | 'ensayo' | 'gasto';
+
+export interface CabeceraAprobacion {
+  tipo: TipoDetalleAprobacion;
+  id: number;
+  titulo: string;
+  /** evidencia/ensayo: pendiente | aprobada | rechazada · gasto: pendiente | observado | aprobado | rechazado */
+  estado: string;
+  idOs: number;
+  numeroOs: string;
+  cliente: string | null;
+  sede: string | null;
+  tecnico: string | null;
+  solicitadaEn: string | null;
+  motivo: string | null;
+  detalle: string | null;
+  comentario: string | null;
+  resueltoPor: string | null;
+  resueltoEn: string | null;
+  puedeResolver: boolean;
+  codigoEvidencia: string | null;
+  motivoRechazoIa: string | null;
+  esVideo: boolean | null;
+  equipo: string | null;
+  nCriticas: number | null;
+  codigo: string | null;
+  origen: string | null;
+  concepto: string | null;
+  monto: number | null;
+  fechaGasto: string | null;
+  descripcion: string | null;
+  motivoSinFoto: string | null;
+  montoIa: number | null;
+  coincideIa: boolean | null;
+}
+
+export interface DetalleAprobacion {
+  cabecera: CabeceraAprobacion;
+  reparto: { idGasto: number; idViaticoLinea: number; concepto: string; monto: number }[];
+  lecturas: { tipo: string | null; punto: string | null; carga: number | null; lectura: number | null; error: number | null; tolerancia: number | null }[];
+  fotos: { orden: number; esVideo: boolean; tieneCuadro: boolean }[];
+}
+
+const RUTA_DETALLE: Record<TipoDetalleAprobacion, string> = { evidencia: 'evidencias', ensayo: 'ensayos', gasto: 'gastos' };
+
+/** GET api/movil/aprobaciones/{evidencias|ensayos|gastos}/{id}. */
+export async function obtenerDetalleAprobacion(token: string, tipo: TipoDetalleAprobacion, id: number): Promise<DetalleAprobacion> {
+  if (entorno.usarMock) throw new Error('Sin datos de demostración para este tipo de aprobación.');
+  const r = await solicitar<DetalleAprobacion>(`/api/movil/aprobaciones/${RUTA_DETALLE[tipo]}/${encodeURIComponent(String(id))}`, { token });
+  return r.datos!;
+}
+
+/** Foto o video de la evidencia (con `cuadro`, la miniatura del video) y foto n de un gasto, para <Image source={{ uri, headers }} />. */
+export function urlArchivoAprobacion(tipo: TipoDetalleAprobacion, id: number, n = 1, cuadro = false): string {
+  const base = `${entorno.apiUrl}/api/movil/aprobaciones/${RUTA_DETALLE[tipo]}/${id}`;
+  return tipo === 'gasto' ? `${base}/fotos/${n}` : `${base}/archivo${cuadro ? '?cuadro=true' : ''}`;
+}
+
+/**
+ * PUT: evidencia y ensayo { aprobar, comentario } (comentario obligatorio al rechazar); gasto { accion: aprobar | observar | rechazar, comentario }
+ * (obligatorio al observar o rechazar; solo el Jefe de Operaciones). Se notifica al técnico y queda en la auditoría.
+ */
+export async function resolverAprobacion(
+  token: string,
+  tipo: TipoDetalleAprobacion,
+  id: number,
+  accion: 'aprobar' | 'observar' | 'rechazar',
+  texto: string,
+): Promise<string> {
+  if (entorno.usarMock) return 'Decisión registrada.';
+  const cuerpo = tipo === 'gasto' ? { accion, comentario: texto.trim() } : { aprobar: accion === 'aprobar', comentario: texto.trim() };
+  const r = await solicitar<unknown>(`/api/movil/aprobaciones/${RUTA_DETALLE[tipo]}/${encodeURIComponent(String(id))}`, { token, metodo: 'PUT', cuerpo });
+  return r.mensaje;
+}
