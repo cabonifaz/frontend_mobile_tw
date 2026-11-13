@@ -3,6 +3,7 @@ import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { accionesPendientes, sincronizarAccionesEquipos } from '@/api/colaEquipos';
 import { capturasPendientes, sincronizarEvidencias } from '@/api/colaEvidencias';
+import { gastosPendientes, sincronizarGastos } from '@/api/colaGastos';
 import { pendientesJornada, sincronizarJornada } from '@/api/colaJornada';
 import { enviarUbicacionJornada, obtenerJornada } from '@/api/jornada';
 import { pendientesLlegadas, sincronizarLlegadas } from '@/api/colaLlegadas';
@@ -183,6 +184,8 @@ export function MonitorCampo() {
         if ((await accionesPendientes(idUsuario)).length > 0) avisar((await sincronizarAccionesEquipos(token, idUsuario)).avisos);
         // Al final: una evidencia solo se acepta con el equipo ya en ejecución en el servidor
         if ((await capturasPendientes(idUsuario)).length > 0) avisar((await sincronizarEvidencias(token, idUsuario)).avisos);
+        // HU-27: gastos de viáticos hechos sin señal (POR ENVIAR)
+        if ((await gastosPendientes(idUsuario)).length > 0) avisar((await sincronizarGastos(token, idUsuario)).avisos);
         // HU-19: guardados del asistente hechos sin señal (y eliminaciones sin avisar al servidor)
         if ((await pendientesDeEnviar(idUsuario)) > 0) avisar((await sincronizarGuardados(token, idUsuario)).avisos);
       } catch {

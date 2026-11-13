@@ -49,6 +49,7 @@ export default function LayoutPestanas() {
     '/viaticos-gastos',
     '/viatico',
     '/solicitud-gasto',
+    '/rendir-gasto',
     // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
     '/solicitud-correlativo',
     '/mis-tickets',
@@ -287,6 +288,11 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="solicitud-gasto"
         options={{ title: 'Gasto', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-25 / HU-27: rendir un gasto, solicitar un reembolso o corregir un gasto observado. */}
+      <Tabs.Screen
+        name="rendir-gasto"
+        options={{ title: 'Rendir gasto', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
     </>

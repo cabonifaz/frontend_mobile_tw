@@ -145,7 +145,7 @@ export function Importe({ titulo, valor, color, alinear = 'left' }: { titulo: st
 
 // ── Tarjeta de un viático (HU-25) ───────────────────────────────────────────────────────
 
-export function TarjetaViatico({ viatico: v, onVerDetalle }: { viatico: Viatico; onVerDetalle: () => void }) {
+export function TarjetaViatico({ viatico: v, onVerDetalle, onRendir }: { viatico: Viatico; onVerDetalle: () => void; onRendir?: () => void }) {
   const saldo = textoSaldoFinal(v);
   const lugar = [v.cliente, v.sede].filter(Boolean).join(' · ');
   return (
@@ -187,7 +187,16 @@ export function TarjetaViatico({ viatico: v, onVerDetalle }: { viatico: Viatico;
             Rendido {soles(v.rendido)} ({porcentajeAcotado(v.porcentajeRendido)} %)
             {v.pendienteDeposito > 0 ? ` · ${soles(v.pendienteDeposito)} pendiente de depósito` : ''}
           </Text>
-          <Boton titulo="Ver detalle" variante="secundario" onPress={onVerDetalle} />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Boton titulo="Ver detalle" variante="secundario" onPress={onVerDetalle} />
+            </View>
+            {!!onRendir && (
+              <View style={{ flex: 1 }}>
+                <Boton titulo="Rendir gasto" onPress={onRendir} />
+              </View>
+            )}
+          </View>
         </>
       )}
     </View>

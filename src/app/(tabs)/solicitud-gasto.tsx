@@ -1,11 +1,12 @@
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { ErrorApi } from '@/api/cliente';
-import { obtenerViaticos } from '@/api/viaticos';
+import { obtenerViaticos, urlFotoGasto } from '@/api/viaticos';
 import { Aviso } from '@/componentes/Aviso';
+import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { TituloSeccion } from '@/componentes/EtiquetaEstado';
 import { EtiquetaGasto } from '@/componentes/ViaticosUI';
@@ -23,7 +24,7 @@ import { diaMesHora, seguimientoGasto, type PasoSeguimiento } from '@/utilidades
  *  - Concepto, fecha del gasto, servicio, programación (viático), comprobante, quién revisa y descripción.
  *  - Seguimiento: rendido → en revisión → aprobado / observado / rechazado → cierre de la rendición.
  * Se abre desde la lista de Solicitudes o desde el detalle de un viático (?id = id del gasto).
- * Corregir y reenviar un gasto observado (HU-27) aún no está disponible desde la app.
+ * Un gasto observado se corrige y reenvía desde aquí (HU-27): foto del comprobante, motivo y la lectura de la IA también se muestran.
  */
 const colorPaso: Record<PasoSeguimiento['tono'], string> = {
   hecho: colores.verde,
@@ -51,6 +52,8 @@ export default function PantallaSolicitudGasto() {
   const g = datos?.todo.gastos.find((x) => x.idGasto === idGasto) ?? null;
   const viatico = g ? datos?.todo.viaticos.find((v) => v.idProgramacion === g.idProgramacion) ?? null : null;
   const pasos = g ? seguimientoGasto(g, !!viatico?.cerrado) : [];
+  const fotos = (datos?.todo.fotos ?? []).filter((f) => f.idGasto === idGasto);
+  const token = sesion?.token ?? '';
 
   return (
     <SafeAreaView style={estilos.area} edges={['top']}>
@@ -123,6 +126,26 @@ export default function PantallaSolicitudGasto() {
               )}
             </View>
 
+            {fotos.length > 0 && (
+              <>
+                <TituloSeccion texto="FOTOS DEL COMPROBANTE" />
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }} testID="gasto-fotos">
+                  {fotos.map((f) => (
+                    <Image
+                      key={f.orden}
+                      source={{ uri: urlFotoGasto(g.idGasto, f.orden), headers: { Authorization: `Bearer ${token}` } }}
+                      style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: colores.grisFondo }}
+                      accessibilityLabel={`Foto ${f.orden} del comprobante`}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
+            {!!g.motivoSinFoto && fotos.length === 0 && <Dato titulo="MOTIVO SIN FOTO" valor={g.motivoSinFoto} />}
+            {g.montoIa != null && g.coincideIa === false && (
+              <Aviso tipo="info" mensaje={`La IA leyó ${monto(g.montoIa, g.moneda)} en el comprobante y no coincide con el monto declarado.`} />
+            )}
+
             <TituloSeccion texto="SEGUIMIENTO" />
             <View style={estilos.timeline} testID="gasto-seguimiento">
               {pasos.map((p, i) => (
@@ -138,7 +161,9 @@ export default function PantallaSolicitudGasto() {
                 </View>
               ))}
             </View>
-            {g.estado === 'observado' && <Text style={estilos.pie}>Corregir y reenviar el gasto desde la app estará disponible pronto.</Text>}
+            {g.estado === 'observado' && !!g.origen && (
+              <Boton titulo="Corregir y reenviar" onPress={() => router.push({ pathname: '/rendir-gasto', params: { modo: 'corregir', idGasto: String(g.idGasto) } })} />
+            )}
           </>
         )}
       </ScrollView>

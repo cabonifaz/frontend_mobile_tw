@@ -6,6 +6,7 @@ import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { ErrorApi } from '@/api/cliente';
 import { obtenerViaticos } from '@/api/viaticos';
 import { Aviso } from '@/componentes/Aviso';
+import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { EtiquetaEstado, TituloSeccion } from '@/componentes/EtiquetaEstado';
 import { BarraAvance, FilaGasto, Importe } from '@/componentes/ViaticosUI';
@@ -165,7 +166,12 @@ export default function PantallaViatico() {
                 ))}
               </View>
             )}
-            {!v.cerrado && <Text style={estilos.pie}>Rendir un gasto desde la app estará disponible pronto.</Text>}
+            {!v.cerrado && (
+              <Boton
+                titulo="Rendir gasto"
+                onPress={() => router.push({ pathname: '/rendir-gasto', params: { modo: 'viatico', idProgramacion: String(v.idProgramacion) } })}
+              />
+            )}
           </>
         )}
       </ScrollView>

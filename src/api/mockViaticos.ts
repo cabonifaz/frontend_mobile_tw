@@ -1,4 +1,4 @@
-import type { Gasto, LineaViatico, Viatico, ViaticosYGastos } from './viaticos';
+import type { ConceptoGasto, EntradaGasto, Gasto, LineaViatico, ResultadoGasto, Viatico, ViaticosYGastos } from './viaticos';
 
 /**
  * Modo demo de HU-25 / HU-26 (mismos campos que GET api/movil/viaticos), con los datos de los mockups:
@@ -78,6 +78,23 @@ function datos(): ViaticosYGastos {
 }
 
 export const mockViaticos = {
+  async conceptos(): Promise<ConceptoGasto[]> {
+    await esperar(200);
+    return [
+      { idConcepto: 1, concepto: 'Movilidad / Transporte', esOtro: false },
+      { idConcepto: 2, concepto: 'Alimentación', esOtro: false },
+      { idConcepto: 3, concepto: 'Alojamiento', esOtro: false },
+      { idConcepto: 4, concepto: 'Peaje', esOtro: false },
+      { idConcepto: 9, concepto: 'Otro', esOtro: true },
+    ];
+  },
+  async enviar(entrada: EntradaGasto, nFotos: number): Promise<{ mensaje: string; resultado: ResultadoGasto }> {
+    await esperar(600);
+    return {
+      mensaje: 'Gasto enviado.',
+      resultado: { idGasto: 999, codigo: 'GS-000999', estado: 'pendiente', duplicado: false, advertencias: [], montoIa: nFotos > 0 ? entrada.monto : null, coincideIa: nFotos > 0 ? true : null },
+    };
+  },
   async obtener(): Promise<ViaticosYGastos> {
     await esperar(400);
     return datos();
