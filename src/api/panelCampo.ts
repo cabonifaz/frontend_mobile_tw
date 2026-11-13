@@ -174,6 +174,11 @@ export interface ResumenRuta {
   etaMinutos?: number | null;
   etaEstimada?: string | null;
   destinoDireccion?: string | null;
+  /** Ruta por calles calculada por el back (distancia en m; la ETA ya considera el tráfico aproximado). Solo con la sede ubicada. */
+  distanciaRutaM?: number | null;
+  etaPorCalles?: boolean;
+  /** false: la sede no tiene ubicación registrada (el back omite destino, distancia y ETA). */
+  plantaUbicada?: boolean;
   demoraTexto: string | null;
   demoraOrigen: 'tecnico' | 'asistente' | string | null;
   contactoNombre: string | null;
