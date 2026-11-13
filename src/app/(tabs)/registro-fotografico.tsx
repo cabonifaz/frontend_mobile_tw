@@ -122,7 +122,7 @@ export default function PantallaRegistroFotografico() {
     setMensaje(null);
     try {
       const r = await capturarEvidencia(sesion.token, c.idOs, c.idOsEquipo, { codigo: 'qr', capturadoEn: new Date().toISOString(), qrTexto: contenido.slice(0, 300) });
-      setMensaje({ tipo: r.estado === 'rechazada' ? 'error' : 'info', texto: r.estado === 'rechazada' ? (r.motivoRechazo ?? 'El QR no corresponde a este equipo.') : r.mensaje || 'QR del equipo leído.' });
+      setMensaje({ tipo: r.estado === 'rechazada' ? 'error' : 'info', texto: r.estado === 'rechazada' ? `${r.motivoRechazo ?? 'El QR no corresponde a este equipo.'} Se leyó: «${contenido.slice(0, 80)}»` : r.mensaje || 'QR del equipo leído.' });
       await recargar();
       setPanel(null);
     } catch (e) {

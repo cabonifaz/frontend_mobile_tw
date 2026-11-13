@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
@@ -6,6 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Boton } from './Boton';
 import { colores } from '@/tema/colores';
 import { elegirTamanoFoto } from '@/utilidades/camara';
+
+/** Segundos que se muestra el QR leído antes de enviarlo (para poder verlo y comprobar qué leyó la cámara). */
+const PAUSA_QR_SEGUNDOS = 5;
 
 interface Props {
   visible: boolean;
@@ -28,6 +31,19 @@ export function CamaraApp({ visible, modo, onCerrar, onFoto, onQr }: Props) {
   /** Tamaño de foto (Android): la evidencia no necesita los megapíxeles del sensor, y una foto pesada falla al subirse. */
   const [tamanoFoto, setTamanoFoto] = useState<string | undefined>(undefined);
   const leido = useRef(false);
+  /** QR recién leído: se muestra PAUSA_QR_SEGUNDOS segundos con una cuenta regresiva y recién entonces se envía. */
+  const [qrLeido, setQrLeido] = useState<{ texto: string; segundos: number } | null>(null);
+  const reloj = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function detenerReloj() {
+    if (reloj.current) clearInterval(reloj.current);
+    reloj.current = null;
+  }
+  // Si se cierra la cámara durante la pausa, no se envía nada
+  useEffect(() => {
+    if (!visible) detenerReloj(); // el estado se limpia al abrir de nuevo (onShow)
+    return detenerReloj;
+  }, [visible]);
 
   async function alEstarLista() {
     if (modo !== 'foto' || Platform.OS !== 'android' || !camara.current) return;
@@ -52,12 +68,26 @@ export function CamaraApp({ visible, modo, onCerrar, onFoto, onQr }: Props) {
   function alLeer(r: BarcodeScanningResult) {
     if (leido.current || !r.data) return;
     leido.current = true;
-    onQr?.(r.data);
+    const texto = r.data;
+    let faltan = PAUSA_QR_SEGUNDOS;
+    setQrLeido({ texto, segundos: faltan });
+    detenerReloj();
+    reloj.current = setInterval(() => {
+      faltan -= 1;
+      if (faltan > 0) {
+        setQrLeido({ texto, segundos: faltan });
+        return;
+      }
+      detenerReloj();
+      setQrLeido(null);
+      onQr?.(texto);
+    }, 1000);
   }
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onCerrar} onShow={() => {
       leido.current = false;
+      setQrLeido(null);
     }}>
       <SafeAreaView style={estilos.area}>
         <View style={estilos.cabecera}>
@@ -86,7 +116,27 @@ export function CamaraApp({ visible, modo, onCerrar, onFoto, onQr }: Props) {
               barcodeScannerSettings={modo === 'qr' ? { barcodeTypes: ['qr'] } : undefined}
               onBarcodeScanned={modo === 'qr' ? alLeer : undefined}
             />
-            {modo === 'qr' && <View pointerEvents="none" style={estilos.marcoQr} />}
+            {modo === 'qr' && <View pointerEvents="none" style={[estilos.marcoQr, qrLeido && { borderColor: '#22C55E', borderWidth: 5 }]} />}
+            {modo === 'qr' && !!qrLeido && (
+              <View style={estilos.lectura} testID="qr-leido">
+                <Text style={estilos.lecturaTitulo}>QR leído · se envía en {qrLeido.segundos} s</Text>
+                <Text style={estilos.lecturaTexto} selectable numberOfLines={4}>
+                  {qrLeido.texto}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    detenerReloj();
+                    setQrLeido(null);
+                    leido.current = false;
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Leer de nuevo"
+                  hitSlop={8}
+                >
+                  <Text style={estilos.lecturaOtra}>Leer otro</Text>
+                </Pressable>
+              </View>
+            )}
             <View style={estilos.pie}>
               {modo === 'foto' ? (
                 <Pressable
@@ -118,6 +168,10 @@ const estilos = StyleSheet.create({
   pie: { padding: 20, alignItems: 'center' },
   disparador: { width: 72, height: 72, borderRadius: 36, backgroundColor: colores.blanco, alignItems: 'center', justifyContent: 'center' },
   disparadorInterno: { width: 58, height: 58, borderRadius: 29, borderWidth: 3, borderColor: colores.primario },
+  lectura: { position: 'absolute', left: 16, right: 16, bottom: 90, backgroundColor: 'rgba(0,0,0,0.78)', borderRadius: 14, padding: 14, gap: 6 },
+  lecturaTitulo: { color: '#22C55E', fontSize: 14, fontWeight: '800' },
+  lecturaTexto: { color: colores.blanco, fontSize: 16, fontWeight: '600' },
+  lecturaOtra: { color: colores.blanco, fontSize: 13.5, textDecorationLine: 'underline', alignSelf: 'flex-end' },
   marcoQr: {
     position: 'absolute',
     alignSelf: 'center',
