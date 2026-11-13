@@ -284,6 +284,30 @@ export function textoDistancia(m: number | null | undefined): string {
   return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
 }
 
+/** Velocidad media supuesta (km/h) para estimar el tiempo cuando el técnico está detenido o el servidor no da la ETA. */
+export const VELOCIDAD_MEDIA_KMH = 30;
+/** La distancia es en línea recta: las calles son más largas. */
+export const FACTOR_CALLES = 1.3;
+
+/** Minutos que tardaría en llegar a la planta según la distancia en línea recta (referencial). null si no hay distancia. */
+export function minutosHastaPlanta(distanciaM: number | null | undefined): number | null {
+  if (distanciaM === null || distanciaM === undefined || !Number.isFinite(distanciaM)) return null;
+  if (distanciaM <= 150) return 0;
+  return Math.max(1, Math.round(((distanciaM * FACTOR_CALLES) / 1000 / VELOCIDAD_MEDIA_KMH) * 60));
+}
+
+/** "8 min" o "1 h 05 min". */
+export function textoMinutos(min: number): string {
+  const m = Math.max(0, Math.round(min));
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
+}
+
+/** Hora de Lima (HH:MM) dentro de "min" minutos. */
+export function horaLlegada(min: number, ahora: number = Date.now()): string {
+  const d = new Date(ahora + min * 60_000 - 5 * 3_600_000);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
 export function textoVelocidad(kmh: number | null | undefined): string {
   return kmh === null || kmh === undefined ? '—' : `${Math.round(kmh)} km/h`;
 }
