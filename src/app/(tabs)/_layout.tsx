@@ -50,6 +50,8 @@ export default function LayoutPestanas() {
     '/viatico',
     '/solicitud-gasto',
     '/rendir-gasto',
+    // Progreso guardado (HU-21)
+    '/progreso',
     // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
     '/solicitud-correlativo',
     '/mis-tickets',
@@ -70,7 +72,7 @@ export default function LayoutPestanas() {
   const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio', '/correlativos'].includes(pathname);
   const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente' || enPanelCampo));
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
-  const enDetalleAprobacion = pathname === '/aprobacion-salida' || pathname === '/aprobacion-llegada';
+  const enDetalleAprobacion = pathname === '/aprobacion-salida' || pathname === '/aprobacion-llegada' || pathname === '/aprobacion-detalle';
   const itemActivo = {
     borderRadius: 12,
     overflow: 'hidden' as const,
@@ -241,6 +243,11 @@ export default function LayoutPestanas() {
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* HU-21: trabajos sin terminar guardados en el teléfono (se entra desde el Menú). */}
+      <Tabs.Screen
+        name="progreso"
+        options={{ title: 'Progreso Guardado', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
       <Tabs.Screen
         name="equipo-nuevo"
         options={{ title: 'Equipo nuevo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
@@ -275,6 +282,11 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="aprobacion-llegada"
         options={{ title: 'Llegada forzada', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-31: detalle de una evidencia forzada, un ensayo con error o un gasto (se entra desde Aprobaciones). */}
+      <Tabs.Screen
+        name="aprobacion-detalle"
+        options={{ title: 'Aprobación', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-25 / HU-26: viáticos asignados al programar y gastos rendidos (se entra desde el menú). */}
       <Tabs.Screen

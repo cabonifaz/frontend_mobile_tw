@@ -72,7 +72,7 @@ export const modulosMenu: ModuloMenu[] = [
       return lista;
     },
   },
-  { id: 'progreso-guardado', titulo: 'Progreso Guardado', icono: { familia: 'ion', nombre: 'save-outline' }, ruta: null },
+  { id: 'progreso-guardado', titulo: 'Progreso Guardado', icono: { familia: 'ion', nombre: 'save-outline' }, ruta: '/progreso' }, // HU-21 (el contador sale del teléfono, no del servidor)
   { id: 'configuracion', titulo: 'Configuraciones', icono: { familia: 'ion', nombre: 'settings-outline' }, ruta: null },
   {
     id: 'asistente-ia',

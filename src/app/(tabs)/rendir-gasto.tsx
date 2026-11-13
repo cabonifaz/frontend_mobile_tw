@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { encolarGasto } from '@/api/colaGastos';
+import { fotosVigentes, guardarProgreso, obtenerProgreso, quitarProgreso } from '@/api/progreso';
 import { ErrorApi } from '@/api/cliente';
 import { obtenerServiciosProgramados, type ServicioProgramado } from '@/api/servicios';
 import {
@@ -31,6 +32,7 @@ import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { estaEnCurso, fechaLimaHoy } from '@/utilidades/agenda';
 import { soles } from '@/utilidades/dinero';
+import { porcentaje } from '@/utilidades/progreso';
 import { errorDeFecha, fechaDeCampo, fechaParaCampo, leerMontoGasto, MAX_FOTOS_GASTO, nuevoIdCliente, sumar } from '@/utilidades/gastos';
 
 /**
@@ -56,9 +58,18 @@ export default function PantallaRendirGasto() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();
-  const params = useLocalSearchParams<{ modo?: string; idProgramacion?: string; idGasto?: string }>();
+  const params = useLocalSearchParams<{ modo?: string; idProgramacion?: string; idGasto?: string; borrador?: string }>();
   const modo: Modo = params.modo === 'reembolso' ? 'reembolso' : params.modo === 'corregir' ? 'corregir' : 'viatico';
   const [elegido, setElegido] = useState<number | null>(null);
+  // HU-21: borrador guardado en el teléfono (undefined = leyéndolo; null = no hay)
+  const [inicial, setInicial] = useState<BorradorGasto | null | undefined>(params.borrador ? undefined : null);
+  useEffect(() => {
+    if (!params.borrador || !usuario) return;
+    void obtenerProgreso(usuario.idUsuario, params.borrador).then(async (p) => {
+      const b = p?.borrador as BorradorGasto | undefined;
+      setInicial(b ? { ...b, fotos: await fotosVigentes(b.fotos) } : null);
+    });
+  }, [params.borrador, usuario]);
 
   const { datos, cargando, error } = useConsulta(async (token) => {
     const [todo, conceptos, servicios] = await Promise.all([
@@ -108,9 +119,12 @@ export default function PantallaRendirGasto() {
           ) : (
             <SelectorViatico viaticos={activos} onElegir={setElegido} />
           )
+        ) : inicial === undefined ? (
+          <ActivityIndicator color={colores.primario} style={{ marginTop: 32 }} />
         ) : (
           <Formulario
-            key={`${modo}-${idProg ?? 0}-${gasto?.idGasto ?? 0}`}
+            key={`${modo}-${idProg ?? 0}-${gasto?.idGasto ?? 0}-${params.borrador ?? ''}`}
+            inicial={inicial}
             modo={modo}
             origen={origen}
             viatico={viatico}
@@ -156,6 +170,22 @@ interface PropsFormulario {
   fotosServidor: number[];
   conceptos: ConceptoGasto[];
   servicios: ServicioProgramado[];
+  inicial: BorradorGasto | null;
+}
+
+/** Lo que se guarda de un gasto a medio llenar (solo en el teléfono). */
+interface BorradorGasto {
+  idCliente: string;
+  montos: Record<number, string | undefined>;
+  monto: string;
+  idConcepto: string | null;
+  conceptoTexto: string;
+  idOs: string | null;
+  fecha: string;
+  descripcion: string;
+  /** Archivos de la cámara. */
+  fotos: string[];
+  motivo: string;
 }
 
 type Resultado = { tipo: 'enviado'; r: ResultadoGasto; corregido: boolean } | { tipo: 'guardado' };
@@ -178,24 +208,27 @@ function Formulario(p: PropsFormulario) {
     [p.lineas, previoPorLinea],
   );
 
+  const ini = p.inicial;
   const [montos, setMontos] = useState<Record<number, string | undefined>>(() =>
-    Object.fromEntries(p.repartos.map((r) => [r.idViaticoLinea, String(r.monto)])),
+    ini ? ini.montos : Object.fromEntries(p.repartos.map((r) => [r.idViaticoLinea, String(r.monto)])),
   );
-  const [monto, setMonto] = useState(() => (p.gasto && !esViatico ? String(p.gasto.monto) : ''));
-  const [idConcepto, setIdConcepto] = useState<string | null>(() => (p.gasto?.idConcepto ? String(p.gasto.idConcepto) : null));
-  const [conceptoTexto, setConceptoTexto] = useState(() => p.gasto?.conceptoTexto ?? '');
+  const [monto, setMonto] = useState(() => ini?.monto ?? (p.gasto && !esViatico ? String(p.gasto.monto) : ''));
+  const [idConcepto, setIdConcepto] = useState<string | null>(() => (ini ? ini.idConcepto : p.gasto?.idConcepto ? String(p.gasto.idConcepto) : null));
+  const [conceptoTexto, setConceptoTexto] = useState(() => ini?.conceptoTexto ?? p.gasto?.conceptoTexto ?? '');
   const servicioInicial = p.gasto?.idOs ?? p.viatico?.idOs ?? p.servicios.find((s) => estaEnCurso(s))?.idOs ?? (p.servicios.length === 1 ? p.servicios[0].idOs : null);
-  const [idOs, setIdOs] = useState<string | null>(servicioInicial ? String(servicioInicial) : null);
-  const [fecha, setFecha] = useState(() => fechaParaCampo(p.gasto?.fecha ?? hoy));
-  const [descripcion, setDescripcion] = useState(() => p.gasto?.descripcion ?? '');
-  const [fotos, setFotos] = useState<FotoForm[]>(() => p.fotosServidor.map((o) => ({ clave: `s${o}`, orden: o })));
-  const [motivo, setMotivo] = useState(() => p.gasto?.motivoSinFoto ?? '');
+  const [idOs, setIdOs] = useState<string | null>(() => (ini ? ini.idOs : servicioInicial ? String(servicioInicial) : null));
+  const [fecha, setFecha] = useState(() => ini?.fecha ?? fechaParaCampo(p.gasto?.fecha ?? hoy));
+  const [descripcion, setDescripcion] = useState(() => ini?.descripcion ?? p.gasto?.descripcion ?? '');
+  const [fotos, setFotos] = useState<FotoForm[]>(() => (ini ? ini.fotos.map((uri, i) => ({ clave: `b${i}`, uri })) : p.fotosServidor.map((o) => ({ clave: `s${o}`, orden: o }))));
+  const [motivo, setMotivo] = useState(() => ini?.motivo ?? p.gasto?.motivoSinFoto ?? '');
   const [camara, setCamara] = useState(false);
   const [exceso, setExceso] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
-  const [idCliente] = useState(nuevoIdCliente);
+  const [idCliente] = useState(() => ini?.idCliente ?? nuevoIdCliente());
+  const usuario = sesion?.usuario;
+  const terminado = useRef(false);
 
   const marcadas = lineas.filter((l) => montos[l.id] !== undefined);
   const montoTotal = esViatico ? sumar(marcadas.map((l) => leerMontoGasto(montos[l.id] ?? '') ?? 0)) : (leerMontoGasto(monto) ?? 0);
@@ -218,6 +251,44 @@ function Formulario(p: PropsFormulario) {
   if (descripcion.trim().length < 3) faltantes.push('Escribe la descripción');
   if (fotos.length === 0 && motivo.trim().length < 3) faltantes.push('Toma la foto del comprobante o indica el motivo');
   const bloqueado = faltantes.length > 0 || enviando;
+
+  // HU-21: cada cambio se guarda solo en el teléfono (un gasto nuevo; corregir uno observado no es un borrador)
+  const conceptoNombre = esViatico ? marcadas.map((l) => l.concepto).join(' + ') : concepto?.esOtro ? conceptoTexto.trim() : (concepto?.concepto ?? '');
+  const numeroOsBorrador = esViatico ? (p.viatico?.numeroOs ?? '') : (p.servicios.find((s) => String(s.idOs) === idOs)?.numeroOs ?? '');
+  const camposTotal = 6;
+  const camposHechos = [
+    esViatico ? marcadas.length > 0 && marcadas.every((l) => leerMontoGasto(montos[l.id] ?? '') !== null) : !!concepto && (!concepto.esOtro || conceptoTexto.trim().length >= 2),
+    esViatico ? marcadas.length > 0 : leerMontoGasto(monto) !== null,
+    esViatico ? true : !!idOs,
+    !errorFecha,
+    descripcion.trim().length >= 3,
+    fotos.length > 0 || motivo.trim().length >= 3,
+  ].filter(Boolean).length;
+  const hayContenido = montoTotal > 0 || !!conceptoNombre || descripcion.trim().length > 0 || fotos.length > 0 || motivo.trim().length > 0;
+  useEffect(() => {
+    if (corrige || resultado || terminado.current || !usuario || !hayContenido) return;
+    const t = setTimeout(() => {
+      if (terminado.current) return;
+      void guardarProgreso(usuario.idUsuario, {
+        id: `gasto-${idCliente}`,
+        tipo: 'gasto',
+        titulo: `${conceptoNombre || 'Gasto'}${montoTotal > 0 ? ` · ${soles(montoTotal)}` : ''}`,
+        subtitulo: numeroOsBorrador ? `OS ${numeroOsBorrador.replace(/^OS-?/i, '')}` : '',
+        paso: `${camposHechos} de ${camposTotal} campos completos`,
+        porcentaje: porcentaje(camposHechos, camposTotal),
+        ruta: '/rendir-gasto',
+        params: { modo: p.modo, ...(esViatico && p.viatico ? { idProgramacion: String(p.viatico.idProgramacion) } : {}), borrador: `gasto-${idCliente}` },
+        descartable: true,
+        borrador: { idCliente, montos, monto, idConcepto, conceptoTexto, idOs, fecha, descripcion, fotos: fotos.flatMap((f) => (f.uri ? [f.uri] : [])), motivo } satisfies BorradorGasto,
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [corrige, resultado, usuario, hayContenido, idCliente, conceptoNombre, montoTotal, numeroOsBorrador, camposHechos, p.modo, p.viatico, esViatico, montos, monto, idConcepto, conceptoTexto, idOs, fecha, descripcion, fotos, motivo]);
+  useEffect(() => {
+    if (!resultado || !usuario) return;
+    terminado.current = true;
+    void quitarProgreso(usuario.idUsuario, `gasto-${idCliente}`);
+  }, [resultado, usuario, idCliente]);
 
   const excedidas = esViatico ? marcadas.filter((l) => (leerMontoGasto(montos[l.id] ?? '') ?? 0) > l.disponible + 0.001) : [];
 

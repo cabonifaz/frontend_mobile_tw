@@ -283,7 +283,7 @@ function checklistDemo(idOs: number): ChecklistSalida {
       editable: false },
   ];
   const faltantes = items.filter((i) => i.obligatorio && (i.estado === 'pendiente' || i.estado === 'bloqueado')).map((i) => i.nombre);
-  const puedeIniciar = editable && (faltantes.length === 0 || e.autorizacion === 'aprobada');
+  const puedeIniciar = editable && e.autorizacion === 'aprobada'; // la aprobación de Jefatura es siempre obligatoria
   // Con el visto bueno vigente, lo obligatorio que seguía pendiente/bloqueado pasa a APROBADO ("Autorizado por el Jefe …").
   if (e.autorizacion === 'aprobada') {
     for (const i of items) {
@@ -297,8 +297,8 @@ function checklistDemo(idOs: number): ChecklistSalida {
     idOs, numeroOs: s.numeroOs, cliente: s.cliente, fechaEjecucion: s.fechaEjecucion, horaInicio: s.horaInicio,
     tecnico: s.responsable, estadoOs: e.estadoOs, items, faltantes, puedeIniciar,
     todoConforme: puedeIniciar,
-    saleConVistoBueno: puedeIniciar && faltantes.length > 0,
-    puedeSolicitarAutorizacion: editable && faltantes.length > 0 && e.autorizacion === null,
+    saleConVistoBueno: puedeIniciar,
+    puedeSolicitarAutorizacion: editable && e.autorizacion === null,
     trasladoIniciado: e.estadoOs === 'en_ruta',
     autorizacion: e.autorizacion ? { estado: e.autorizacion, jefe: e.autorizacion === 'aprobada' ? area.encargado : null,
       comentario: null, solicitadaEn: new Date().toISOString(), resueltaEn: null } : null,

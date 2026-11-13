@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { generarInforme, validarCierre, type CierreEquipo } from '@/api/informe';
+import { guardarProgreso, quitarProgreso } from '@/api/progreso';
 import { horaRespaldo } from '@/api/respaldo';
 import { obtenerTrabajoEquipoConRespaldo, type EtapaTrabajo } from '@/api/trabajo';
 import { Aviso } from '@/componentes/Aviso';
@@ -16,6 +17,7 @@ import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
+import { porcentaje } from '@/utilidades/progreso';
 import { avanceEtapas, etapaResuelta, etapasPorResolver, rutaDeEtapa, textoEstadoEtapa, textoPendientesPorResolver } from '@/utilidades/trabajo';
 
 /**
@@ -69,6 +71,34 @@ export default function PantallaTrabajoEquipo() {
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const t = datos?.trabajo;
   const c = t?.cabecera;
+
+  // HU-21: el trabajo en curso queda en "Progreso Guardado" (paso donde se quedó y avance); al completarse el equipo sale de la lista
+  const idUsuario = usuario?.idUsuario ?? 0;
+  const pasoActual = t ? (etapasPorResolver(t.etapas)[0]?.nombre ?? 'Finalizar trabajo en equipo') : '';
+  const estadoEquipo = c?.estado ?? '';
+  const conformes = c?.etapasConformes ?? 0;
+  const totalEtapas = c?.etapasTotal ?? 5;
+  const tituloProgreso = c ? [c.nombre, c.codigoTw ?? c.codigoCliente].filter(Boolean).join(' · ') : '';
+  const subtituloProgreso = c ? `${c.tipoOrden} ${c.numeroOs.replace(/^(OS|OM)-?/i, '')}${c.cliente ? ` · ${c.cliente}` : ''}` : '';
+  useEffect(() => {
+    if (!valido || !idUsuario || !estadoEquipo || datos?.sinConexion) return;
+    const id = `srv-${idOs}-${idOsEquipo}`;
+    if (estadoEquipo === 'completado') {
+      void quitarProgreso(idUsuario, id);
+      return;
+    }
+    void guardarProgreso(idUsuario, {
+      id,
+      tipo: 'servicio',
+      titulo: tituloProgreso,
+      subtitulo: subtituloProgreso,
+      paso: pasoActual,
+      porcentaje: porcentaje(conformes, totalEtapas),
+      ruta: '/trabajo-equipo',
+      params: { id: String(idOs), equipo: String(idOsEquipo) },
+      descartable: false,
+    });
+  }, [valido, idUsuario, idOs, idOsEquipo, estadoEquipo, pasoActual, conformes, totalEtapas, tituloProgreso, subtituloProgreso, datos?.sinConexion]);
 
   function abrirEtapa(e: EtapaTrabajo) {
     setMensaje(null);

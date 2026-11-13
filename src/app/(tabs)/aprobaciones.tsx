@@ -131,9 +131,10 @@ function Tarjeta({ aprobacion: a, urgente = false }: { aprobacion: Aprobacion; u
   return (
     <Pressable
       onPress={() => {
-        // Salidas (HU-04) y llegadas forzadas (HU-06); las demás se abrirán con su propio detalle.
+        // Salidas (HU-04) y llegadas forzadas (HU-06) se resuelven por OS; evidencias, ensayos y gastos (HU-31) por su propio id.
         if (a.tipo === 'salida') router.push({ pathname: '/aprobacion-salida', params: { id: String(a.id) } });
         else if (a.tipo === 'llegada') router.push({ pathname: '/aprobacion-llegada', params: { id: String(a.id) } });
+        else router.push({ pathname: '/aprobacion-detalle', params: { tipo: a.tipo, id: String(a.id) } });
       }}
       accessibilityRole="button"
       accessibilityLabel={`${etiquetaTipo[a.tipo]?.kicker ?? a.titulo}, ${quien}`}

@@ -26,7 +26,10 @@ import {
   haceMinutos,
   inicialesDe,
   mensajeRetrasoCliente,
+  horaLlegada,
+  minutosHastaPlanta,
   textoDistancia,
+  textoMinutos,
   textoVelocidad,
 } from '@/utilidades/panelCampo';
 
@@ -60,6 +63,9 @@ export default function PantallaRutaServicio() {
   const recorrido = datos?.ruta.recorrido ?? [];
   const eventos = datos?.ruta.eventos ?? [];
 
+  // Tiempo hasta la planta: el del servidor si viene (técnico en movimiento); si no, un cálculo referencial con la distancia
+  const minutosServidor = r?.etaMinutos != null ? Math.round(r.etaMinutos) : null;
+  const minutosEstimados = minutosServidor ?? minutosHastaPlanta(r?.distanciaM);
   const posicion = r && r.latitud !== null && r.longitud !== null ? { latitud: r.latitud, longitud: r.longitud } : null;
   const destino = r && r.destinoLatitud !== null && r.destinoLongitud !== null ? { latitud: r.destinoLatitud, longitud: r.destinoLongitud } : null;
   const origen = r && r.origenLatitud !== null && r.origenLongitud !== null ? { latitud: r.origenLatitud, longitud: r.origenLongitud } : null;
@@ -133,11 +139,11 @@ export default function PantallaRutaServicio() {
             <View style={estilos.stats}>
               <Stat valor={textoVelocidad(r.velocidadKmh)} texto="Velocidad" />
               <Stat
-                valor={r.etaEstimada ?? r.eta ?? '—'}
-                texto={r.etaEstimada ? 'Llegada est.' : 'ETA'}
+                valor={minutosEstimados === null ? (r.etaEstimada ?? r.eta ?? '—') : minutosEstimados === 0 ? 'En planta' : textoMinutos(minutosEstimados)}
+                texto={r.etaPorCalles ? 'Tiempo por calles' : 'Tiempo a la planta'}
                 color={(r.etaEstimada ?? r.eta) && r.etaProgramada && (r.etaEstimada ?? r.eta)! > r.etaProgramada ? colores.naranja : undefined}
               />
-              <Stat valor={textoDistancia(r.distanciaM)} texto="Distancia" />
+              <Stat valor={textoDistancia(r.distanciaRutaM ?? r.distanciaM)} texto={r.distanciaRutaM != null ? 'Por calles' : 'Distancia'} />
             </View>
 
             {(!!r.destinoNombre || !!r.destinoDireccion) && (
@@ -147,12 +153,18 @@ export default function PantallaRutaServicio() {
                   <Text style={estilos.destinoTitulo}>{r.estado === 'en_ruta' ? 'Se dirige a' : 'Planta del servicio'}</Text>
                   <Text style={estilos.destinoNombre}>{r.destinoNombre ?? r.destinoDireccion}</Text>
                   {!!r.destinoDireccion && r.destinoDireccion !== r.destinoNombre && <Text style={estilos.destinoDetalle}>{r.destinoDireccion}</Text>}
+                  {minutosEstimados !== null && minutosEstimados > 0 && !(r.etaEstimada && r.etaMinutos != null) && !r.etaPorCalles ? (
+                    <Text style={estilos.destinoEta} testID="eta-referencial">
+                      Llegaría a las {horaLlegada(minutosEstimados)} (≈ {textoMinutos(minutosEstimados)}) · estimado a 30 km/h por calle
+                    </Text>
+                  ) : null}
                   {r.etaEstimada && r.etaMinutos != null ? (
                     <Text style={estilos.destinoEta}>
                       Llegaría a las {r.etaEstimada} (≈ {textoDuracion(r.etaMinutos)}){r.etaProgramada ? ' · programado ' + r.etaProgramada : ''}
                     </Text>
                   ) : null}
-                  {!destino && <Text style={estilos.destinoDetalle}>La planta no tiene coordenadas registradas: no se puede dibujar el destino ni calcular la llegada.</Text>}
+                  {r.etaPorCalles && r.etaEstimada ? <Text style={estilos.destinoDetalle}>Calculado por calles con tráfico aproximado.</Text> : null}
+                  {!destino && <Text style={estilos.destinoDetalle}>La sede no tiene ubicación exacta registrada, por eso no se dibuja el destino ni se calcula el tiempo. Pide registrarla en la intranet (Clientes › Sedes).</Text>}
                 </View>
               </View>
             )}

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -81,8 +79,7 @@ export default function PantallaLlegada() {
   const [guardadaSinSenal, setGuardadaSinSenal] = useState<boolean | null>(null); // conConexion de la llegada que quedó guardada
   // HU-06: llegada forzada. Cuenta las veces que volvió a capturar estando fuera del rango; con 5 se ofrece pedirla a Jefatura
   const [intentos, setIntentos] = useState(0);
-  const [pidiendo, setPidiendo] = useState(false); // ventana del motivo abierta
-  const [motivoForzada, setMotivoForzada] = useState('');
+  const [pidiendo, setPidiendo] = useState(false); // formulario del motivo abierto
   const [solicitando, setSolicitando] = useState(false);
   const [avisoForzada, setAvisoForzada] = useState<string | null>(null);
 
@@ -163,14 +160,13 @@ export default function PantallaLlegada() {
     void gps.capturar();
   }
 
-  async function pedirForzada() {
+  async function pedirForzada(motivo: string) {
     if (!sesion || !gps.ubicacion || solicitando) return;
     setSolicitando(true);
     setMensaje(null);
     try {
-      const texto = await solicitarLlegadaForzada(sesion.token, idOs, gps.ubicacion, intentos, motivoForzada);
+      const texto = await solicitarLlegadaForzada(sesion.token, idOs, gps.ubicacion, intentos, motivo);
       setPidiendo(false);
-      setMotivoForzada('');
       setIntentos(0); // si la rechazan, tendrá que volver a capturar 5 veces
       setAvisoForzada(texto);
       await recargar();
@@ -190,6 +186,7 @@ export default function PantallaLlegada() {
       <ScrollView
         contentContainerStyle={[estilos.contenido, { paddingHorizontal: d.margen, maxWidth: d.anchoMaximo }]}
         refreshControl={<RefreshControl refreshing={recargando} onRefresh={recargar} colors={[colores.primario]} />}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={estilos.tituloFila}>
           <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Volver">
@@ -419,6 +416,14 @@ export default function PantallaLlegada() {
               </View>
             )}
 
+            {pidiendo ? (
+              <FormularioForzada
+                distanciaTexto={distancia !== null ? textoDistancia(distancia) : 'más de lo permitido'}
+                solicitando={solicitando}
+                onEnviar={(motivo) => void pedirForzada(motivo)}
+                onCancelar={() => setPidiendo(false)}
+              />
+            ) : (
             <View style={{ gap: 12, marginTop: 18 }}>
               <Boton
                 titulo="Confirmar llegada →"
@@ -427,10 +432,11 @@ export default function PantallaLlegada() {
                 deshabilitado={(!v?.registrable && !autorizada) || enviando || validando || !l.puedeRegistrar || !gps.ubicacion}
               />
               {puedePedirForzada && (
-                <Boton titulo="Confirmar llegada forzada" variante="alerta" onPress={() => { setMotivoForzada(''); setPidiendo(true); }} deshabilitado={!gps.ubicacion} />
+                <Boton titulo="Confirmar llegada forzada" variante="alerta" onPress={() => setPidiendo(true)} deshabilitado={!gps.ubicacion} />
               )}
               <Boton titulo="Volver a capturar ubicación" variante="secundario" onPress={recapturar} deshabilitado={gps.estado === 'buscando'} />
             </View>
+            )}
             {fueraDeRango && !forzada && l.puedeRegistrar && (
               <Text style={estilos.contadorIntentos} testID="contador-intentos">
                 {intentos >= INTENTOS_LLEGADA_FORZADA
@@ -446,39 +452,39 @@ export default function PantallaLlegada() {
           </>
         )}
       </ScrollView>
-
-      <Modal visible={pidiendo} transparent animationType="fade" onRequestClose={() => { if (!solicitando) setPidiendo(false); }}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={estilos.fondoModal}>
-          <View style={estilos.modal} testID="forzada-dialogo">
-            <Ionicons name="shield-checkmark-outline" size={44} color={colores.naranja} style={{ alignSelf: 'center' }} />
-            <Text style={estilos.modalTitulo}>Pedir llegada forzada</Text>
-            <Text style={estilos.modalSub}>
-              Estás a {distancia !== null ? textoDistancia(distancia) : 'más de lo permitido'} de la planta. Se avisará a Jefatura y solo cuando apruebe podrás registrar tu llegada.
-            </Text>
-            <Text style={estilos.modalCampo}>Motivo (opcional)</Text>
-            <TextInput
-              value={motivoForzada}
-              onChangeText={setMotivoForzada}
-              placeholder="Ej.: El acceso a la planta es por otra calle."
-              placeholderTextColor={colores.placeholder}
-              maxLength={500}
-              multiline
-              editable={!solicitando}
-              style={estilos.entrada}
-              testID="forzada-motivo"
-            />
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
-              <View style={{ flex: 1 }}>
-                <Boton titulo="Cancelar" variante="secundario" onPress={() => setPidiendo(false)} deshabilitado={solicitando} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Boton titulo="Enviar" onPress={() => void pedirForzada()} cargando={solicitando} />
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
+  );
+}
+
+/** Motivo de la llegada forzada. Tiene su propio estado: lo que escribes no depende de las actualizaciones de GPS y de red de la pantalla. */
+function FormularioForzada({ distanciaTexto, solicitando, onEnviar, onCancelar }: { distanciaTexto: string; solicitando: boolean; onEnviar: (motivo: string) => void; onCancelar: () => void }) {
+  const [motivo, setMotivo] = useState('');
+  return (
+    <View style={[estilos.modal, { marginTop: 18, borderWidth: 1, borderColor: colores.bordeSuave, maxWidth: undefined }]} testID="forzada-dialogo">
+      <Ionicons name="shield-checkmark-outline" size={40} color={colores.naranja} style={{ alignSelf: 'center' }} />
+      <Text style={estilos.modalTitulo}>Pedir llegada forzada</Text>
+      <Text style={estilos.modalSub}>Estás a {distanciaTexto} de la planta. Se avisará a Jefatura y solo cuando apruebe podrás registrar tu llegada.</Text>
+      <Text style={estilos.modalCampo}>Motivo (opcional)</Text>
+      <TextInput
+        value={motivo}
+        onChangeText={setMotivo}
+        placeholder="Ej.: El acceso a la planta es por otra calle."
+        placeholderTextColor={colores.placeholder}
+        maxLength={500}
+        multiline
+        editable={!solicitando}
+        style={estilos.entrada}
+        testID="forzada-motivo"
+      />
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+        <View style={{ flex: 1 }}>
+          <Boton titulo="Cancelar" variante="secundario" onPress={onCancelar} deshabilitado={solicitando} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Boton titulo="Enviar" onPress={() => onEnviar(motivo)} cargando={solicitando} />
+        </View>
+      </View>
+    </View>
   );
 }
 
