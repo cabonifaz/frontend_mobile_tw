@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
+import { fotosVigentes, guardarProgreso, obtenerProgreso, quitarProgreso } from '@/api/progreso';
 import { cambiarEstadoEquipo, obtenerOpcionesEquipoNuevoConRespaldo, registrarEquipoNuevo } from '@/api/ruta';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
@@ -17,6 +18,7 @@ import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { validarEquipoNuevo } from '@/utilidades/objetivos';
+import { porcentaje } from '@/utilidades/progreso';
 
 /**
  * HU-07 — Equipo nuevo (NEW).
@@ -28,7 +30,7 @@ export default function PantallaEquipoNuevo() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();
-  const params = useLocalSearchParams<{ id?: string; objetivo?: string }>();
+  const params = useLocalSearchParams<{ id?: string; objetivo?: string; borrador?: string }>();
   const idOs = Number(params.id);
   const idValido = Number.isInteger(idOs) && idOs > 0;
 
@@ -56,6 +58,28 @@ export default function PantallaEquipoNuevo() {
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const marcas = useMemo(() => (datos?.opciones.marcas ?? []).map((m) => ({ valor: m, texto: m })), [datos]);
   const tipos = useMemo(() => (datos?.opciones.tipos ?? []).map((t) => ({ valor: String(t.idSuministro), texto: t.descripcion })), [datos]);
+
+  // HU-21: el formulario se guarda solo en el teléfono mientras se llena; "Continuar" desde Progreso Guardado lo rellena
+  const idUsuario = usuario?.idUsuario ?? 0;
+  const idBorrador = `ingreso-${idOs}`;
+  const restaurado = useRef(!params.borrador);
+  const terminado = useRef(false);
+  useEffect(() => {
+    if (!params.borrador || !idUsuario) return;
+    void obtenerProgreso(idUsuario, params.borrador).then(async (p) => {
+      const b = p?.borrador as Record<string, string | null> | undefined;
+      if (b) {
+        setSerie(b.serie ?? '');
+        setCodigo(b.codigo ?? '');
+        setMarca(b.marca ?? null);
+        setModelo(b.modelo ?? '');
+        setIdTipo(b.idTipo ?? null);
+        setUbicacion(b.ubicacion ?? '');
+        setFoto(b.foto ? ((await fotosVigentes([b.foto]))[0] ?? null) : null);
+      }
+      restaurado.current = true;
+    });
+  }, [params.borrador, idUsuario]);
 
   const errores = validarEquipoNuevo({ numeroSerie: serie, codigo, marca, modelo, idSuministro: idTipo ? Number(idTipo) : null, ubicacion, foto });
 
@@ -86,6 +110,8 @@ export default function PantallaEquipoNuevo() {
         }
       }
       setMensaje({ tipo: 'info', texto: aviso });
+      terminado.current = true;
+      void quitarProgreso(idUsuario, idBorrador);
       router.replace({ pathname: '/objetivos', params: { id: String(idOs), v: String(Date.now()) } });
     } catch (e) {
       setMensaje({
@@ -101,6 +127,27 @@ export default function PantallaEquipoNuevo() {
       setEnviando(false);
     }
   }
+
+  const hechos = [serie, codigo, marca, modelo, idTipo, ubicacion, foto].filter((x) => !!x && String(x).trim() !== '').length;
+  useEffect(() => {
+    if (!restaurado.current || terminado.current || !idUsuario || !idValido || hechos === 0) return;
+    const t = setTimeout(() => {
+      if (terminado.current) return;
+      void guardarProgreso(idUsuario, {
+        id: idBorrador,
+        tipo: 'ingreso',
+        titulo: `Equipo nuevo · ${serie.trim() || 'sin N/S'}`,
+        subtitulo: `O/S ${idOs}`,
+        paso: `${hechos} de 7 campos completos`,
+        porcentaje: porcentaje(hechos, 7),
+        ruta: '/equipo-nuevo',
+        params: { id: String(idOs), borrador: idBorrador, ...(params.objetivo ? { objetivo: params.objetivo } : {}) },
+        descartable: true,
+        borrador: { serie, codigo, marca, modelo, idTipo, ubicacion, foto },
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [idUsuario, idValido, idBorrador, idOs, serie, codigo, marca, modelo, idTipo, ubicacion, foto, hechos, params.objetivo]);
 
   const mostrar = (campo: keyof typeof errores) => (intento ? errores[campo] ?? null : null);
 

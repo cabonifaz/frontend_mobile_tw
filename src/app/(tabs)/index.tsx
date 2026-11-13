@@ -1,7 +1,10 @@
-import { useEffect } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Modal, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { listarProgreso, suscribirProgreso, type Progreso } from '@/api/progreso';
+import { Boton } from '@/componentes/Boton';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { obtenerResumenMenu } from '@/api/menu';
 import { conRespaldo, horaRespaldo } from '@/api/respaldo';
@@ -15,6 +18,7 @@ import { modulosMenu, type ModuloMenu } from '@/menu/modulos';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
 import { perfilDe } from '@/utilidades/perfil';
+import { ETIQUETA_TIPO, textoContador, textoGuardado } from '@/utilidades/progreso';
 import { MenuJefatura } from '@/componentes/MenuJefatura';
 
 /**
@@ -28,6 +32,8 @@ import { MenuJefatura } from '@/componentes/MenuJefatura';
  *  con un aviso "Sin conexión" y la app reintenta sola cada 30 s hasta que vuelve la señal.
  */
 const REINTENTO_SIN_CONEXION_MS = 30000;
+/** HU-21: «Recuperamos tu avance» se muestra una vez por cada vez que se abre la app. */
+let recuperacionAvisada = false;
 
 /** HU-28: el rol y el área definen el menú. Jefe de Metrología (supervisor del área) → menú de Jefatura; el resto → menú de campo. */
 export default function PantallaMenu() {
@@ -47,6 +53,25 @@ function MenuCampo() {
     ]);
     return { resumen: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
   });
+
+  // HU-21: progreso guardado en el teléfono (contador de la tarjeta y aviso al abrir la app)
+  const idUsuario = usuario?.idUsuario ?? 0;
+  const [guardados, setGuardados] = useState<Progreso[]>([]);
+  const [recuperar, setRecuperar] = useState<Progreso | null>(null);
+  const cargarGuardados = useCallback(async () => setGuardados(await listarProgreso(idUsuario)), [idUsuario]);
+  useFocusEffect(
+    useCallback(() => {
+      void cargarGuardados();
+    }, [cargarGuardados]),
+  );
+  useEffect(() => suscribirProgreso(() => void cargarGuardados()), [cargarGuardados]);
+  useEffect(() => {
+    if (recuperacionAvisada || !idUsuario) return;
+    void listarProgreso(idUsuario).then((l) => {
+      recuperacionAvisada = true;
+      if (l.length > 0) setRecuperar(l[0]);
+    });
+  }, [idUsuario]);
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const resumen = datos?.resumen ?? null;
@@ -110,7 +135,15 @@ function MenuCampo() {
                 <TarjetaModulo
                   key={m.id}
                   modulo={m}
-                  indicadores={m.indicadores && resumen ? m.indicadores(resumen) : []}
+                  indicadores={
+                    m.id === 'progreso-guardado'
+                      ? guardados.length > 0
+                        ? [{ texto: textoContador(guardados.length), tono: 'azul' }]
+                        : []
+                      : m.indicadores && resumen
+                        ? m.indicadores(resumen)
+                        : []
+                  }
                   onPress={() => abrir(m)}
                 />
               ))}
@@ -132,11 +165,53 @@ function MenuCampo() {
           />
         )}
       </ScrollView>
+
+      <Modal visible={!!recuperar} transparent animationType="fade" onRequestClose={() => setRecuperar(null)}>
+        <View style={estilos.velo}>
+          <View style={estilos.dialogo} testID="recuperamos-avance">
+            <Ionicons name="refresh-circle-outline" size={44} color={colores.primario} style={{ alignSelf: 'center' }} />
+            <Text style={estilos.dialogoTitulo}>Recuperamos tu avance</Text>
+            <Text style={estilos.dialogoTexto}>No se perdió nada de lo que registraste.</Text>
+            {!!recuperar && (
+              <View style={estilos.dialogoCaja}>
+                <Text style={estilos.dialogoTipo}>{ETIQUETA_TIPO[recuperar.tipo]}</Text>
+                <Text style={estilos.dialogoNombre}>{recuperar.titulo}</Text>
+                <Text style={estilos.dialogoTexto}>
+                  {recuperar.paso} · guardado {textoGuardado(recuperar.guardadoEn)}
+                </Text>
+              </View>
+            )}
+            <Boton
+              titulo="Continuar donde lo dejé"
+              onPress={() => {
+                const p = recuperar;
+                setRecuperar(null);
+                if (p) router.push({ pathname: p.ruta, params: p.params } as Href);
+              }}
+            />
+            <Boton
+              titulo="Ver Progreso Guardado"
+              variante="secundario"
+              onPress={() => {
+                setRecuperar(null);
+                router.push('/progreso' as Href);
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const estilos = StyleSheet.create({
+  velo: { flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', padding: 24 },
+  dialogo: { backgroundColor: colores.tarjeta, borderRadius: 18, padding: 20, gap: 12, width: '100%', maxWidth: 420, alignSelf: 'center' },
+  dialogoTitulo: { fontSize: 20, fontWeight: '800', color: colores.titulo, textAlign: 'center' },
+  dialogoTexto: { fontSize: 13.5, color: colores.textoSecundario, textAlign: 'center' },
+  dialogoCaja: { backgroundColor: colores.fondo, borderRadius: 12, padding: 12, gap: 3 },
+  dialogoTipo: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.6, color: colores.textoSecundario },
+  dialogoNombre: { fontSize: 15.5, fontWeight: '800', color: colores.titulo },
   area: { flex: 1, backgroundColor: colores.fondo },
   contenido: { padding: 20, paddingBottom: 28, maxWidth: 520, width: '100%', alignSelf: 'center' },
   titulo: { fontSize: 24, fontWeight: '700', color: colores.titulo, marginTop: 4 },

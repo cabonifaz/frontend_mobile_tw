@@ -50,6 +50,8 @@ export default function LayoutPestanas() {
     '/viatico',
     '/solicitud-gasto',
     '/rendir-gasto',
+    // Progreso guardado (HU-21)
+    '/progreso',
     // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
     '/solicitud-correlativo',
     '/mis-tickets',
@@ -240,6 +242,11 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-21: trabajos sin terminar guardados en el teléfono (se entra desde el Menú). */}
+      <Tabs.Screen
+        name="progreso"
+        options={{ title: 'Progreso Guardado', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       <Tabs.Screen
         name="equipo-nuevo"
