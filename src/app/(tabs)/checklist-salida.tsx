@@ -28,9 +28,9 @@ import { hora12 } from '@/utilidades/formato';
  * HU-04 — Validación antes de salir (checklist de pre-salida).
  *  - Ítems manuales (los marca el técnico): expediente, EPP, materiales e insumos, herramientas, pesas patrón.
  *  - Ítems automáticos (salen de la BD): cliente confirmó, SSOMA, OC (no obligatoria), repuestos, alertas.
- *  - Visto bueno del encargado del área según la RQ (Jefe de Servicio Técnico o Jefe de Metrología):
- *    se marca desde la intranet; con él se puede salir con pendientes.
- *  - "Solicitar autorización" solo si hay pendientes. "Iniciar traslado" bloqueado hasta cumplir o tener el visto bueno.
+ *  - Aprobación de Jefatura (encargado del área según la RQ: Jefe de Servicio Técnico o Jefe de Metrología): SIEMPRE obligatoria, haya o no pendientes.
+ *    El técnico la solicita desde aquí; el jefe la resuelve en "Aprobaciones" (app o intranet).
+ *  - "Iniciar traslado" queda bloqueado hasta que Jefatura apruebe.
  *  El back vuelve a validar todo al iniciar el traslado: la app no decide sola.
  */
 type NombreIcono = ComponentProps<typeof Ionicons>['name'];
@@ -205,19 +205,32 @@ export default function PantallaChecklistSalida() {
                   <Text style={estilos.recuadroTexto}>El servicio está en ruta. Marca la llegada al llegar a la planta.</Text>
                 </View>
               </View>
-            ) : c.faltantes.length > 0 && !c.puedeIniciar && c.salidaHabilitada !== false ? (
+            ) : !c.puedeIniciar && c.salidaHabilitada !== false ? (
               <View style={[estilos.recuadro, estilos.recuadroError]} testID="aviso-bloqueo">
                 <Ionicons name="alert-circle" size={22} color={colores.rojo} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[estilos.recuadroTitulo, { color: colores.rojo }]}>NO PUEDES INICIAR TRASLADO</Text>
-                  <Text style={estilos.recuadroTexto}>Faltan: {c.faltantes.join(', ')}.</Text>
+                  <Text style={[estilos.recuadroTitulo, { color: colores.rojo }]}>
+                    {c.autorizacion?.estado === 'pendiente'
+                      ? 'ESPERANDO LA APROBACIÓN DE JEFATURA'
+                      : c.autorizacion?.estado === 'rechazada'
+                        ? 'JEFATURA NO AUTORIZÓ TU SALIDA'
+                        : 'FALTA LA APROBACIÓN DE JEFATURA'}
+                  </Text>
+                  <Text style={estilos.recuadroTexto}>
+                    {c.autorizacion?.estado === 'pendiente'
+                      ? 'Podrás iniciar el traslado cuando Jefatura apruebe tu salida.'
+                      : c.autorizacion?.estado === 'rechazada'
+                        ? 'Revisa su comentario, corrige lo necesario y vuelve a solicitarla.'
+                        : 'Solicítala para poder iniciar el traslado.'}
+                    {c.faltantes.length > 0 ? ` Pendientes del checklist: ${c.faltantes.join(', ')}.` : ''}
+                  </Text>
                 </View>
               </View>
             ) : (c.todoConforme ?? c.puedeIniciar) ? (
               <View style={[estilos.recuadro, estilos.recuadroOk]} testID="todo-conforme">
                 <Ionicons name="checkmark-circle" size={24} color={colores.verde} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[estilos.recuadroTitulo, { color: colores.titulo, fontSize: 16 }]}>Todo conforme</Text>
+                  <Text style={[estilos.recuadroTitulo, { color: colores.titulo, fontSize: 16 }]}>Salida aprobada por Jefatura</Text>
                   <Text style={estilos.recuadroTexto}>Ya puedes iniciar el traslado a planta.</Text>
                 </View>
               </View>
@@ -233,11 +246,10 @@ export default function PantallaChecklistSalida() {
               {c.puedeSolicitarAutorizacion &&
                 (pidiendo ? (
                   <View style={estilos.solicitud}>
-                    <Text style={estilos.solicitudTitulo}>Solicitar autorización</Text>
+                    <Text style={estilos.solicitudTitulo}>Solicitar aprobación de Jefatura</Text>
                     <Text style={estilos.recuadroTexto}>
                       Se avisará {aQuien(c)}
-                      {c.areaAutoriza?.area ? `, encargado del área del servicio según la RQ (${c.areaAutoriza.area})` : ''}, con los
-                      pendientes: {c.faltantes.join(', ')}.
+                      {c.areaAutoriza?.area ? `, encargado del área del servicio según la RQ (${c.areaAutoriza.area})` : ''}, {c.faltantes.length > 0 ? `con los pendientes: ${c.faltantes.join(', ')}` : 'con el checklist completo'}.
                     </Text>
                     <TextInput
                       value={motivo}
@@ -256,7 +268,7 @@ export default function PantallaChecklistSalida() {
                     <Boton titulo="Cancelar" variante="secundario" onPress={() => setPidiendo(false)} deshabilitado={ocupado === 'solicitud'} />
                   </View>
                 ) : (
-                  <Boton titulo="Solicitar autorización" variante="secundario" onPress={() => setPidiendo(true)} />
+                  <Boton titulo="Solicitar aprobación de Jefatura" onPress={() => setPidiendo(true)} />
                 ))}
 
               {!c.trasladoIniciado && (
