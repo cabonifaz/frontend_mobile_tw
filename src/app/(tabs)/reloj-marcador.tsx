@@ -87,6 +87,10 @@ export default function PantallaRelojMarcador() {
 
   async function confirmar() {
     if (!token || !paso || !gps.ubicacion) return;
+    if (paso.tipo === 'salida_planta' && sinConexion && j?.marcaciones.some((m) => m.tipo === 'salida_planta')) {
+      setErrorMarca('La nueva salida de planta necesita conexión: concluye el servicio en el sistema.');
+      return;
+    }
     setGuardando(true);
     setErrorMarca(null);
     try {
@@ -195,7 +199,7 @@ export default function PantallaRelojMarcador() {
                   accessibilityLabel={`${p.titulo}${hecha ? `, marcado a las ${hecha.hora}` : habilitado ? '' : ', bloqueado'}`}
                   testID={`paso-${p.tipo}`}
                 >
-                  <Text style={estilos.pasoTexto}>{p.titulo}</Text>
+                  <Text style={estilos.pasoTexto}>{hecha && habilitado ? `${p.titulo} · otro servicio` : p.titulo}</Text>
                   {hecha ? (
                     <View style={estilos.pasoHora}>
                       <View style={estilos.puntoBlanco} />
