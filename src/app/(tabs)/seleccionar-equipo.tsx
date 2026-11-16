@@ -84,7 +84,8 @@ export default function PantallaSeleccionarEquipo() {
       // Escaneó un equipo que no está en la lista de la OS: si está registrado para el cliente se ofrece agregarlo (con confirmación)
       if (err instanceof Error && /ningún equipo de esta/i.test(err.message)) {
         try {
-          const nuevo = await agregarEquipoPorQrConfirmando(sesion.token, idOs, vista.resumen.numeroOs, codigo);
+          const objetivo = numeroObjetivo ? vista.equipos.find((x) => x.numero === numeroObjetivo) : undefined;
+          const nuevo = await agregarEquipoPorQrConfirmando(sesion.token, idOs, vista.resumen.numeroOs, codigo, objetivo ? { idOsEquipo: objetivo.idOsEquipo, numero: objetivo.numero } : undefined);
           if (!nuevo) {
             setMensaje({ tipo: 'info', texto: 'No se agregó el equipo a la OS.' });
             return;
@@ -92,7 +93,7 @@ export default function PantallaSeleccionarEquipo() {
           await recargar();
           const agregado = await buscarEquipoPorQr(sesion.token, idOs, codigo);
           setLeido({ codigo, equipo: agregado });
-          setMensaje({ tipo: 'info', texto: `${nuevo.codigoTw} se agregó a la ${vista.resumen.numeroOs}.` });
+          setMensaje({ tipo: 'info', texto: nuevo.reemplazaCodigoTw ? `${nuevo.codigoTw} ocupó el lugar de ${nuevo.reemplazaCodigoTw} en el objetivo.` : `${nuevo.codigoTw} se agregó a la ${vista.resumen.numeroOs}.` });
           return;
         } catch (e2) {
           setNoEncontrado(/equipo nuevo/i.test(e2 instanceof Error ? e2.message : ''));

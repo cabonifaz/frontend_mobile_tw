@@ -127,7 +127,7 @@ export default function PantallaIngresoEquipo() {
           return;
         }
         setRecarga((n) => n + 1);
-        setMensaje({ tipo: 'info', texto: `${nuevo.codigoTw} no estaba en la lista: se agregó a esta OS.` });
+        setMensaje({ tipo: 'info', texto: nuevo.reemplazaCodigoTw ? `${nuevo.codigoTw} ocupó el lugar de ${nuevo.reemplazaCodigoTw} en el objetivo de esta OS.` : `${nuevo.codigoTw} no estaba en la lista: se agregó a esta OS.` });
         return irAFicha(nuevo.idOsEquipo, true);
       } catch (err) {
         if (err instanceof Error && /equipo nuevo/i.test(err.message)) {

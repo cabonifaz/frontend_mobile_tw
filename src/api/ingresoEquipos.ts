@@ -44,15 +44,19 @@ export interface EquipoAgregado {
   numSerie?: string | null;
   codigoCliente?: string | null;
   ubicacion?: string | null;
+  /** Objetivo cuyo equipo ocupa el escaneado (no se crea un objetivo nuevo); null si se agregó como objetivo nuevo. */
+  reemplazaIdOsEquipo?: number | null;
+  reemplazaCodigoTw?: string | null;
+  reemplazaNombre?: string | null;
 }
 
 /**
  * Escanear el QR de un equipo que no está en la lista de la OS pero sí registrado para el mismo cliente: se agrega a la OS.
  * Si no existe para el cliente el servidor responde que se registre como equipo nuevo (NEW).
  */
-export async function agregarEquipoExistente(token: string, idOs: number, codigo: string): Promise<EquipoAgregado> {
+export async function agregarEquipoExistente(token: string, idOs: number, codigo: string, idOsEquipoObjetivo?: number): Promise<EquipoAgregado> {
   if (entorno.usarMock) throw new Error('El código no corresponde a ningún equipo registrado de este cliente. Regístralo como equipo nuevo (NEW).');
-  const r = await solicitar<EquipoAgregado>(`${ruta(idOs)}/agregar?codigo=${encodeURIComponent(codigo.slice(0, 300))}`, { token, metodo: 'POST' });
+  const r = await solicitar<EquipoAgregado>(`${ruta(idOs)}/agregar?codigo=${encodeURIComponent(codigo.slice(0, 300))}${idOsEquipoObjetivo ? `&objetivo=${idOsEquipoObjetivo}` : ''}`, { token, metodo: 'POST' });
   return r.datos!;
 }
 
@@ -60,9 +64,9 @@ export async function agregarEquipoExistente(token: string, idOs: number, codigo
  * Verifica el código escaneado SIN agregar el equipo a la OS: devuelve sus datos para que el técnico confirme.
  * Falla con el mismo mensaje del servidor si no se puede agregar (otro cliente, inactivo, pendiente de validar, no registrado…).
  */
-export async function verificarEquipoExistente(token: string, idOs: number, codigo: string): Promise<EquipoAgregado> {
+export async function verificarEquipoExistente(token: string, idOs: number, codigo: string, idOsEquipoObjetivo?: number): Promise<EquipoAgregado> {
   if (entorno.usarMock) throw new Error('El código no corresponde a ningún equipo registrado de este cliente. Regístralo como equipo nuevo (NEW).');
-  const r = await solicitar<EquipoAgregado>(`${ruta(idOs)}/agregar?codigo=${encodeURIComponent(codigo.slice(0, 300))}&verificar=true`, { token, metodo: 'POST' });
+  const r = await solicitar<EquipoAgregado>(`${ruta(idOs)}/agregar?codigo=${encodeURIComponent(codigo.slice(0, 300))}&verificar=true${idOsEquipoObjetivo ? `&objetivo=${idOsEquipoObjetivo}` : ''}`, { token, metodo: 'POST' });
   return r.datos!;
 }
 
