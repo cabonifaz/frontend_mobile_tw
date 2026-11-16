@@ -21,7 +21,8 @@ import { filtrarEquipos } from '@/utilidades/objetivos';
 
 /**
  * HU-22 — Ingreso de equipos (OS) (Menú → Ingreso de Equipos OS).
- *  - Se elige la OS del día; el avance muestra cuántos equipos de la OS ya se ingresaron.
+ *  - Se elige la OS (las programadas y la que está en curso; la de hoy sale primero); el avance muestra cuántos equipos de la OS ya se ingresaron.
+ *  - «Equipo nuevo» solo se puede agregar mientras NO se haya iniciado ningún objetivo de la OS (después, el equipo ya no se puede sumar a la lista).
  *  - Se busca el equipo a mano (N/S, código, COD TW, marca, modelo, ubicación) o se escanea su QR / código de barras.
  *  - Cada equipo muestra REGISTRADO (con su estado y hora) o POR REGISTRAR; los equipos nuevos (NEW) quedan como BORRADOR hasta validarse en la intranet.
  *  - Tocar un equipo por registrar abre su ficha (Información del activo + Estado de ingreso). Uno ya ingresado se bloquea.
@@ -44,8 +45,11 @@ export default function PantallaIngresoEquipo() {
   }, [texto]);
 
   // OS del día
-  const { datos: servicios, cargando: cargandoOs } = useConsulta((t) => obtenerServiciosProgramados(t, 'hoy', ''), 'ingreso-os');
-  const lista: ServicioProgramado[] = useMemo(() => servicios ?? [], [servicios]);
+  const { datos: servicios, cargando: cargandoOs } = useConsulta((t) => obtenerServiciosProgramados(t, 'todos', ''), 'ingreso-os');
+  const lista: ServicioProgramado[] = useMemo(
+    () => [...(servicios ?? [])].sort((a, b) => Number(b.estadoOs === 'en_ejecucion') - Number(a.estadoOs === 'en_ejecucion') || (a.fechaEjecucion ?? '').localeCompare(b.fechaEjecucion ?? '')),
+    [servicios],
+  );
   // Sin elegir otra, la OS en ejecución (o la primera del día)
   const idOsActiva = idOsElegida ?? (lista.length > 0 ? String((lista.find((s) => s.estadoOs === 'en_ejecucion') ?? lista[0]).idOs) : null);
   const idOs = Number(idOsActiva);
@@ -71,6 +75,8 @@ export default function PantallaIngresoEquipo() {
   const total = datos?.objetivos.equipos.length ?? 0;
   const hechos = datos ? contarIngresados(datos.objetivos.equipos, new Set(ingresos.keys())) : 0;
   const osActual = lista.find((s) => s.idOs === idOs) ?? null;
+  // Equipo nuevo: solo si ningún objetivo de la OS se ha iniciado
+  const objetivoIniciado = (datos?.objetivos.equipos ?? []).some((x) => x.estado !== 'por_iniciar');
 
   function abrir(e: ObjetivoEquipo) {
     const ya = ingresos.get(e.idOsEquipo);
@@ -112,18 +118,18 @@ export default function PantallaIngresoEquipo() {
             Ingreso de equipos
           </Text>
         </View>
-        <Text style={estilos.subtitulo}>Equipos de tus OS del día</Text>
+        <Text style={estilos.subtitulo}>Equipos de tus OS programadas</Text>
 
         {cargandoOs ? (
           <ActivityIndicator color={colores.primario} style={{ marginTop: 24 }} />
         ) : lista.length === 0 ? (
-          <Aviso tipo="info" mensaje="No tienes servicios programados para hoy: no hay equipos que ingresar." />
+          <Aviso tipo="info" mensaje="No tienes servicios programados: no hay equipos que ingresar." />
         ) : (
           <>
             <Selector
               etiqueta="Orden de servicio"
               placeholder="Elige la OS"
-              opciones={lista.map((s) => ({ valor: String(s.idOs), texto: `${s.numeroOs} · ${s.cliente ?? 'Sin cliente'}${s.sede ? ` · ${s.sede}` : ''}` }))}
+              opciones={lista.map((s) => ({ valor: String(s.idOs), texto: `${s.numeroOs} · ${s.cliente ?? 'Sin cliente'}${s.sede ? ` · ${s.sede}` : ''}${s.fechaEjecucion ? ` · ${s.fechaEjecucion.slice(8, 10)}/${s.fechaEjecucion.slice(5, 7)}` : ''}` }))}
               valor={idOsActiva}
               onCambio={(v) => {
                 setIdOsElegida(v);
@@ -160,9 +166,9 @@ export default function PantallaIngresoEquipo() {
               </Pressable>
               <Pressable
                 onPress={() => router.push({ pathname: '/equipo-nuevo', params: { id: String(idOs), desde: 'ingreso' } })}
-                disabled={!idValido}
+                disabled={!idValido || objetivoIniciado}
                 accessibilityRole="button"
-                style={[estilos.boton, estilos.botonSecundario]}
+                style={[estilos.boton, estilos.botonSecundario, objetivoIniciado && { opacity: 0.45 }]}
                 testID="ingreso-nuevo"
               >
                 <Ionicons name="add-circle-outline" size={20} color={colores.primario} />
@@ -170,6 +176,7 @@ export default function PantallaIngresoEquipo() {
               </Pressable>
             </View>
 
+            {objetivoIniciado && <Text style={estilos.nota}>Ya se inició un objetivo de esta OS: no se pueden agregar equipos nuevos.</Text>}
             {!!mensaje && <Aviso tipo={mensaje.tipo} mensaje={mensaje.texto} />}
 
             {cargando ? (
@@ -264,6 +271,7 @@ const estilos = StyleSheet.create({
   avanceTexto: { fontSize: 12.5, fontWeight: '700', color: colores.primario },
   barra: { height: 5, borderRadius: 3, backgroundColor: colores.bordeSuave, overflow: 'hidden', marginTop: -6 },
   barraRelleno: { height: 5, backgroundColor: colores.primario },
+  nota: { fontSize: 12.5, color: colores.textoSecundario, lineHeight: 18 },
   vacio: { fontSize: 14, color: colores.textoSecundario, textAlign: 'center', paddingVertical: 24 },
   tarjeta: { backgroundColor: colores.tarjeta, borderRadius: radios.tarjeta, borderWidth: 1, borderColor: colores.bordeSuave, padding: 14, gap: 4 },
   cabecera: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
