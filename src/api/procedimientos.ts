@@ -9,7 +9,8 @@ import { conRespaldo, type ConRespaldo } from './respaldo';
  * HU-24 — Biblioteca de procedimientos (manuales y guías de calibración aprobados en la intranet).
  * Backend: GET api/movil/procedimientos → SP_ObtenerProcedimientosMovil · GET api/movil/procedimientos/{id}/pdf
  *
- *  - La lista se guarda para verla sin conexión; el PDF se descarga al teléfono (carpeta `procedimientos` de la app) y se lee sin señal.
+ *  - El PDF NO es un archivo cargado en la intranet: el backend lo GENERA con la información registrada del procedimiento (código, versión, norma, autor,
+ *    descripción, historial). La lista se guarda para verla sin conexión; el PDF se descarga al teléfono (carpeta `procedimientos` de la app) y se lee sin señal.
  *  - Los procedimientos de los servicios de HOY del técnico se descargan solos (`descargarDelDia`).
  *  - Cuando Calidad aprueba una versión nueva (cambia la versión o el hash del PDF), la app reemplaza sola el archivo anterior de lo que ya estaba descargado.
  *  - El PDF se abre con el lector de PDF del teléfono (la app no trae un visor propio: ver nota en `abrirPdf`).
@@ -37,6 +38,7 @@ export interface Procedimiento {
   pdfNombre: string | null;
   pdfTamanoBytes: number | null;
   pdfHash: string | null;
+  formatoDigitalIso: boolean;
   /** Número de la OS de hoy que lo usa (null = no es de tus servicios de hoy). */
   paraServicioHoy: string | null;
   historial: VersionAnterior[];
@@ -51,8 +53,8 @@ const CARPETA = 'procedimientos';
 // ── Lista ───────────────────────────────────────────────────────────────────────────────────────────────────
 
 const mockLista: Procedimiento[] = [
-  { idProcedimiento: 141, codigo: 'VJMDR', anio: 2009, version: 2, normaBase: 'OIML R76-1 · NMP 002:2009', autorNorma: 'INDECOPI', tipo: 'calibracion', descripcion: 'Procedimiento General para la Calibración de Balanzas de Funcionamiento No Automático.', alcance: '0 a 300 kg · Clase III y IIII', aprobadoPor: 'Dr. Luis Vargas · Director Técnico', actualizado: '2026-10-12', pdfNombre: 'VJMDR_v2.pdf', pdfTamanoBytes: 2_400_000, pdfHash: 'a1', paraServicioHoy: 'OS-0845-2026', historial: [{ version: 1, reemplazadaEl: '2009-11-30' }] },
-  { idProcedimiento: 89, codigo: 'EDW-B-2', anio: 2016, version: 1, normaBase: 'ASTM E4 · ISO 7500', autorNorma: 'ASTM International', tipo: 'verificacion', descripcion: 'Standard Practice for Force Verification of Testing Machines.', alcance: 'Hasta 1000 kN', aprobadoPor: null, actualizado: '2026-09-05', pdfNombre: 'EDW-B-2_v1.pdf', pdfTamanoBytes: 3_100_000, pdfHash: 'b1', paraServicioHoy: null, historial: [] },
+  { idProcedimiento: 141, codigo: 'VJMDR', anio: 2009, version: 2, normaBase: 'OIML R76-1 · NMP 002:2009', autorNorma: 'INDECOPI', tipo: 'calibracion', descripcion: 'Procedimiento General para la Calibración de Balanzas de Funcionamiento No Automático.', alcance: '0 a 300 kg · Clase III y IIII', aprobadoPor: 'Dr. Luis Vargas · Director Técnico', actualizado: '2026-10-12', pdfNombre: 'VJMDR_v2.pdf', pdfTamanoBytes: 2_400_000, pdfHash: 'a1', formatoDigitalIso: true, paraServicioHoy: 'OS-0845-2026', historial: [{ version: 1, reemplazadaEl: '2009-11-30' }] },
+  { idProcedimiento: 89, codigo: 'EDW-B-2', anio: 2016, version: 1, normaBase: 'ASTM E4 · ISO 7500', autorNorma: 'ASTM International', tipo: 'verificacion', descripcion: 'Standard Practice for Force Verification of Testing Machines.', alcance: 'Hasta 1000 kN', aprobadoPor: null, actualizado: '2026-09-05', pdfNombre: 'EDW-B-2_v1.pdf', pdfTamanoBytes: 3_100_000, pdfHash: 'b1', formatoDigitalIso: true, paraServicioHoy: null, historial: [] },
 ];
 
 /** Procedimientos aprobados. Sin conexión devuelve los últimos guardados (`sinConexion`). */

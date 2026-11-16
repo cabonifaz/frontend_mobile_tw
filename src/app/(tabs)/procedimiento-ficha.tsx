@@ -112,6 +112,7 @@ export default function PantallaProcedimientoFicha() {
               <Dato k="AÑO" v={String(p.anio)} />
               <Dato k="AUTOR / NORMA" v={p.autorNorma} />
               <Dato k="NORMA BASE" v={p.normaBase} />
+              <Dato k="FORMATO DIGITAL ISO" v={p.formatoDigitalIso ? 'Sí' : 'No'} />
               <Dato k="ALCANCE" v={p.alcance} />
               <Dato k="APROBADO POR" v={p.aprobadoPor} />
               <Dato k="ACTUALIZADO" v={fechaDMA(p.actualizado)} />
@@ -130,7 +131,7 @@ export default function PantallaProcedimientoFicha() {
               <View style={{ flex: 1 }}>
                 <Text style={estilos.archivoNombre}>{p.pdfNombre ?? `${p.codigo}.pdf`}</Text>
                 <Text style={estilos.archivoSub}>
-                  {[textoTamano(p.pdfTamanoBytes), offline ? 'guardado en el teléfono' : 'no está en el teléfono'].filter(Boolean).join(' · ')}
+                  {[textoTamano(p.pdfTamanoBytes), offline ? 'PDF guardado en el teléfono' : 'PDF por descargar'].filter(Boolean).join(' · ')}
                 </Text>
               </View>
             </View>
