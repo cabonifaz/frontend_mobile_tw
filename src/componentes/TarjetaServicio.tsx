@@ -66,6 +66,8 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
   const pendiente = s.estadoGeneral === 'PENDIENTE';
   const [abierto, setAbierto] = useState(false);
   const mostrarDetalle = !pendiente || abierto;
+  // El detalle completo se abre solo cuando el servicio está LISTO: PENDIENTE y BLOQUEADO lo tienen deshabilitado
+  const sinDetalle = bloqueado || pendiente;
   const etiqueta = etiquetasEstado[s.estadoGeneral] ?? etiquetasEstado.PENDIENTE;
   const documentos = [s.numeroRq, s.numeroOs, s.numeroOm].filter(Boolean).join(' · ');
   const objetivos = s.objetivosTotal > 0 ? `${s.objetivosCompletados} de ${s.objetivosTotal}` : 'Sin equipos asignados';
@@ -152,7 +154,7 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
         <View style={estilos.recuadroPendiente} accessibilityRole="summary">
           <Ionicons name="time-outline" size={18} color={colores.amarilloTexto} />
           <Text style={estilos.pendienteTexto}>
-            <Text style={estilos.motivoRotulo}>Pendiente:</Text> el cliente aún no confirma la programación. Puedes revisar los detalles del servicio.
+            <Text style={estilos.motivoRotulo}>Pendiente:</Text> el cliente aún no confirma la programación. El detalle se habilita cuando el servicio esté listo; mientras tanto revisa el resumen.
           </Text>
         </View>
       )}
@@ -174,25 +176,25 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
       <View style={{ height: 16 }} />
       <Pressable
         onPress={onVerDetalle}
-        disabled={bloqueado}
+        disabled={sinDetalle}
         accessibilityRole="button"
-        accessibilityLabel={bloqueado ? 'Detalle bloqueado' : 'Ver detalle'}
-        accessibilityHint={bloqueado ? 'Se habilita cuando se levante el motivo del bloqueo' : undefined}
-        accessibilityState={{ disabled: bloqueado }}
+        accessibilityLabel={bloqueado ? 'Detalle bloqueado' : pendiente ? 'Detalle no disponible' : 'Ver detalle'}
+        accessibilityHint={bloqueado ? 'Se habilita cuando se levante el motivo del bloqueo' : pendiente ? 'Se habilita cuando el servicio esté listo' : undefined}
+        accessibilityState={{ disabled: sinDetalle }}
         style={({ pressed }) => [
           estilos.boton,
-          bloqueado ? estilos.botonBloqueado : listo ? estilos.botonLleno : estilos.botonContorno,
-          pressed && !bloqueado && { opacity: 0.8 },
+          sinDetalle ? estilos.botonBloqueado : listo ? estilos.botonLleno : estilos.botonContorno,
+          pressed && !sinDetalle && { opacity: 0.8 },
         ]}
       >
-        {bloqueado && <Ionicons name="lock-closed-outline" size={17} color={colores.textoTenue} />}
+        {sinDetalle && <Ionicons name="lock-closed-outline" size={17} color={colores.textoTenue} />}
         <Text
           style={[
             estilos.botonTexto,
-            bloqueado ? { color: colores.textoTenue } : listo ? { color: colores.blanco } : { color: colores.primarioOscuro },
+            sinDetalle ? { color: colores.textoTenue } : listo ? { color: colores.blanco } : { color: colores.primarioOscuro },
           ]}
         >
-          {bloqueado ? 'Detalle bloqueado' : 'Ver detalle'}
+          {bloqueado ? 'Detalle bloqueado' : pendiente ? 'Detalle disponible cuando esté listo' : 'Ver detalle'}
         </Text>
       </Pressable>
     </View>
