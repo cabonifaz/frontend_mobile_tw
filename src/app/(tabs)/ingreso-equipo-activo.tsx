@@ -18,6 +18,7 @@ import { colores, radios } from '@/tema/colores';
 import { avisar } from '@/utilidades/dialogos';
 import {
   ESTADOS_INGRESO,
+  esBorrador,
   faltaParaRegistrar,
   horaIngreso,
   MAX_FOTOS_INGRESO,
@@ -136,7 +137,7 @@ export default function PantallaIngresoEquipoActivo() {
                 <Dato k="MODELO" v={e.modelo} />
                 <Dato k="UBICACIÓN" v={e.ubicacion} />
               </View>
-              {e.enCampo && (
+              {esBorrador(e) && (
                 <View style={estilos.fila}>
                   <Ionicons name="time-outline" size={14} color={colores.textoSecundario} />
                   <Text style={estilos.nota}>Equipo nuevo · queda en borrador hasta que se valide en la intranet.</Text>

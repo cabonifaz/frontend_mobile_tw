@@ -34,6 +34,12 @@ export function faltaParaRegistrar(estado: EstadoIngreso | null, observacion: st
 
 export type SituacionIngreso = 'registrado' | 'por_registrar';
 
+/**
+ * Equipo registrado en campo y todavía pendiente de validar en la intranet (BORRADOR): su COD TW es provisional (NEW-…).
+ * Un equipo ya registrado que se agregó a la OS con su QR también cuenta como «de campo», pero NO es borrador.
+ */
+export const esBorrador = (e: Pick<ObjetivoEquipo, 'enCampo' | 'codigoTw'>): boolean => e.enCampo && /^NEW-/i.test(e.codigoTw ?? '');
+
 /** Cuántos equipos de la OS ya se ingresaron. */
 export function contarIngresados(equipos: Pick<ObjetivoEquipo, 'idOsEquipo'>[], ingresados: ReadonlySet<number>): number {
   return equipos.filter((e) => ingresados.has(e.idOsEquipo)).length;

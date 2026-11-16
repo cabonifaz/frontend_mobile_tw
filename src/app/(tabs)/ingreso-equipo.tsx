@@ -16,7 +16,7 @@ import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { avisar } from '@/utilidades/dialogos';
-import { contarIngresados, horaIngreso, textoEstadoIngreso } from '@/utilidades/ingresoEquipos';
+import { contarIngresados, esBorrador, horaIngreso, textoEstadoIngreso } from '@/utilidades/ingresoEquipos';
 import { filtrarEquipos } from '@/utilidades/objetivos';
 
 /**
@@ -274,7 +274,8 @@ export default function PantallaIngresoEquipo() {
                 )}
                 {equipos.map((e) => {
                   const ya = ingresos.get(e.idOsEquipo);
-                  const tono = ya ? colores.verde : e.enCampo ? colores.textoTenue : colores.naranja;
+                  const borrador = esBorrador(e);
+                  const tono = ya ? colores.verde : borrador ? colores.textoTenue : colores.naranja;
                   return (
                     <Pressable key={e.idOsEquipo} onPress={() => abrir(e)} accessibilityRole="button" style={estilos.tarjeta} testID={`ingreso-equipo-${e.idOsEquipo}`}>
                       <View style={[estilos.franja, { backgroundColor: tono }]} />
@@ -286,9 +287,9 @@ export default function PantallaIngresoEquipo() {
                         <Text style={estilos.linea}>{[e.numeroSerie ? `N/S ${e.numeroSerie}` : null, e.codigoTw ? `COD TW ${e.codigoTw}` : null].filter(Boolean).join(' · ') || 'Sin N/S'}</Text>
                         <Text style={estilos.linea}>{[[e.marca, e.modelo].filter(Boolean).join(' '), e.ubicacion].filter(Boolean).join(' · ')}</Text>
                         <View style={estilos.pie}>
-                          <View style={[estilos.etiqueta, { backgroundColor: ya ? colores.verdeEtiquetaFondo : e.enCampo ? colores.grisFondo : colores.amarilloFondo }]}>
-                            <Text style={[estilos.etiquetaTexto, { color: ya ? colores.verdeEtiquetaTexto : e.enCampo ? colores.grisTexto : colores.amarilloTexto }]}>
-                              {ya ? 'REGISTRADO' : e.enCampo ? 'BORRADOR' : 'POR REGISTRAR'}
+                          <View style={[estilos.etiqueta, { backgroundColor: ya ? colores.verdeEtiquetaFondo : borrador ? colores.grisFondo : colores.amarilloFondo }]}>
+                            <Text style={[estilos.etiquetaTexto, { color: ya ? colores.verdeEtiquetaTexto : borrador ? colores.grisTexto : colores.amarilloTexto }]}>
+                              {ya ? 'REGISTRADO' : borrador ? 'BORRADOR' : 'POR REGISTRAR'}
                             </Text>
                           </View>
                           {!!ya && (
@@ -296,7 +297,7 @@ export default function PantallaIngresoEquipo() {
                               {textoEstadoIngreso(ya.estadoIngreso)} · {horaIngreso(ya.ingresadoEn)}
                             </Text>
                           )}
-                          {e.enCampo && !ya && <Text style={estilos.lineaTenue}>Equipo nuevo · por validar en la intranet</Text>}
+                          {borrador && !ya && <Text style={estilos.lineaTenue}>Equipo nuevo · por validar en la intranet</Text>}
                         </View>
                       </View>
                     </Pressable>
