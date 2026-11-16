@@ -16,6 +16,7 @@ import { useAccionesEquipos } from '@/hooks/useAccionesEquipos';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
+import { esBorrador } from '@/utilidades/ingresoEquipos';
 import { colores, radios } from '@/tema/colores';
 import { aplicarPendientes, buscarPorCodigo, conObjetivoPrimero, filtrarEquipos } from '@/utilidades/objetivos';
 
@@ -264,7 +265,9 @@ function TarjetaEquipo({ e, posicion, ocupado, bloqueaOtros, onSeleccionar }: { 
         Marca: {e.marca ?? '—'} | Modelo: {e.modelo ?? '—'}
       </Text>
       <Text style={estilos.nota}>Ubicación: {e.ubicacion ?? '—'}</Text>
-      {e.enCampo && <Text style={estilos.nota}>Equipo nuevo · pendiente de aprobación en la intranet</Text>}
+      {e.enCampo && (
+        <Text style={estilos.nota}>{esBorrador(e) ? 'Equipo nuevo · pendiente de aprobación en la intranet' : 'Agregado a esta OS desde campo'}</Text>
+      )}
       <View style={{ marginTop: 12 }}>
         {gris ? (
           <View style={estilos.bloqueado} accessibilityState={{ disabled: true }}>
