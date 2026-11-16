@@ -51,7 +51,7 @@ export const modulosMenu: ModuloMenu[] = [
       },
     ],
   },
-  { id: 'procedimientos', titulo: 'Procedimientos', icono: { familia: 'ion', nombre: 'book-outline' }, ruta: null },
+  { id: 'procedimientos', titulo: 'Procedimientos', icono: { familia: 'ion', nombre: 'book-outline' }, ruta: '/procedimientos' }, // HU-24
   {
     id: 'recepcion-instrumentos-om',
     titulo: 'Recepción Instrumentos OM',

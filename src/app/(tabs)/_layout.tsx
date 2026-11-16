@@ -50,6 +50,9 @@ export default function LayoutPestanas() {
     '/viatico',
     '/solicitud-gasto',
     '/rendir-gasto',
+    // Biblioteca de procedimientos (HU-24)
+    '/procedimientos',
+    '/procedimiento-ficha',
     // Progreso guardado (HU-21)
     '/progreso',
     // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
@@ -242,6 +245,15 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-24: biblioteca de procedimientos y su ficha (se entra desde el Menú). */}
+      <Tabs.Screen
+        name="procedimientos"
+        options={{ title: 'Procedimientos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="procedimiento-ficha"
+        options={{ title: 'Ficha del procedimiento', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-21: trabajos sin terminar guardados en el teléfono (se entra desde el Menú). */}
       <Tabs.Screen

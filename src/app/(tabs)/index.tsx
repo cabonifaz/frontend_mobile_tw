@@ -3,6 +3,7 @@ import { Modal, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { obtenerBiblioteca, sincronizarProcedimientos } from '@/api/procedimientos';
 import { listarProgreso, suscribirProgreso, type Progreso } from '@/api/progreso';
 import { Boton } from '@/componentes/Boton';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
@@ -34,6 +35,8 @@ import { MenuJefatura } from '@/componentes/MenuJefatura';
 const REINTENTO_SIN_CONEXION_MS = 30000;
 /** HU-21: «Recuperamos tu avance» se muestra una vez por cada vez que se abre la app. */
 let recuperacionAvisada = false;
+/** HU-24: los procedimientos de los servicios de hoy se bajan al teléfono una vez por cada vez que se abre la app. */
+let procedimientosSincronizados = false;
 
 /** HU-28: el rol y el área definen el menú. Jefe de Metrología (supervisor del área) → menú de Jefatura; el resto → menú de campo. */
 export default function PantallaMenu() {
@@ -72,6 +75,19 @@ function MenuCampo() {
       if (l.length > 0) setRecuperar(l[0]);
     });
   }, [idUsuario]);
+
+  // HU-24: con señal, descarga solos los procedimientos de tus servicios de hoy (y reemplaza versiones anteriores)
+  const tokenSesion = sesion?.token ?? '';
+  const hayConexion = !!datos && !datos.sinConexion;
+  useEffect(() => {
+    if (procedimientosSincronizados || !hayConexion || !tokenSesion || !idUsuario) return;
+    procedimientosSincronizados = true;
+    void obtenerBiblioteca(tokenSesion, idUsuario)
+      .then((b) => (b.sinConexion ? undefined : sincronizarProcedimientos(tokenSesion, b.datos)))
+      .catch(() => {
+        procedimientosSincronizados = false;
+      });
+  }, [hayConexion, tokenSesion, idUsuario]);
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const resumen = datos?.resumen ?? null;
