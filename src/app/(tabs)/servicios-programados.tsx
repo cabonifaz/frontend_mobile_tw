@@ -22,8 +22,9 @@ import { contarServicios, etiquetaDia, fechaLimaHoy, filtrarServicios, textoServ
  *    Si hay un servicio en campo (en ruta, en ejecución o pausado) aparece además el filtro "En curso".
  *  - Tarjetas con cliente, fecha/hora, RQ y OS, objetivos, responsable/lugar, estado LISTO / PENDIENTE / BLOQUEADO e
  *    indicadores (cliente confirmado, SSOMA, alerta predictiva). El detalle de un servicio BLOQUEADO queda deshabilitado.
- *  - El estado sale de la fecha programada en la intranet (HU-36/38): LISTO desde el día del servicio, PENDIENTE si es de una
- *    fecha posterior y BLOQUEADO si hay un bloqueo. Si se reprograma la fecha, cambia solo.
+ *  - El estado sale de la confirmación del cliente y de la fecha programada en la intranet (HU-36/38): PENDIENTE hasta que el cliente acepta (o si es de una
+ *    fecha posterior), LISTO cuando aceptó y llegó el día del servicio, y BLOQUEADO si hay un bloqueo. Si se reprograma la fecha, cambia solo.
+ *  - «Todos» ordena del servicio más reciente al más antiguo.
  * Se abre desde el menú: "Servicios Programados", "Ruta del Día" (filtro Hoy) o el banner "Próximo Hit".
  */
 const filtrosBase: { id: FiltroServicios; texto: string }[] = [
@@ -41,7 +42,7 @@ const vacios: Record<FiltroServicios, { titulo: string; texto: string }> = {
   hoy: { titulo: 'No tienes servicios para hoy', texto: 'Los servicios programados para hoy aparecerán aquí.' },
   pendientes: {
     titulo: 'No tienes servicios pendientes',
-    texto: 'Aquí verás los servicios programados para una fecha posterior a hoy.',
+    texto: 'Aquí verás los servicios que esperan la confirmación del cliente o que son de una fecha posterior a hoy.',
   },
   en_ejecucion: { titulo: 'No tienes servicios en curso', texto: 'Cuando salgas a un servicio aparecerá aquí.' },
 };

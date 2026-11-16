@@ -27,7 +27,10 @@ export function estaEnCurso(s: ServicioProgramado): boolean {
   return ESTADOS_EN_CURSO.includes(s.estadoOs);
 }
 
-/** Pendiente = programado para una fecha posterior a hoy (los bloqueados no cuentan; desde su día pasa a Listo). */
+/**
+ * Pendiente = el cliente aún no confirmó o está programado para una fecha posterior a hoy (los bloqueados no cuentan; pasa a Listo cuando el cliente
+ * acepta y llega su día). «Todos» muestra primero el servicio más reciente y al final el más antiguo.
+ */
 export function filtrarServicios(
   servicios: readonly ServicioProgramado[],
   filtro: FiltroServicios,
@@ -41,8 +44,13 @@ export function filtrarServicios(
     case 'en_ejecucion':
       return servicios.filter(estaEnCurso);
     default:
-      return [...servicios];
+      return [...servicios].sort((a, b) => claveDeOrden(b).localeCompare(claveDeOrden(a)));
   }
+}
+
+/** Fecha y hora de inicio como texto comparable (AAAA-MM-DD HH:mm); sin hora cuenta como 00:00. */
+function claveDeOrden(s: ServicioProgramado): string {
+  return `${s.fechaEjecucion?.slice(0, 10) ?? ''} ${(s.horaInicio ?? '').slice(0, 5)}`;
 }
 
 export function contarServicios(servicios: readonly ServicioProgramado[], hoy: string = fechaLimaHoy()): ContadoresAgenda {
