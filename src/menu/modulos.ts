@@ -58,7 +58,7 @@ export const modulosMenu: ModuloMenu[] = [
     icono: { familia: 'ion', nombre: 'file-tray-outline' },
     ruta: null,
   },
-  { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: null },
+  { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: '/ingreso-equipo' }, // HU-22
   {
     id: 'viaticos-gastos',
     titulo: 'Viáticos y Gastos',

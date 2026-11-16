@@ -50,6 +50,9 @@ export default function LayoutPestanas() {
     '/viatico',
     '/solicitud-gasto',
     '/rendir-gasto',
+    // Ingreso de equipos de la OS (HU-22)
+    '/ingreso-equipo',
+    '/ingreso-equipo-activo',
     // Biblioteca de procedimientos (HU-24)
     '/procedimientos',
     '/procedimiento-ficha',
@@ -245,6 +248,15 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-22: ingreso de equipos de la OS y la ficha de cada equipo (se entra desde el Menú). */}
+      <Tabs.Screen
+        name="ingreso-equipo"
+        options={{ title: 'Ingreso de equipos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="ingreso-equipo-activo"
+        options={{ title: 'Ingreso del equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-24: biblioteca de procedimientos y su ficha (se entra desde el Menú). */}
       <Tabs.Screen

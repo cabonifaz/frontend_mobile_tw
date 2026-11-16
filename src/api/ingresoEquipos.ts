@@ -1,0 +1,62 @@
+import { entorno } from '@/config/entorno';
+import type { EstadoIngreso } from '@/utilidades/ingresoEquipos';
+import { agregarArchivo } from './archivosLocales';
+import { solicitar } from './cliente';
+
+/**
+ * HU-22 — Ingreso de equipos (OS).
+ * Backend: GET api/movil/servicios/{idOs}/ingresos · POST api/movil/servicios/{idOs}/ingresos/equipos/{idOsEquipo} (multipart: estado, observacion, fotos).
+ * Tablas: os_equipo_ingreso y os_equipo_ingreso_foto. La lista de equipos, la búsqueda, el QR y el equipo nuevo son los de HU-07 (api/ruta.ts).
+ */
+export interface IngresoEquipo {
+  idOsEquipo: number;
+  estadoIngreso: EstadoIngreso;
+  observacion: string | null;
+  /** "yyyy-MM-ddTHH:mm:ss" (hora de Lima). */
+  ingresadoEn: string | null;
+  fotos: number;
+}
+
+export interface NuevoIngreso {
+  estado: EstadoIngreso;
+  observacion: string;
+  /** Archivos de la cámara de la app (nunca de la galería). Solo con observaciones o inoperativo. */
+  fotos: string[];
+}
+
+const ruta = (idOs: number) => `/api/movil/servicios/${encodeURIComponent(String(idOs))}/ingresos`;
+
+/** Memoria del modo demo (EXPO_PUBLIC_USE_MOCK): se pierde al cerrar la app. */
+const demo = new Map<string, IngresoEquipo>();
+
+export async function obtenerIngresos(token: string, idOs: number): Promise<IngresoEquipo[]> {
+  if (entorno.usarMock) return [...demo.entries()].filter(([k]) => k.startsWith(`${idOs}:`)).map(([, v]) => v);
+  const r = await solicitar<{ ingresos: IngresoEquipo[] }>(ruta(idOs), { token });
+  return r.datos?.ingresos ?? [];
+}
+
+export async function registrarIngreso(
+  token: string,
+  idOs: number,
+  idOsEquipo: number,
+  d: NuevoIngreso,
+): Promise<{ mensaje: string; datos: IngresoEquipo | null }> {
+  if (entorno.usarMock) {
+    const i: IngresoEquipo = { idOsEquipo, estadoIngreso: d.estado, observacion: d.observacion || null, ingresadoEn: new Date().toISOString().slice(0, 19), fotos: d.fotos.length };
+    demo.set(`${idOs}:${idOsEquipo}`, i);
+    return { mensaje: 'Equipo registrado.', datos: i };
+  }
+  const form = new FormData();
+  form.append('estado', d.estado);
+  form.append('observacion', d.observacion.trim());
+  for (let n = 0; n < d.fotos.length; n++) await agregarArchivo(form, 'fotos', d.fotos[n], `evidencia-${n + 1}.jpg`, 'image/jpeg');
+  const r = await solicitar<{ idIngreso: number; idOsEquipo: number; estadoIngreso: EstadoIngreso; ingresadoEn: string | null; fotos: number }>(
+    `${ruta(idOs)}/equipos/${encodeURIComponent(String(idOsEquipo))}`,
+    { token, metodo: 'POST', cuerpo: form },
+  );
+  const x = r.datos;
+  return {
+    mensaje: r.mensaje,
+    datos: x ? { idOsEquipo: x.idOsEquipo, estadoIngreso: x.estadoIngreso, observacion: d.observacion.trim() || null, ingresadoEn: x.ingresadoEn, fotos: x.fotos } : null,
+  };
+}
