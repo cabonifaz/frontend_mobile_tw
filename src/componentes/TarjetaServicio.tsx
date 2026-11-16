@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps } from 'react';
 import type { ServicioProgramado } from '@/api/servicios';
 import { colores, radios } from '@/tema/colores';
 import { fechaHoraAgenda } from '@/utilidades/formato';
@@ -62,6 +62,10 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
   const bloqueado = s.estadoGeneral === 'BLOQUEADO';
   const listo = s.estadoGeneral === 'LISTO';
   const esperaCliente = s.estadoGeneral === 'PENDIENTE' && !s.clienteConfirmado;
+  // PENDIENTE: el detalle va resumido y se despliega con la flecha; LISTO y BLOQUEADO lo muestran completo
+  const pendiente = s.estadoGeneral === 'PENDIENTE';
+  const [abierto, setAbierto] = useState(false);
+  const mostrarDetalle = !pendiente || abierto;
   const etiqueta = etiquetasEstado[s.estadoGeneral] ?? etiquetasEstado.PENDIENTE;
   const documentos = [s.numeroRq, s.numeroOs, s.numeroOm].filter(Boolean).join(' · ');
   const objetivos = s.objetivosTotal > 0 ? `${s.objetivosCompletados} de ${s.objetivosTotal}` : 'Sin equipos asignados';
@@ -84,6 +88,24 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
         <Text style={estilos.fechaTexto}>{fechaHoraAgenda(s.fechaEjecucion, s.horaInicio, s.horaFin)}</Text>
       </View>
 
+      {pendiente && (
+        <Pressable
+          onPress={() => setAbierto((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={abierto ? 'Ocultar el resumen del servicio' : 'Ver el resumen del servicio'}
+          accessibilityState={{ expanded: abierto }}
+          style={estilos.resumenBoton}
+          testID={`resumen-${s.numeroOs}`}
+        >
+          <Text style={estilos.resumenTexto} numberOfLines={1}>
+            {abierto ? 'Ocultar resumen' : `Ver resumen${documentos ? ' · ' + documentos : ''}`}
+          </Text>
+          <Ionicons name={abierto ? 'chevron-up' : 'chevron-down'} size={20} color={colores.primario} />
+        </Pressable>
+      )}
+
+      {mostrarDetalle && (
+        <>
       <View style={estilos.separador} />
 
       <View style={estilos.fila}>
@@ -113,6 +135,8 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
             </View>
           )}
         </View>
+      )}
+        </>
       )}
 
       {bloqueado && (
@@ -190,6 +214,18 @@ const estilos = StyleSheet.create({
   fecha: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   fechaTexto: { fontSize: 14, color: colores.texto },
   separador: { height: 1, backgroundColor: '#EEF2F7', marginVertical: 14 },
+  resumenBoton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  resumenTexto: { flex: 1, fontSize: 14, fontWeight: '600', color: colores.primario },
   fila: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 10 },
   columna: { flexGrow: 1, flexBasis: 130 },
   rotulo: { fontSize: 11, fontWeight: '700', color: colores.textoSecundario, letterSpacing: 0.3, marginBottom: 3 },
