@@ -35,6 +35,22 @@ export async function obtenerIngresos(token: string, idOs: number): Promise<Ingr
   return r.datos?.ingresos ?? [];
 }
 
+export interface EquipoAgregado {
+  idOsEquipo: number;
+  idEquipo: number;
+  codigoTw: string;
+}
+
+/**
+ * Escanear el QR de un equipo que no está en la lista de la OS pero sí registrado para el mismo cliente: se agrega a la OS.
+ * Si no existe para el cliente el servidor responde que se registre como equipo nuevo (NEW).
+ */
+export async function agregarEquipoExistente(token: string, idOs: number, codigo: string): Promise<EquipoAgregado> {
+  if (entorno.usarMock) throw new Error('El código no corresponde a ningún equipo registrado de este cliente. Regístralo como equipo nuevo (NEW).');
+  const r = await solicitar<EquipoAgregado>(`${ruta(idOs)}/agregar?codigo=${encodeURIComponent(codigo.slice(0, 300))}`, { token, metodo: 'POST' });
+  return r.datos!;
+}
+
 export async function registrarIngreso(
   token: string,
   idOs: number,
