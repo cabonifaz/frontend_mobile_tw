@@ -56,7 +56,11 @@ export async function obtenerServiciosProgramados(
   const params = new URLSearchParams({ filtro });
   if (busqueda.trim()) params.set('busqueda', busqueda.trim());
   const r = await solicitar<ServicioProgramado[]>(`/api/movil/servicios?${params.toString()}`, { token });
-  return r.datos ?? [];
+  // Mientras el cliente no confirme, el servicio es PENDIENTE (solo BLOQUEADO manda sobre eso): lo mismo que calcula SP_ObtenerServiciosProgramadosMovil, aquí también
+  // para que la tarjeta y el filtro Pendientes sean correctos aunque el servidor aún responda LISTO.
+  return (r.datos ?? []).map((s) =>
+    s.estadoGeneral === 'LISTO' && !s.clienteConfirmado ? { ...s, estadoGeneral: 'PENDIENTE' as const } : s,
+  );
 }
 
 // ── HU-04 — Detalle del servicio y checklist de pre-salida ──────────────────

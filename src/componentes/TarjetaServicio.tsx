@@ -61,6 +61,7 @@ const tonosIndicador = {
 export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
   const bloqueado = s.estadoGeneral === 'BLOQUEADO';
   const listo = s.estadoGeneral === 'LISTO';
+  const esperaCliente = s.estadoGeneral === 'PENDIENTE' && !s.clienteConfirmado;
   const etiqueta = etiquetasEstado[s.estadoGeneral] ?? etiquetasEstado.PENDIENTE;
   const documentos = [s.numeroRq, s.numeroOs, s.numeroOm].filter(Boolean).join(' · ');
   const objetivos = s.objetivosTotal > 0 ? `${s.objetivosCompletados} de ${s.objetivosTotal}` : 'Sin equipos asignados';
@@ -119,6 +120,15 @@ export function TarjetaServicio({ servicio: s, onVerDetalle }: Props) {
           <Ionicons name="lock-closed" size={18} color={colores.rojo} />
           <Text style={estilos.motivo}>
             <Text style={estilos.motivoRotulo}>Motivo del bloqueo:</Text> {s.motivoBloqueo ?? 'Servicio bloqueado.'}
+          </Text>
+        </View>
+      )}
+
+      {esperaCliente && (
+        <View style={estilos.recuadroPendiente} accessibilityRole="summary">
+          <Ionicons name="time-outline" size={18} color={colores.amarilloTexto} />
+          <Text style={estilos.pendienteTexto}>
+            <Text style={estilos.motivoRotulo}>Pendiente:</Text> el cliente aún no confirma la programación. Puedes revisar los detalles del servicio.
           </Text>
         </View>
       )}
@@ -195,6 +205,18 @@ const estilos = StyleSheet.create({
     borderColor: '#FECACA',
     backgroundColor: '#FEF2F2',
   },
+  recuadroPendiente: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    backgroundColor: '#FFFBEB',
+  },
+  pendienteTexto: { flex: 1, fontSize: 14, lineHeight: 20, color: colores.amarilloTexto },
   motivo: { flex: 1, fontSize: 14, lineHeight: 20, color: colores.rojoEtiquetaTexto },
   motivoRotulo: { fontWeight: '700' },
   indicadores: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
