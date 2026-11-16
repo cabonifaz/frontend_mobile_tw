@@ -39,6 +39,11 @@ export interface EquipoAgregado {
   idOsEquipo: number;
   idEquipo: number;
   codigoTw: string;
+  marca?: string | null;
+  modelo?: string | null;
+  numSerie?: string | null;
+  codigoCliente?: string | null;
+  ubicacion?: string | null;
 }
 
 /**
@@ -48,6 +53,16 @@ export interface EquipoAgregado {
 export async function agregarEquipoExistente(token: string, idOs: number, codigo: string): Promise<EquipoAgregado> {
   if (entorno.usarMock) throw new Error('El código no corresponde a ningún equipo registrado de este cliente. Regístralo como equipo nuevo (NEW).');
   const r = await solicitar<EquipoAgregado>(`${ruta(idOs)}/agregar?codigo=${encodeURIComponent(codigo.slice(0, 300))}`, { token, metodo: 'POST' });
+  return r.datos!;
+}
+
+/**
+ * Verifica el código escaneado SIN agregar el equipo a la OS: devuelve sus datos para que el técnico confirme.
+ * Falla con el mismo mensaje del servidor si no se puede agregar (otro cliente, inactivo, pendiente de validar, no registrado…).
+ */
+export async function verificarEquipoExistente(token: string, idOs: number, codigo: string): Promise<EquipoAgregado> {
+  if (entorno.usarMock) throw new Error('El código no corresponde a ningún equipo registrado de este cliente. Regístralo como equipo nuevo (NEW).');
+  const r = await solicitar<EquipoAgregado>(`${ruta(idOs)}/agregar?codigo=${encodeURIComponent(codigo.slice(0, 300))}&verificar=true`, { token, metodo: 'POST' });
   return r.datos!;
 }
 

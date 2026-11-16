@@ -7,6 +7,7 @@ import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { accionEquipoOEncolar } from '@/api/colaEquipos';
 import { buscarEquipoPorQr, obtenerObjetivosConRespaldo, type ObjetivoEquipo } from '@/api/ruta';
+import { agregarEquipoPorQrConfirmando } from '@/utilidades/agregarEquipoQr';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { CamaraApp } from '@/componentes/CamaraApp';
@@ -50,7 +51,7 @@ export default function PantallaSeleccionarEquipo() {
     return () => clearTimeout(t);
   }, [texto]);
 
-  const { datos, cargando, error } = useConsulta(async (token) => {
+  const { datos, cargando, error, recargar } = useConsulta(async (token) => {
     if (!idValido) throw new ErrorApi('Servicio no válido.', 400, 1);
     const [r, cargos] = await Promise.all([obtenerObjetivosConRespaldo(token, idUsuario, idOs), obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined)]);
     return { objetivos: r.datos, cargos };
@@ -79,6 +80,25 @@ export default function PantallaSeleccionarEquipo() {
         if (local) return setLeido({ codigo, equipo: local });
       }
       setLeido(null);
+      // Escaneó un equipo que no está en la lista de la OS: si está registrado para el cliente se ofrece agregarlo (con confirmación)
+      if (err instanceof Error && /ningún equipo de esta/i.test(err.message)) {
+        try {
+          const nuevo = await agregarEquipoPorQrConfirmando(sesion.token, idOs, vista.resumen.numeroOs, codigo);
+          if (!nuevo) {
+            setMensaje({ tipo: 'info', texto: 'No se agregó el equipo a la OS.' });
+            return;
+          }
+          await recargar();
+          const agregado = await buscarEquipoPorQr(sesion.token, idOs, codigo);
+          setLeido({ codigo, equipo: agregado });
+          setMensaje({ tipo: 'info', texto: `${nuevo.codigoTw} se agregó a la ${vista.resumen.numeroOs}.` });
+          return;
+        } catch (e2) {
+          setNoEncontrado(/equipo nuevo/i.test(e2 instanceof Error ? e2.message : ''));
+          setMensaje({ tipo: 'error', texto: e2 instanceof Error ? e2.message : 'No se pudo agregar el equipo.' });
+          return;
+        }
+      }
       setNoEncontrado(true);
       setMensaje({ tipo: 'error', texto: err instanceof Error ? err.message : 'No se pudo leer el código.' });
     }

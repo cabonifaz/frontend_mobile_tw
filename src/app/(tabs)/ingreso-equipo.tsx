@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { agregarEquipoExistente, obtenerIngresos, type IngresoEquipo } from '@/api/ingresoEquipos';
+import { obtenerIngresos, type IngresoEquipo } from '@/api/ingresoEquipos';
+import { agregarEquipoPorQrConfirmando } from '@/utilidades/agregarEquipoQr';
 import { ErrorApi } from '@/api/cliente';
 import { buscarEquipoPorQr, obtenerObjetivos, type ObjetivoEquipo, type Objetivos } from '@/api/ruta';
 import { obtenerServiciosProgramados, type ServicioProgramado } from '@/api/servicios';
@@ -120,7 +121,11 @@ export default function PantallaIngresoEquipo() {
         return irAFicha(e.idOsEquipo, true);
       }
       try {
-        const nuevo = await agregarEquipoExistente(sesion.token, idOs, codigo);
+        const nuevo = await agregarEquipoPorQrConfirmando(sesion.token, idOs, osActual?.numeroOs ?? '', codigo);
+        if (!nuevo) {
+          setMensaje({ tipo: 'info', texto: 'No se agregó el equipo a la OS.' });
+          return;
+        }
         setRecarga((n) => n + 1);
         setMensaje({ tipo: 'info', texto: `${nuevo.codigoTw} no estaba en la lista: se agregó a esta OS.` });
         return irAFicha(nuevo.idOsEquipo, true);
