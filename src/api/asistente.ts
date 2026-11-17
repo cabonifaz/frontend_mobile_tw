@@ -183,6 +183,43 @@ export async function consultar(token: string, c: NuevaConsulta): Promise<Respue
   return r.datos!;
 }
 
+/** Un turno de la conversación general (para que el asistente entienda el hilo). */
+export interface TurnoChat {
+  rol: 'usuario' | 'asistente';
+  texto: string;
+}
+
+export interface RespuestaChat {
+  respuesta: string;
+  /** La persona es de Jefatura: la respuesta pudo usar los datos de todo el equipo de campo. */
+  esJefatura: boolean;
+  /** Hora de Lima en la que el asistente armó la respuesta ("2026-11-17 14:50"). */
+  hora: string;
+}
+
+/**
+ * Conversación general: NO exige elegir un equipo. El asistente conoce los servicios, la distancia y llegada a la planta (si se envía la ubicación),
+ * los equipos ingresados, los viáticos y los procedimientos del técnico; Jefatura, además, los movimientos de todos los técnicos y los equipos recepcionados.
+ */
+export async function conversar(
+  token: string,
+  c: { pregunta: string; origen: OrigenConsulta; latitud?: number | null; longitud?: number | null; historial?: TurnoChat[] },
+): Promise<RespuestaChat> {
+  if (entorno.usarMock) return mockAsistente.conversar(c.pregunta);
+  const r = await solicitar<RespuestaChat>(`${BASE}/chat`, {
+    token,
+    metodo: 'POST',
+    cuerpo: {
+      pregunta: c.pregunta,
+      origen: c.origen,
+      ...(c.latitud != null && c.longitud != null ? { latitud: c.latitud, longitud: c.longitud } : {}),
+      historial: (c.historial ?? []).slice(-6),
+    },
+    timeoutMs: TIEMPO_CONSULTA_MS,
+  });
+  return r.datos!;
+}
+
 export async function obtenerConsulta(token: string, idConsulta: number): Promise<RespuestaAsistente> {
   if (entorno.usarMock) return mockAsistente.consulta(idConsulta);
   return (await solicitar<RespuestaAsistente>(`${BASE}/consultas/${encodeURIComponent(String(idConsulta))}`, { token })).datos!;
@@ -325,6 +362,11 @@ const mockAsistente = {
       pagina: 42, seccion: '6.4 Ajuste de excentricidad', advertencia: 'Desenergice el terminal y retire toda carga antes de abrir la caja de conexiones.',
       fragmento: demoFuente.fragmento!, contextoPosterior: 'Ajuste el potenciómetro de la celda correspondiente hasta que la diferencia entre posiciones sea menor al EMP de la clase…', verificada: true,
     };
+  },
+  async conversar(pregunta: string): Promise<RespuestaChat> {
+    await esperar(500);
+    const hora = ahoraLima().replace('T', ' ').slice(0, 16);
+    return { respuesta: /hora/i.test(pregunta) ? `Son las ${hora.slice(11)} (hora de Lima).` : '¡Hola! Estoy en modo demostración. En la app real respondo con tus servicios, equipos, viáticos y procedimientos.', esJefatura: false, hora };
   },
   async transcribir(): Promise<string> {
     await esperar(700);

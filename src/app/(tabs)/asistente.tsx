@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Re
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { consultar, obtenerConsulta, obtenerInicioConRespaldo, valorar, type EquipoAsistente, type OrigenConsulta, type RespuestaAsistente } from '@/api/asistente';
+import { consultar, conversar, obtenerConsulta, obtenerInicioConRespaldo, valorar, type EquipoAsistente, type OrigenConsulta, type RespuestaAsistente, type RespuestaChat } from '@/api/asistente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { ErrorApi } from '@/api/cliente';
 import { claveGuardado, guardarOffline } from '@/api/guardadosAsistente';
@@ -30,17 +30,27 @@ import {
   textoContexto,
   textoReciente,
 } from '@/utilidades/asistente';
+import { ubicacionParaAsistente } from '@/utilidades/ubicacionAsistente';
 
 interface Turno {
   clave: string;
   pregunta: string;
   origen: OrigenConsulta;
+  modo: 'general' | 'manuales';
   estado: 'cargando' | 'listo' | 'error';
   respuesta: RespuestaAsistente | null;
+  /** Respuesta de la conversación general (modo "general"). */
+  chat?: RespuestaChat | null;
   error?: string;
   detalle?: string;
 }
 
+/** Sugerencias de la conversación general: no dependen de ningún equipo. */
+const SUGERENCIAS_TECNICO = ['¿Qué servicios tengo programados?', '¿Cuánto me falta para llegar a la planta?', '¿Qué equipos he ingresado?', '¿Cuál es mi saldo de viáticos?', '¿Qué procedimientos hay en la app?', '¿Qué hora es?'];
+const SUGERENCIAS_JEFATURA = ['¿Qué están haciendo los técnicos ahora?', '¿Qué equipos se recepcionaron hoy?', '¿Qué servicios tienen demora o alerta crítica?'];
+
+/** Para la conversación general basta con que haya algo escrito (hasta 500 caracteres): un "hola" ya es una consulta. */
+const preguntaChatValida = (t: string) => limpiarPregunta(t).length >= 1 && limpiarPregunta(t).length <= PREGUNTA_MAX;
 
 
 /**
@@ -60,6 +70,9 @@ export default function PantallaAsistente() {
   const contadorTurnos = useRef(0);
   const nuevaClave = () => `t${(contadorTurnos.current += 1)}`;
 
+  // "general": conversa sin elegir equipo (servicios, distancia, equipos, viáticos, procedimientos, Jefatura…) · "manuales": manual oficial del equipo, con fuente
+  const [modo, setModo] = useState<'general' | 'manuales'>('general');
+  const [esJefe, setEsJefe] = useState(false);
   const [eleccion, setEleccion] = useState<{ idOs: number; idOsEquipo: number } | null>(null);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [texto, setTexto] = useState('');
@@ -92,9 +105,11 @@ export default function PantallaAsistente() {
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
   const inicio = datos?.inicio ?? null;
   const contexto = inicio?.contexto ?? null;
-  const enConversacion = turnos.length > 0;
   const ocupado = turnos.some((t) => t.estado === 'cargando');
-  const puedeEnviar = !!contexto && !ocupado && preguntaValida(texto);
+  const general = modo === 'general';
+  const puedeEnviar = !ocupado && (general ? preguntaChatValida(texto) : !!contexto && preguntaValida(texto));
+  const turnosVisibles = turnos.filter((t) => t.modo === modo);
+  const enConversacionVisible = turnosVisibles.length > 0;
 
   function irAlFinal() {
     setTimeout(() => desplazamiento.current?.scrollToEnd({ animated: true }), 80);
@@ -106,16 +121,32 @@ export default function PantallaAsistente() {
 
   async function enviar(preguntaCruda: string, origen: OrigenConsulta) {
     const pregunta = limpiarPregunta(preguntaCruda);
-    if (!contexto || ocupado || !preguntaValida(pregunta)) return;
+    if (ocupado) return;
+    if (general ? !preguntaChatValida(pregunta) : !contexto || !preguntaValida(pregunta)) return;
     setMensaje(null);
     setTexto('');
     const clave = nuevaClave();
-    setTurnos((lista) => [...lista, { clave, pregunta, origen, estado: 'cargando', respuesta: null }]);
+    setTurnos((lista) => [...lista, { clave, pregunta, origen, modo, estado: 'cargando', respuesta: null }]);
     irAlFinal();
     try {
-      const r = await consultar(token, { idOs: contexto.idOs, idOsEquipo: contexto.idOsEquipo, pregunta, origen });
-      actualizarTurno(clave, { estado: 'listo', respuesta: r });
-      void recargar();
+      if (general) {
+        // El hilo reciente (hasta 6 turnos con respuesta) le da contexto a "¿y a qué hora llego?"
+        const historial = turnos
+          .filter((t) => t.modo === 'general' && t.estado === 'listo' && t.chat)
+          .slice(-3)
+          .flatMap((t) => [
+            { rol: 'usuario' as const, texto: t.pregunta },
+            { rol: 'asistente' as const, texto: t.chat!.respuesta },
+          ]);
+        const ubicacion = await ubicacionParaAsistente();
+        const r = await conversar(token, { pregunta, origen, latitud: ubicacion?.latitud, longitud: ubicacion?.longitud, historial });
+        setEsJefe(r.esJefatura);
+        actualizarTurno(clave, { estado: 'listo', chat: r });
+      } else {
+        const r = await consultar(token, { idOs: contexto!.idOs, idOsEquipo: contexto!.idOsEquipo, pregunta, origen });
+        actualizarTurno(clave, { estado: 'listo', respuesta: r });
+        void recargar();
+      }
     } catch (e) {
       actualizarTurno(clave, {
         estado: 'error',
@@ -131,7 +162,7 @@ export default function PantallaAsistente() {
     if (ocupado) return;
     setMensaje(null);
     const clave = nuevaClave();
-    setTurnos((lista) => [...lista, { clave, pregunta, origen: 'texto', estado: 'cargando', respuesta: null }]);
+    setTurnos((lista) => [...lista, { clave, pregunta, origen: 'texto', modo: 'manuales', estado: 'cargando', respuesta: null }]);
     irAlFinal();
     try {
       const r = await obtenerConsulta(token, idConsulta);
@@ -183,7 +214,7 @@ export default function PantallaAsistente() {
   }
 
   function tocarVoz() {
-    if (!contexto) return setMensaje({ tipo: 'info', texto: 'Elige primero un equipo para consultar.' });
+    if (!general && !contexto) return setMensaje({ tipo: 'info', texto: 'Elige primero un equipo para consultar sus manuales.' });
     if (!vozDisponible()) return Alert.alert('Consulta por voz', MENSAJE_VOZ_NO_DISPONIBLE);
     setVoz(true);
   }
@@ -203,7 +234,7 @@ export default function PantallaAsistente() {
               <Text style={[estilos.titulo, { fontSize: d.tituloPantalla }]} accessibilityRole="header">
                 Asistente IA
               </Text>
-              <Text style={estilos.subtitulo}>Manuales y procedimientos</Text>
+              <Text style={estilos.subtitulo}>{general ? 'Pregúntame lo que necesites' : 'Manuales y procedimientos'}</Text>
             </View>
             <Pressable onPress={() => router.push('/asistente-guardados')} style={estilos.botonGuardados} accessibilityRole="button" accessibilityLabel="Guardados" testID="ir-guardados" hitSlop={8}>
               <Ionicons name="bookmark-outline" size={22} color={colores.primario} />
@@ -211,21 +242,45 @@ export default function PantallaAsistente() {
             </Pressable>
           </View>
 
-          {cargando ? (
+          <View style={estilos.modos} accessibilityRole="tablist">
+            {(
+              [
+                ['general', 'Asistente', 'chatbubble-ellipses-outline'],
+                ['manuales', 'Manuales del equipo', 'book-outline'],
+              ] as const
+            ).map(([valor, etiqueta, icono]) => (
+              <Pressable
+                key={valor}
+                onPress={() => {
+                  setModo(valor);
+                  setMensaje(null);
+                }}
+                style={[estilos.modo, modo === valor && estilos.modoActivo]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: modo === valor }}
+                testID={`modo-${valor}`}
+              >
+                <Ionicons name={icono} size={17} color={modo === valor ? colores.blanco : colores.primario} />
+                <Text style={[estilos.modoTexto, modo === valor && { color: colores.blanco }]}>{etiqueta}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {!general && cargando ? (
             <ActivityIndicator color={colores.primario} style={{ marginTop: 40 }} />
-          ) : error || !inicio ? (
+          ) : !general && (error || !inicio) ? (
             <View style={{ marginTop: 14 }}>
               <Aviso tipo="error" mensaje={error ?? 'No se pudo cargar el asistente.'} />
             </View>
           ) : (
             <>
-              {datos?.sinConexion && (
+              {!general && datos?.sinConexion && (
                 <View style={{ marginTop: 12 }}>
                   <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). Consultar exige conexión; tus guardados siguen disponibles.`} />
                 </View>
               )}
 
-              {contexto ? (
+              {general ? null : contexto ? (
                 <View style={estilos.contexto} testID="contexto-asistente">
                   <View style={estilos.contextoIcono}>
                     <Ionicons name="hardware-chip-outline" size={26} color={colores.primario} />
@@ -259,7 +314,30 @@ export default function PantallaAsistente() {
                 </View>
               )}
 
-              {!enConversacion ? (
+              {!enConversacionVisible && general ? (
+                <>
+                  <View style={estilos.bienvenida}>
+                    <Ionicons name="sparkles" size={44} color={colores.primario} />
+                    <Text style={estilos.bienvenidaTitulo}>Hola{usuario?.nombre ? `, ${usuario.nombre.split(' ')[0]}` : ''}, ¿en qué te ayudo?</Text>
+                    <Text style={estilos.bienvenidaTexto}>
+                      Conozco tus servicios programados, la distancia y el tiempo a la planta, tus equipos, viáticos y los procedimientos de la app. También puedo ayudarte con consultas básicas.
+                    </Text>
+                  </View>
+                  <Text style={estilos.seccion}>PRUEBA PREGUNTANDO</Text>
+                  <View style={estilos.sugerencias}>
+                    {[...SUGERENCIAS_TECNICO, ...(esJefe ? SUGERENCIAS_JEFATURA : [])].map((s) => (
+                      <Pressable key={s} onPress={() => void enviar(s, 'sugerencia')} style={estilos.sugerencia} accessibilityRole="button" testID={`sugerencia-${s}`}>
+                        <Text style={estilos.sugerenciaTexto}>{s}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {!esJefe && (
+                    <Text style={[estilos.bienvenidaTexto, { marginTop: 16, fontSize: 14.5 }]}>
+                      Si eres de Jefatura, pregúntame por los movimientos de los técnicos y los equipos recepcionados.
+                    </Text>
+                  )}
+                </>
+              ) : !enConversacionVisible ? (
                 <>
                   <View style={estilos.bienvenida}>
                     <Ionicons name="sparkles" size={44} color={colores.primario} />
@@ -267,17 +345,17 @@ export default function PantallaAsistente() {
                     <Text style={estilos.bienvenidaTexto}>Respondo con los manuales oficiales del equipo y cito la fuente.</Text>
                   </View>
 
-                  {contexto && inicio.fuentes.length === 0 && (
+                  {contexto && inicio?.fuentes.length === 0 && (
                     <View style={{ marginBottom: 14 }}>
                       <Aviso mensaje="Este equipo aún no tiene manuales ni procedimientos oficiales cargados: el asistente no podrá responder sobre él." />
                     </View>
                   )}
 
-                  {inicio.sugerencias.length > 0 && contexto && (
+                  {(inicio?.sugerencias.length ?? 0) > 0 && contexto && (
                     <>
                       <Text style={estilos.seccion}>SUGERENCIAS PARA ESTE EQUIPO</Text>
                       <View style={estilos.sugerencias}>
-                        {inicio.sugerencias.map((s) => (
+                        {inicio?.sugerencias.map((s) => (
                           <Pressable key={s} onPress={() => void enviar(preguntaDeSugerencia(s, contexto), 'sugerencia')} style={estilos.sugerencia} accessibilityRole="button" testID={`sugerencia-${s}`}>
                             <Text style={estilos.sugerenciaTexto}>{s}</Text>
                           </Pressable>
@@ -286,11 +364,11 @@ export default function PantallaAsistente() {
                     </>
                   )}
 
-                  {inicio.recientes.length > 0 && (
+                  {(inicio?.recientes.length ?? 0) > 0 && (
                     <>
                       <Text style={[estilos.seccion, { marginTop: 22 }]}>CONSULTAS RECIENTES</Text>
                       <View style={estilos.recientes}>
-                        {inicio.recientes.map((r, i) => (
+                        {inicio?.recientes.map((r, i) => (
                           <Pressable
                             key={r.idConsulta}
                             onPress={() => void reabrir(r.idConsulta, r.pregunta)}
@@ -311,11 +389,11 @@ export default function PantallaAsistente() {
                 </>
               ) : (
                 <View style={{ marginTop: 14 }}>
-                  <Pressable onPress={() => setTurnos([])} hitSlop={8} style={estilos.nueva} accessibilityRole="button" testID="nueva-consulta">
+                  <Pressable onPress={() => setTurnos((lista) => lista.filter((t) => t.modo !== modo))} hitSlop={8} style={estilos.nueva} accessibilityRole="button" testID="nueva-consulta">
                     <Ionicons name="add-circle-outline" size={18} color={colores.primario} />
                     <Text style={estilos.nuevaTexto}>Nueva consulta</Text>
                   </Pressable>
-                  {turnos.map((t) => (
+                  {turnosVisibles.map((t) => (
                     <View key={t.clave} style={{ marginTop: 14 }}>
                       <View style={estilos.burbuja}>
                         <Text style={estilos.burbujaTexto}>{t.pregunta}</Text>
@@ -324,7 +402,7 @@ export default function PantallaAsistente() {
                         {t.estado === 'cargando' && (
                           <View style={estilos.pensando} testID="consultando">
                             <ActivityIndicator color={colores.primario} />
-                            <Text style={estilos.pensandoTexto}>Buscando en los manuales oficiales…</Text>
+                            <Text style={estilos.pensandoTexto}>{t.modo === 'general' ? 'Pensando…' : 'Buscando en los manuales oficiales…'}</Text>
                           </View>
                         )}
                         {t.estado === 'error' && (
@@ -347,6 +425,17 @@ export default function PantallaAsistente() {
                               <Ionicons name="refresh" size={18} color={colores.primario} />
                               <Text style={estilos.nuevaTexto}>Reintentar</Text>
                             </Pressable>
+                          </View>
+                        )}
+                        {t.estado === 'listo' && t.chat && (
+                          <View style={estilos.respuestaChat} testID="respuesta-chat">
+                            <View style={estilos.respuestaChatCabecera}>
+                              <Ionicons name="sparkles" size={15} color={colores.primario} />
+                              <Text style={estilos.respuestaChatQuien}>Asistente</Text>
+                            </View>
+                            <Text style={estilos.respuestaChatTexto} selectable>
+                              {t.chat.respuesta}
+                            </Text>
                           </View>
                         )}
                         {t.estado === 'listo' && t.respuesta && (
@@ -375,12 +464,12 @@ export default function PantallaAsistente() {
           <TextInput
             value={texto}
             onChangeText={setTexto}
-            placeholder={contexto ? 'Escribe tu consulta...' : 'Elige un equipo para consultar'}
+            placeholder={general ? 'Escribe aquí… (puedes empezar con un "hola")' : contexto ? 'Escribe tu consulta...' : 'Elige un equipo para consultar'}
             placeholderTextColor={colores.placeholder}
             style={estilos.campo}
             multiline
             maxLength={PREGUNTA_MAX}
-            editable={!!contexto}
+            editable={general || !!contexto}
             returnKeyType="send"
             blurOnSubmit
             onSubmitEditing={() => puedeEnviar && void enviar(texto, 'texto')}
@@ -430,6 +519,14 @@ const estilos = StyleSheet.create({
   botonGuardados: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
   botonGuardadosTexto: { fontSize: 14, fontWeight: '800', color: colores.primario },
   contexto: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#E8F0FE', borderWidth: 1, borderColor: '#BFD4F5', borderRadius: radios.tarjeta, padding: 14, marginTop: 14 },
+  modos: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  modo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: '#BFD4F5', backgroundColor: colores.blanco },
+  modoActivo: { backgroundColor: colores.primario, borderColor: colores.primario },
+  modoTexto: { fontSize: 14.5, fontWeight: '700', color: colores.primario },
+  respuestaChat: { backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, borderTopLeftRadius: 4, padding: 14, maxWidth: '94%', alignSelf: 'flex-start' },
+  respuestaChatCabecera: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  respuestaChatQuien: { fontSize: 13, fontWeight: '800', color: colores.primario, letterSpacing: 0.4 },
+  respuestaChatTexto: { fontSize: 16.5, lineHeight: 24, color: colores.titulo },
   contextoIcono: { width: 30, alignItems: 'center' },
   contextoTitulo: { fontSize: 17.5, fontWeight: '800', color: colores.titulo },
   contextoDetalle: { fontSize: 14.5, color: colores.textoSecundario, marginTop: 2, lineHeight: 20 },
