@@ -51,14 +51,14 @@ export const modulosMenu: ModuloMenu[] = [
       },
     ],
   },
-  { id: 'procedimientos', titulo: 'Procedimientos', icono: { familia: 'ion', nombre: 'book-outline' }, ruta: null },
+  { id: 'procedimientos', titulo: 'Procedimientos', icono: { familia: 'ion', nombre: 'book-outline' }, ruta: '/procedimientos' }, // HU-24
   {
     id: 'recepcion-instrumentos-om',
     titulo: 'Recepción Instrumentos OM',
     icono: { familia: 'ion', nombre: 'file-tray-outline' },
     ruta: null,
   },
-  { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: null },
+  { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: '/ingreso-equipo' }, // HU-22
   {
     id: 'viaticos-gastos',
     titulo: 'Viáticos y Gastos',

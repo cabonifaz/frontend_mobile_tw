@@ -41,9 +41,11 @@ export function pendientesComoLista(texto: string | null | undefined): string[] 
 
 /** A qué pantalla lleva la tarjeta de una notificación. */
 export interface DestinoNotificacion {
-  pantalla: 'servicio' | 'aprobacion' | 'aprobacion_llegada' | 'llegada' | 'gastos' | 'tickets' | 'correlativos';
+  pantalla: 'servicio' | 'aprobacion' | 'aprobacion_llegada' | 'llegada' | 'gastos' | 'tickets' | 'correlativos' | 'alerta';
   /** Id de la OS (servicio y aprobación). */
   idOs?: number;
+  /** Id de la notificación (alerta de campo, HU-32). */
+  idNotificacion?: number;
   etiqueta: string;
 }
 
@@ -52,7 +54,7 @@ export interface DestinoNotificacion {
  * le ofrece en los avisos de servicio y demora (lo llevaría a un error "no asignado a tu usuario"). Sus avisos de ensayo crítico, evidencia forzada,
  * equipo nuevo y alertas no tienen pantalla propia en la app todavía: solo se marcan como leídos.
  */
-export function destinoNotificacion(n: Pick<Notificacion, 'tipo' | 'entidadTipo' | 'idEntidad'>, jefatura = false): DestinoNotificacion | null {
+export function destinoNotificacion(n: Pick<Notificacion, 'id' | 'tipo' | 'entidadTipo' | 'idEntidad'>, jefatura = false): DestinoNotificacion | null {
   const idOs = n.entidadTipo === 'orden_servicio' && n.idEntidad ? n.idEntidad : null;
   switch (n.tipo) {
     case 'autorizacion_aprobada':
@@ -61,6 +63,9 @@ export function destinoNotificacion(n: Pick<Notificacion, 'tipo' | 'entidadTipo'
     case 'servicio':
     case 'demora':
       return idOs && !jefatura ? { pantalla: 'servicio', idOs, etiqueta: 'Ir al servicio' } : null;
+    // HU-32: el jefe abre la alerta de campo (pedido de apoyo con la tabla del ensayo y las decisiones)
+    case 'ensayo_critico':
+      return jefatura && idOs ? { pantalla: 'alerta', idNotificacion: n.id, idOs, etiqueta: 'Ver alerta' } : null;
     // HU-06: el jefe abre la solicitud; el técnico vuelve a Registrar llegada (donde ve la respuesta)
     case 'llegada_forzada_solicitud':
       return idOs && jefatura ? { pantalla: 'aprobacion_llegada', idOs, etiqueta: 'Revisar solicitud' } : null;

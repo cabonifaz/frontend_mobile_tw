@@ -19,6 +19,7 @@ import { useAccionesEquipos } from '@/hooks/useAccionesEquipos';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
+import { esBorrador } from '@/utilidades/ingresoEquipos';
 import { colores, radios } from '@/tema/colores';
 import { fechaCorta, horaDe } from '@/utilidades/formato';
 import { aplicarPendientes, descripcionObjetivo, lineaIdentificacion, tituloObjetivo } from '@/utilidades/objetivos';
@@ -321,7 +322,9 @@ function TarjetaObjetivo(props: {
       ) : (
         <Text style={estilos.nota}>{lineaIdentificacion(e)}</Text>
       )}
-      {e.enCampo && <Text style={estilos.nota}>Equipo nuevo · pendiente de aprobación en la intranet</Text>}
+      {e.enCampo && (
+        <Text style={estilos.nota}>{esBorrador(e) ? 'Equipo nuevo · pendiente de aprobación en la intranet' : 'Agregado a esta OS desde campo'}</Text>
+      )}
       {!!iniciado && <Text style={estilos.nota}>{iniciado}</Text>}
 
       {(enEjecucion || (pausado && e.tiempoRealMin > 0)) && e.tiempoEstimadoMin !== null && (

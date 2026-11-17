@@ -7,6 +7,7 @@ import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { accionEquipoOEncolar } from '@/api/colaEquipos';
 import { buscarEquipoPorQr, obtenerObjetivosConRespaldo, type ObjetivoEquipo } from '@/api/ruta';
+import { agregarEquipoPorQrConfirmando } from '@/utilidades/agregarEquipoQr';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { CamaraApp } from '@/componentes/CamaraApp';
@@ -15,6 +16,7 @@ import { useAccionesEquipos } from '@/hooks/useAccionesEquipos';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
+import { esBorrador } from '@/utilidades/ingresoEquipos';
 import { colores, radios } from '@/tema/colores';
 import { aplicarPendientes, buscarPorCodigo, conObjetivoPrimero, filtrarEquipos } from '@/utilidades/objetivos';
 
@@ -50,7 +52,7 @@ export default function PantallaSeleccionarEquipo() {
     return () => clearTimeout(t);
   }, [texto]);
 
-  const { datos, cargando, error } = useConsulta(async (token) => {
+  const { datos, cargando, error, recargar } = useConsulta(async (token) => {
     if (!idValido) throw new ErrorApi('Servicio no válido.', 400, 1);
     const [r, cargos] = await Promise.all([obtenerObjetivosConRespaldo(token, idUsuario, idOs), obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined)]);
     return { objetivos: r.datos, cargos };
@@ -79,6 +81,26 @@ export default function PantallaSeleccionarEquipo() {
         if (local) return setLeido({ codigo, equipo: local });
       }
       setLeido(null);
+      // Escaneó un equipo que no está en la lista de la OS: si está registrado para el cliente se ofrece agregarlo (con confirmación)
+      if (err instanceof Error && /ningún equipo de esta/i.test(err.message)) {
+        try {
+          const objetivo = numeroObjetivo ? vista.equipos.find((x) => x.numero === numeroObjetivo) : undefined;
+          const nuevo = await agregarEquipoPorQrConfirmando(sesion.token, idOs, vista.resumen.numeroOs, codigo, objetivo ? { idOsEquipo: objetivo.idOsEquipo, numero: objetivo.numero } : undefined);
+          if (!nuevo) {
+            setMensaje({ tipo: 'info', texto: 'No se agregó el equipo a la OS.' });
+            return;
+          }
+          await recargar();
+          const agregado = await buscarEquipoPorQr(sesion.token, idOs, codigo);
+          setLeido({ codigo, equipo: agregado });
+          setMensaje({ tipo: 'info', texto: nuevo.reemplazaCodigoTw ? `${nuevo.codigoTw} ocupó el lugar de ${nuevo.reemplazaCodigoTw} en el objetivo.` : `${nuevo.codigoTw} se agregó a la ${vista.resumen.numeroOs}.` });
+          return;
+        } catch (e2) {
+          setNoEncontrado(/equipo nuevo/i.test(e2 instanceof Error ? e2.message : ''));
+          setMensaje({ tipo: 'error', texto: e2 instanceof Error ? e2.message : 'No se pudo agregar el equipo.' });
+          return;
+        }
+      }
       setNoEncontrado(true);
       setMensaje({ tipo: 'error', texto: err instanceof Error ? err.message : 'No se pudo leer el código.' });
     }
@@ -244,7 +266,9 @@ function TarjetaEquipo({ e, posicion, ocupado, bloqueaOtros, onSeleccionar }: { 
         Marca: {e.marca ?? '—'} | Modelo: {e.modelo ?? '—'}
       </Text>
       <Text style={estilos.nota}>Ubicación: {e.ubicacion ?? '—'}</Text>
-      {e.enCampo && <Text style={estilos.nota}>Equipo nuevo · pendiente de aprobación en la intranet</Text>}
+      {e.enCampo && (
+        <Text style={estilos.nota}>{esBorrador(e) ? 'Equipo nuevo · pendiente de aprobación en la intranet' : 'Agregado a esta OS desde campo'}</Text>
+      )}
       <View style={{ marginTop: 12 }}>
         {gris ? (
           <View style={estilos.bloqueado} accessibilityState={{ disabled: true }}>

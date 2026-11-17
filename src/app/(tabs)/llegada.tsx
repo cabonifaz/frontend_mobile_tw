@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
@@ -10,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -82,6 +84,7 @@ export default function PantallaLlegada() {
   const [pidiendo, setPidiendo] = useState(false); // formulario del motivo abierto
   const [solicitando, setSolicitando] = useState(false);
   const [avisoForzada, setAvisoForzada] = useState<string | null>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
 
   const l = datos?.llegada ?? null;
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
@@ -183,7 +186,9 @@ export default function PantallaLlegada() {
   return (
     <SafeAreaView style={estilos.area} edges={['top']}>
       <EncabezadoApp nombre={usuario?.nombre ?? ''} apellido={usuario?.apellido} subtitulo={`${usuario?.nombre ?? ''} · ${cargo}`} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView
+        ref={scroll}
         contentContainerStyle={[estilos.contenido, { paddingHorizontal: d.margen, maxWidth: d.anchoMaximo }]}
         refreshControl={<RefreshControl refreshing={recargando} onRefresh={recargar} colors={[colores.primario]} />}
         keyboardShouldPersistTaps="handled"
@@ -422,6 +427,7 @@ export default function PantallaLlegada() {
                 solicitando={solicitando}
                 onEnviar={(motivo) => void pedirForzada(motivo)}
                 onCancelar={() => setPidiendo(false)}
+                onEnfocar={() => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 250)}
               />
             ) : (
             <View style={{ gap: 12, marginTop: 18 }}>
@@ -452,30 +458,75 @@ export default function PantallaLlegada() {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-/** Motivo de la llegada forzada. Tiene su propio estado: lo que escribes no depende de las actualizaciones de GPS y de red de la pantalla. */
-function FormularioForzada({ distanciaTexto, solicitando, onEnviar, onCancelar }: { distanciaTexto: string; solicitando: boolean; onEnviar: (motivo: string) => void; onCancelar: () => void }) {
+/** Motivos frecuentes: un toque los escribe en el campo (el técnico puede completarlos o cambiarlos). */
+const MOTIVOS_RAPIDOS = [
+  'El acceso a la planta es por otra calle.',
+  'El GPS marca una ubicación distinta a la planta.',
+  'Me indicaron ingresar por otra puerta.',
+];
+const MAX_MOTIVO_FORZADA = 500;
+
+/**
+ * Motivo de la llegada forzada. Tiene su propio estado: lo que escribes no depende de las actualizaciones de GPS y de red de la pantalla.
+ * El campo se levanta sobre el teclado (la pantalla se desplaza al enfocarlo) para que el técnico vea lo que escribe, con contador y motivos rápidos.
+ */
+function FormularioForzada({ distanciaTexto, solicitando, onEnviar, onCancelar, onEnfocar }: { distanciaTexto: string; solicitando: boolean; onEnviar: (motivo: string) => void; onCancelar: () => void; onEnfocar?: () => void }) {
   const [motivo, setMotivo] = useState('');
+  const [enfocado, setEnfocado] = useState(false);
+  const agregar = (texto: string) => setMotivo((m) => (m.trim() ? `${m.trim()} ${texto}` : texto).slice(0, MAX_MOTIVO_FORZADA));
   return (
     <View style={[estilos.modal, { marginTop: 18, borderWidth: 1, borderColor: colores.bordeSuave, maxWidth: undefined }]} testID="forzada-dialogo">
-      <Ionicons name="shield-checkmark-outline" size={40} color={colores.naranja} style={{ alignSelf: 'center' }} />
+      <View style={estilos.forzadaIcono}>
+        <Ionicons name="shield-checkmark-outline" size={34} color={colores.naranja} />
+      </View>
       <Text style={estilos.modalTitulo}>Pedir llegada forzada</Text>
-      <Text style={estilos.modalSub}>Estás a {distanciaTexto} de la planta. Se avisará a Jefatura y solo cuando apruebe podrás registrar tu llegada.</Text>
-      <Text style={estilos.modalCampo}>Motivo (opcional)</Text>
+      <Text style={estilos.modalSub}>
+        Estás a <Text style={estilos.modalSubFuerte}>{distanciaTexto}</Text> de la planta. Se avisará a Jefatura y solo cuando apruebe podrás registrar tu llegada.
+      </Text>
+
+      <View style={estilos.forzadaCampoCab}>
+        <Text style={estilos.modalCampo}>Motivo (opcional)</Text>
+        <Text style={estilos.forzadaContador}>{motivo.length}/{MAX_MOTIVO_FORZADA}</Text>
+      </View>
       <TextInput
         value={motivo}
         onChangeText={setMotivo}
+        onFocus={() => {
+          setEnfocado(true);
+          onEnfocar?.();
+        }}
+        onBlur={() => setEnfocado(false)}
         placeholder="Ej.: El acceso a la planta es por otra calle."
         placeholderTextColor={colores.placeholder}
-        maxLength={500}
+        maxLength={MAX_MOTIVO_FORZADA}
         multiline
         editable={!solicitando}
-        style={estilos.entrada}
+        style={[estilos.entrada, estilos.forzadaEntrada, enfocado && estilos.forzadaEntradaFoco]}
         testID="forzada-motivo"
       />
+
+      <Text style={estilos.forzadaAyuda}>Toca un motivo para escribirlo rápido:</Text>
+      <View style={estilos.forzadaRapidos}>
+        {MOTIVOS_RAPIDOS.map((m) => (
+          <Pressable
+            key={m}
+            onPress={() => agregar(m)}
+            disabled={solicitando}
+            accessibilityRole="button"
+            accessibilityLabel={`Usar el motivo: ${m}`}
+            style={({ pressed }) => [estilos.forzadaRapido, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name="add-circle-outline" size={16} color={colores.primario} />
+            <Text style={estilos.forzadaRapidoTexto}>{m}</Text>
+          </Pressable>
+        ))}
+      </View>
+
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
         <View style={{ flex: 1 }}>
           <Boton titulo="Cancelar" variante="secundario" onPress={onCancelar} deshabilitado={solicitando} />
@@ -572,6 +623,16 @@ const estilos = StyleSheet.create({
   modalSub: { fontSize: 13.5, lineHeight: 19, color: colores.textoSecundario, textAlign: 'center' },
   modalCampo: { fontSize: 13.5, fontWeight: '700', color: colores.titulo, marginTop: 4 },
   entrada: { borderWidth: 1, borderColor: colores.borde, borderRadius: radios.campo, paddingHorizontal: 12, paddingVertical: 10, minHeight: 84, fontSize: 14.5, color: colores.texto, textAlignVertical: 'top' },
+  modalSubFuerte: { fontWeight: '800', color: colores.titulo },
+  forzadaIcono: { alignSelf: 'center', width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF7ED' },
+  forzadaCampoCab: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  forzadaContador: { fontSize: 12, color: colores.textoSecundario },
+  forzadaEntrada: { minHeight: 120, backgroundColor: '#FAFBFD' },
+  forzadaEntradaFoco: { borderColor: colores.primario, borderWidth: 2, backgroundColor: colores.blanco },
+  forzadaAyuda: { fontSize: 12.5, color: colores.textoSecundario, marginTop: 2 },
+  forzadaRapidos: { gap: 8 },
+  forzadaRapido: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' },
+  forzadaRapidoTexto: { flex: 1, fontSize: 13.5, color: colores.primario },
   etaTexto: { fontSize: 14.5, fontWeight: '700', color: colores.titulo, marginTop: 4 },
   mapa: {
     marginTop: 14,

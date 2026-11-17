@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
@@ -30,7 +30,8 @@ export default function PantallaEquipoNuevo() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();
-  const params = useLocalSearchParams<{ id?: string; objetivo?: string; borrador?: string }>();
+  const params = useLocalSearchParams<{ id?: string; objetivo?: string; borrador?: string; desde?: string }>();
+  const desdeIngreso = params.desde === 'ingreso';
   const idOs = Number(params.id);
   const idValido = Number.isInteger(idOs) && idOs > 0;
 
@@ -102,7 +103,7 @@ export default function PantallaEquipoNuevo() {
       });
       // "Registrar y seleccionar": se empieza a trabajar en el equipo (si falla, queda en la lista para seleccionarlo)
       let aviso = r.mensaje;
-      if (r.datos) {
+      if (r.datos && !desdeIngreso) {
         try {
           await cambiarEstadoEquipo(sesion.token, idOs, r.datos.idOsEquipo, 'iniciar', { capturadoEn: new Date().toISOString() });
         } catch (e) {
@@ -112,7 +113,7 @@ export default function PantallaEquipoNuevo() {
       setMensaje({ tipo: 'info', texto: aviso });
       terminado.current = true;
       void quitarProgreso(idUsuario, idBorrador);
-      router.replace({ pathname: '/objetivos', params: { id: String(idOs), v: String(Date.now()) } });
+      router.replace({ pathname: desdeIngreso ? '/ingreso-equipo' : '/objetivos', params: { id: String(idOs), v: String(Date.now()) } } as unknown as Href);
     } catch (e) {
       setMensaje({
         tipo: 'error',

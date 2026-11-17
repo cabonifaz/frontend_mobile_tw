@@ -174,6 +174,8 @@ export function conPendientes(j: Jornada, pendientes: readonly PendienteDeJornad
       pendiente: true,
     });
   }
+  // Sin marcaciones guardadas en el teléfono se respeta lo que calculó el servidor (puede habilitar otra salida de planta si hay otro servicio en ejecución)
+  if (marcaciones.length === j.marcaciones.length) return j;
   const n = marcaciones.length;
   return { ...j, marcaciones, estado: estadoDeCantidad(n), siguiente: siguienteDeCantidad(n) };
 }

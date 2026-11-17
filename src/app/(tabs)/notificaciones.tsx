@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import {
   marcarNotificacionLeida,
@@ -141,6 +141,7 @@ export default function PantallaNotificaciones() {
     else if (destino.pantalla === 'gastos') router.push({ pathname: '/viaticos-gastos', params: { tab: 'solicitudes' } });
     else if (destino.pantalla === 'tickets') router.push('/mis-tickets');
     else if (destino.pantalla === 'correlativos') router.push('/correlativos');
+    else if (destino.pantalla === 'alerta' && destino.idNotificacion) router.push({ pathname: '/alertas', params: { id: String(destino.idNotificacion) } } as unknown as Href);
   };
 
   // Agrupa por día, del más reciente al más antiguo

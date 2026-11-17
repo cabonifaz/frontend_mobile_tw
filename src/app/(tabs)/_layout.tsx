@@ -50,6 +50,12 @@ export default function LayoutPestanas() {
     '/viatico',
     '/solicitud-gasto',
     '/rendir-gasto',
+    // Ingreso de equipos de la OS (HU-22)
+    '/ingreso-equipo',
+    '/ingreso-equipo-activo',
+    // Biblioteca de procedimientos (HU-24)
+    '/procedimientos',
+    '/procedimiento-ficha',
     // Progreso guardado (HU-21)
     '/progreso',
     // Correlativos de Metrología (HU-14: solicitud y mis tickets del técnico)
@@ -69,7 +75,7 @@ export default function LayoutPestanas() {
   // Jefatura entra al Asistente IA desde la tarjeta del menú (su barra no tiene pestaña Asistente): ahí queda marcada la pestaña Menú.
   // HU-29 / HU-30: el Panel de Campo y el seguimiento de un servicio (pantallas del jefe) marcan la pestaña "Menú".
   // HU-34: los Correlativos del Jefe de Metrología también marcan "Menú".
-  const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio', '/correlativos'].includes(pathname);
+  const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio', '/correlativos', '/alertas', '/alertas-incidencia', '/alertas-reasignar'].includes(pathname);
   const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente' || enPanelCampo));
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
   const enDetalleAprobacion = pathname === '/aprobacion-salida' || pathname === '/aprobacion-llegada' || pathname === '/aprobacion-detalle';
@@ -242,6 +248,28 @@ export default function LayoutPestanas() {
       <Tabs.Screen
         name="seleccionar-equipo"
         options={{ title: 'Seleccionar Equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-32: alerta de campo, incidencia y reasignación de técnico (Jefatura; se entra desde Notificaciones). */}
+      <Tabs.Screen name="alertas" options={{ title: 'Alerta de campo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="alertas-incidencia" options={{ title: 'Registrar incidencia', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="alertas-reasignar" options={{ title: 'Reasignar técnico', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      {/* HU-22: ingreso de equipos de la OS y la ficha de cada equipo (se entra desde el Menú). */}
+      <Tabs.Screen
+        name="ingreso-equipo"
+        options={{ title: 'Ingreso de equipos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="ingreso-equipo-activo"
+        options={{ title: 'Ingreso del equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* HU-24: biblioteca de procedimientos y su ficha (se entra desde el Menú). */}
+      <Tabs.Screen
+        name="procedimientos"
+        options={{ title: 'Procedimientos', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      <Tabs.Screen
+        name="procedimiento-ficha"
+        options={{ title: 'Ficha del procedimiento', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* HU-21: trabajos sin terminar guardados en el teléfono (se entra desde el Menú). */}
       <Tabs.Screen
