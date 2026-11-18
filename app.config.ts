@@ -20,7 +20,7 @@ if (process.env.EAS_BUILD_PROFILE === 'production' && !apiUrl.startsWith('https:
  * Con esto se habilitan las actualizaciones por internet (EAS Update): se instala
  * UN solo APK y cada avance llega con `npm run actualizar`, sin reinstalar.
  */
-const EAS_PROJECT_ID = '';
+const EAS_PROJECT_ID = 'a7b8f297-3a22-4019-a66a-647a0626579b';
 
 /**
  * Versión nativa del APK. Las actualizaciones solo llegan a APKs con la misma versión nativa.
