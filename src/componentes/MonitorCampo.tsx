@@ -61,6 +61,7 @@ export function MonitorCampo() {
     let vigente = true;
     let suscripcion: Location.LocationSubscription | null = null;
     let latiendo = false;
+    let rechazosEncender = 0;
 
     function avisarGps(motivo: 'permiso' | 'apagado') {
       if (avisoGps.current) return; // no se apila: solo uno visible a la vez; al cerrarlo, el próximo regreso a la app lo vuelve a mostrar si sigue apagada
@@ -137,13 +138,26 @@ export function MonitorCampo() {
         }
         if (Platform.OS === 'android' && !(await Location.hasServicesEnabledAsync())) {
           dialogo.current.enCurso = true;
+          let activada = true;
           try {
             await Location.enableNetworkProviderAsync(); // diálogo del sistema: "Activar ubicación"
           } catch {
-            return avisarGps('apagado');
+            activada = false; // "No, gracias" (o el sistema no pudo mostrar el diálogo)
           } finally {
-            dialogo.current = { enCurso: false, hasta: Date.now() + 2_500 };
+            dialogo.current = { enCurso: false, hasta: Date.now() + (activada ? 2_500 : 900) };
           }
+          if (!activada) {
+            // Con "No, gracias" el diálogo vuelve a salir de inmediato (~1 s). Si lo rechaza 3 veces seguidas se muestra el aviso con "Abrir ajustes" como salida
+            // (por si el teléfono no puede mostrar el diálogo) y no se vuelve a pedir hasta cerrarlo.
+            rechazosEncender += 1;
+            if (rechazosEncender >= 3) {
+              rechazosEncender = 0;
+              return avisarGps('apagado');
+            }
+            setTimeout(() => void vigilarUbicacion(), 1_000);
+            return;
+          }
+          rechazosEncender = 0;
         }
         const nueva = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.Balanced, timeInterval: 30_000, distanceInterval: 15 },
@@ -181,13 +195,12 @@ export function MonitorCampo() {
 
     /**
      * La ubicación puede apagarse con la app abierta (panel rápido de Android): el sistema no avisa, así que se comprueba cada pocos segundos. Al detectarlo se
-     * corta el seguimiento y se pide encenderla de inmediato (diálogo del sistema "Activar" y, si lo rechaza, el aviso con "Abrir ajustes"); mientras siga apagada
-     * se vuelve a pedir cada 20 s. En cuanto se enciende, el seguimiento se retoma solo. No se pide nada mientras haya un diálogo del sistema abierto.
+     * corta el seguimiento y se pide encenderla de inmediato (diálogo del sistema "Activar"); con "No, gracias" vuelve a salir en ~1 s, y al 3.er rechazo
+     * seguido aparece el aviso con "Abrir ajustes". En cuanto se enciende, el seguimiento se retoma solo. No se pide nada mientras haya un diálogo abierto.
      */
-    let proximoAviso = 0;
     async function vigilarUbicacion() {
-      if (!vigente || AppState.currentState !== 'active') return;
-      if (dialogo.current.enCurso || Date.now() < dialogo.current.hasta || Date.now() < proximoAviso) return;
+      if (!vigente || AppState.currentState !== 'active' || avisoGps.current) return;
+      if (dialogo.current.enCurso || Date.now() < dialogo.current.hasta) return;
       try {
         const [encendida, permiso] = await Promise.all([Location.hasServicesEnabledAsync(), Location.getForegroundPermissionsAsync()]);
         if (encendida && permiso.status === 'granted') {
@@ -195,7 +208,6 @@ export function MonitorCampo() {
           return;
         }
         pausarGps();
-        proximoAviso = Date.now() + 20_000;
         void iniciarGps();
       } catch {
         // sin respuesta del sistema por ahora: se vuelve a comprobar en el siguiente ciclo
@@ -204,7 +216,7 @@ export function MonitorCampo() {
 
     void iniciarGps();
     const reloj = setInterval(() => void latir(), CADA_LATIDO_MS);
-    const vigilancia = setInterval(() => void vigilarUbicacion(), 3_000);
+    const vigilancia = setInterval(() => void vigilarUbicacion(), 2_000);
     const estadoApp = AppState.addEventListener('change', (e) => (e === 'active' ? void iniciarGps() : pausarGps()));
     return () => {
       vigente = false;
