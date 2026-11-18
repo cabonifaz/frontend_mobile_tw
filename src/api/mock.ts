@@ -31,8 +31,10 @@ const usuarios: Record<
   'tecnico.nuevo': { contrasena: 'Temporal1', nombre: 'Lucía', apellido: 'Huamán', forzar: true, cargo: 'tecnico_campo', area: 'servicio_tecnico' },
   'jefe.ops': { contrasena: 'Demo1234', nombre: 'Manuel', apellido: 'Rojas', forzar: false, cargo: 'Jefe de Operaciones', area: 'operaciones', rol: 'supervisor' },
   'jefe.met': { contrasena: 'Demo1234', nombre: 'Ana', apellido: 'Torres', forzar: false, cargo: 'Jefe de Metrología', area: 'metrologia', rol: 'supervisor' },
-  // Jefe de Servicio Técnico: entra por el cargo (jefe_servicio_tecnico), no por el rol
-  'jefe.st': { contrasena: 'Demo1234', nombre: 'Carlos', apellido: 'Mendoza', forzar: false, cargo: 'jefe_servicio_tecnico', area: 'servicio_tecnico' },
+  // Jefe de Servicio Técnico: en Servicio Técnico y Metrología manda el ROL (Supervisor / Administrador = Jefatura; Usuario / Visor = campo)
+  'jefe.st': { contrasena: 'Demo1234', nombre: 'Carlos', apellido: 'Mendoza', forzar: false, cargo: 'jefe_servicio_tecnico', area: 'servicio_tecnico', rol: 'supervisor' },
+  // Usuario de Metrología con rol Usuario: va al menú de campo (hace las OM)
+  'metrologo.demo': { contrasena: 'Demo1234', nombre: 'Rosa', apellido: 'Vega', forzar: false, cargo: 'tecnico_metrologia', area: 'metrologia', rol: 'usuario' },
 };
 
 export const mockAutenticacion = {
