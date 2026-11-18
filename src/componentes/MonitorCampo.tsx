@@ -52,8 +52,8 @@ export function MonitorCampo() {
   const servicios = useRef<{ ids: number[]; en: number }>({ ids: [], en: 0 });
   const ultimoLatido = useRef(0);
   const avisoGps = useRef(false);
-  const pidioPermisoGps = useRef(false);
-  const pidioEncenderGps = useRef(false);
+  /** Diálogo del sistema abierto (permiso o "Activar ubicación") y hasta cuándo se ignora el regreso a primer plano que provoca al cerrarse. */
+  const dialogo = useRef({ enCurso: false, hasta: 0 });
 
   // 1 y 2 · GPS y seguimiento
   useEffect(() => {
@@ -63,14 +63,27 @@ export function MonitorCampo() {
     let latiendo = false;
 
     function avisarGps(motivo: 'permiso' | 'apagado') {
-      if (avisoGps.current) return; // una sola vez por apertura de la app
+      if (avisoGps.current) return; // no se apila: solo uno visible a la vez; al cerrarlo, el próximo regreso a la app lo vuelve a mostrar si sigue apagada
       avisoGps.current = true;
+      const cerrar = () => {
+        avisoGps.current = false;
+      };
       Alert.alert(
         'Activa tu ubicación',
         motivo === 'permiso'
           ? 'Permite el acceso a la ubicación para que Operaciones vea tu posición mientras tienes un servicio en curso y puedas registrar demoras y tu llegada.'
           : 'Enciende el GPS del teléfono para que Operaciones vea tu posición mientras tienes un servicio en curso y puedas registrar demoras y tu llegada.',
-        [{ text: 'Ahora no', style: 'cancel' }, { text: 'Abrir ajustes', onPress: () => void Linking.openSettings() }],
+        [
+          { text: 'Ahora no', style: 'cancel', onPress: cerrar },
+          {
+            text: 'Abrir ajustes',
+            onPress: () => {
+              cerrar();
+              void Linking.openSettings();
+            },
+          },
+        ],
+        { onDismiss: cerrar },
       );
     }
 
@@ -107,22 +120,29 @@ export function MonitorCampo() {
     async function iniciarGps() {
       if (suscripcion) return;
       try {
-        // Los diálogos del sistema (permiso y "Activar ubicación") sacan a la app de primer plano y al cerrarse la devuelven: si se pidieran en cada
-        // regreso, entrarían en bucle (y también taparían el diálogo del micrófono del Asistente). Se piden UNA sola vez por apertura de la app.
+        // Los diálogos del sistema (permiso y "Activar ubicación") sacan a la app de primer plano y al cerrarse la devuelven, y ese regreso volvería a
+        // llamar a esta función: sin freno entraría en bucle (y taparía el diálogo del micrófono del Asistente). Mientras hay un diálogo abierto, y 2,5 s
+        // después de cerrarse, se ignora ese regreso; en cualquier OTRO regreso a la app (p. ej. el técnico apagó la ubicación) se vuelve a comprobar.
+        if (dialogo.current.enCurso || Date.now() < dialogo.current.hasta) return;
         let permiso = await Location.getForegroundPermissionsAsync();
         if (permiso.status !== 'granted') {
-          if (pidioPermisoGps.current || !permiso.canAskAgain) return avisarGps('permiso');
-          pidioPermisoGps.current = true;
-          permiso = await Location.requestForegroundPermissionsAsync();
+          if (!permiso.canAskAgain) return avisarGps('permiso');
+          dialogo.current.enCurso = true;
+          try {
+            permiso = await Location.requestForegroundPermissionsAsync();
+          } finally {
+            dialogo.current = { enCurso: false, hasta: Date.now() + 2_500 };
+          }
           if (permiso.status !== 'granted') return avisarGps('permiso');
         }
         if (Platform.OS === 'android' && !(await Location.hasServicesEnabledAsync())) {
-          if (pidioEncenderGps.current) return avisarGps('apagado');
-          pidioEncenderGps.current = true;
+          dialogo.current.enCurso = true;
           try {
             await Location.enableNetworkProviderAsync(); // diálogo del sistema: "Activar ubicación"
           } catch {
             return avisarGps('apagado');
+          } finally {
+            dialogo.current = { enCurso: false, hasta: Date.now() + 2_500 };
           }
         }
         const nueva = await Location.watchPositionAsync(
