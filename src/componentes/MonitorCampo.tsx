@@ -52,6 +52,8 @@ export function MonitorCampo() {
   const servicios = useRef<{ ids: number[]; en: number }>({ ids: [], en: 0 });
   const ultimoLatido = useRef(0);
   const avisoGps = useRef(false);
+  const pidioPermisoGps = useRef(false);
+  const pidioEncenderGps = useRef(false);
 
   // 1 y 2 · GPS y seguimiento
   useEffect(() => {
@@ -105,9 +107,18 @@ export function MonitorCampo() {
     async function iniciarGps() {
       if (suscripcion) return;
       try {
-        const permiso = await Location.requestForegroundPermissionsAsync();
-        if (permiso.status !== 'granted') return avisarGps('permiso');
+        // Los diálogos del sistema (permiso y "Activar ubicación") sacan a la app de primer plano y al cerrarse la devuelven: si se pidieran en cada
+        // regreso, entrarían en bucle (y también taparían el diálogo del micrófono del Asistente). Se piden UNA sola vez por apertura de la app.
+        let permiso = await Location.getForegroundPermissionsAsync();
+        if (permiso.status !== 'granted') {
+          if (pidioPermisoGps.current || !permiso.canAskAgain) return avisarGps('permiso');
+          pidioPermisoGps.current = true;
+          permiso = await Location.requestForegroundPermissionsAsync();
+          if (permiso.status !== 'granted') return avisarGps('permiso');
+        }
         if (Platform.OS === 'android' && !(await Location.hasServicesEnabledAsync())) {
+          if (pidioEncenderGps.current) return avisarGps('apagado');
+          pidioEncenderGps.current = true;
           try {
             await Location.enableNetworkProviderAsync(); // diálogo del sistema: "Activar ubicación"
           } catch {
