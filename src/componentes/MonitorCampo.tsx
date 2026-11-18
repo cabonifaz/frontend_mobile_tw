@@ -179,12 +179,37 @@ export function MonitorCampo() {
       suscripcion = null;
     }
 
+    /**
+     * La ubicación puede apagarse con la app abierta (panel rápido de Android): el sistema no avisa, así que se comprueba cada pocos segundos. Al detectarlo se
+     * corta el seguimiento y se pide encenderla de inmediato (diálogo del sistema "Activar" y, si lo rechaza, el aviso con "Abrir ajustes"); mientras siga apagada
+     * se vuelve a pedir cada 20 s. En cuanto se enciende, el seguimiento se retoma solo. No se pide nada mientras haya un diálogo del sistema abierto.
+     */
+    let proximoAviso = 0;
+    async function vigilarUbicacion() {
+      if (!vigente || AppState.currentState !== 'active') return;
+      if (dialogo.current.enCurso || Date.now() < dialogo.current.hasta || Date.now() < proximoAviso) return;
+      try {
+        const [encendida, permiso] = await Promise.all([Location.hasServicesEnabledAsync(), Location.getForegroundPermissionsAsync()]);
+        if (encendida && permiso.status === 'granted') {
+          if (!suscripcion) void iniciarGps();
+          return;
+        }
+        pausarGps();
+        proximoAviso = Date.now() + 20_000;
+        void iniciarGps();
+      } catch {
+        // sin respuesta del sistema por ahora: se vuelve a comprobar en el siguiente ciclo
+      }
+    }
+
     void iniciarGps();
     const reloj = setInterval(() => void latir(), CADA_LATIDO_MS);
+    const vigilancia = setInterval(() => void vigilarUbicacion(), 3_000);
     const estadoApp = AppState.addEventListener('change', (e) => (e === 'active' ? void iniciarGps() : pausarGps()));
     return () => {
       vigente = false;
       clearInterval(reloj);
+      clearInterval(vigilancia);
       estadoApp.remove();
       pausarGps();
       olvidarPosicion();
