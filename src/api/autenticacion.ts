@@ -92,7 +92,7 @@ export async function cambiarContrasena(token: string, contrasenaActual: string,
 }
 
 /**
- * Comprueba que la sesión siga vigente en el servidor (al abrir la app con "Recordar sesión" y cada 30 s mientras está abierta).
+ * Comprueba que la sesión siga vigente en el servidor (al abrir la app con la sesión guardada y cada 30 s mientras está abierta).
  * Con `cerrarSiInvalida` (por defecto) un 401 cierra la sesión local; la vigilancia periódica lo pasa en false y decide ella,
  * para no cerrar una sesión nueva si el 401 llega tarde a una consulta de la anterior.
  */

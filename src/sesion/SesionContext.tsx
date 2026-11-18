@@ -1,5 +1,5 @@
 import { AppState } from 'react-native';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as api from '@/api/autenticacion';
 import { limpiarCacheCatalogos } from '@/api/catalogos';
 import { ErrorApi, MENSAJE_SESION_TERMINADA, registrarManejadorSesionInvalida } from '@/api/cliente';
@@ -10,15 +10,14 @@ import { obtenerIdDispositivo, obtenerNombreDispositivo } from './dispositivo';
 
 /**
  * Sesión de la app (App Mobile HU-01).
- *  - "Recordar sesión" marcado: el token se guarda en el almacenamiento seguro y al
- *    abrir la app se entra directo (si la sesión sigue vigente en el servidor).
- *  - Sin marcar: la sesión vive solo mientras la app esté abierta.
+ *  - La sesión SIEMPRE queda guardada: al iniciar sesión el token se guarda en el almacenamiento seguro y al
+ *    abrir la app se entra directo (si la sesión sigue vigente en el servidor). Solo se pierde al cerrar sesión o si el servidor la termina.
  *  - Si el servidor responde 401 (sesión vencida, liberada por el jefe, usuario desactivado o ingreso del mismo usuario en
  *    otro equipo) se vuelve al login con el motivo que trae el servidor.
  *  - Sesión única: un usuario solo puede estar en un equipo. Al ingresar en otro, el servidor cierra la sesión de este; para que
  *    se note sin esperar a que el técnico toque algo, la app consulta la sesión cada 30 s y al volver a primer plano
  *    (sin conexión no pasa nada: se reintenta luego). Lo guardado sin conexión (demoras, llegadas) no se borra al cerrar.
- *  - Modo offline: con "Recordar sesión", la app abre aunque no haya conexión y muestra lo
+ *  - Modo offline: la app abre aunque no haya conexión y muestra lo
  *    último guardado en el teléfono (src/api/respaldo.ts). El primer ingreso sí necesita internet.
  *  - Al salir de la app o terminar la sesión se borra todo lo guardado en el teléfono.
  */
@@ -39,7 +38,7 @@ interface ValorSesion {
   /** Mensaje para mostrar en el login (p. ej. "Tu sesión terminó"). */
   aviso: string | null;
   ultimoUsuario: string | null;
-  iniciarSesion: (usuario: string, contrasena: string, recordar: boolean) => Promise<void>;
+  iniciarSesion: (usuario: string, contrasena: string) => Promise<void>;
   cerrarSesion: () => Promise<void>;
   cambiarContrasena: (actual: string, nueva: string) => Promise<string>;
   limpiarAviso: () => void;
@@ -52,12 +51,10 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   const [sesion, setSesion] = useState<api.SesionIniciada | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ultimoUsuario, setUltimoUsuario] = useState<string | null>(null);
-  const recordarRef = useRef(false);
 
   const terminarSesionLocal = useCallback(async (mensaje: string | null) => {
     setSesion(null);
     setAviso(mensaje);
-    recordarRef.current = false;
     limpiarCacheCatalogos();
     await borrar(CLAVE_SESION);
     await borrarRespaldos();
@@ -93,7 +90,6 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
           // Sin conexión u otro error: se mantiene la sesión local; el próximo request lo resolverá.
         }
 
-        recordarRef.current = true;
         setSesion({ token: guardada.token, expiraEn, usuario: guardada.usuario });
       } catch {
         await borrar(CLAVE_SESION);
@@ -137,13 +133,12 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   }, [tokenVigilado, terminarSesionLocal]);
 
   const persistir = useCallback(async (s: api.SesionIniciada) => {
-    if (!recordarRef.current) return;
     const guardada: SesionGuardada = { token: s.token, expiraEn: s.expiraEn.toISOString(), usuario: s.usuario };
     await guardar(CLAVE_SESION, JSON.stringify(guardada));
   }, []);
 
   const iniciarSesion = useCallback(
-    async (usuario: string, contrasena: string, recordar: boolean) => {
+    async (usuario: string, contrasena: string) => {
       const nueva = await api.iniciarSesion({
         usuario: usuario.trim().toLowerCase(),
         contrasena,
@@ -151,16 +146,9 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
         nombreDispositivo: obtenerNombreDispositivo(),
       });
 
-      recordarRef.current = recordar;
-      if (recordar) {
-        await persistir(nueva);
-        await guardar(CLAVE_ULTIMO_USUARIO, nueva.usuario.usuario);
-        setUltimoUsuario(nueva.usuario.usuario);
-      } else {
-        await borrar(CLAVE_SESION);
-        await borrar(CLAVE_ULTIMO_USUARIO);
-        setUltimoUsuario(null);
-      }
+      await persistir(nueva);
+      await guardar(CLAVE_ULTIMO_USUARIO, nueva.usuario.usuario);
+      setUltimoUsuario(nueva.usuario.usuario);
       setAviso(null);
       setSesion(nueva);
     },

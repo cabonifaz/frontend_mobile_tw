@@ -6,7 +6,6 @@ import { entorno } from '@/config/entorno';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { CampoTexto } from '@/componentes/CampoTexto';
-import { Casilla } from '@/componentes/Casilla';
 import { Pantalla } from '@/componentes/Pantalla';
 import { PieLogin } from '@/componentes/PieLogin';
 import { useSesion } from '@/sesion/SesionContext';
@@ -18,14 +17,13 @@ import { colores, radios } from '@/tema/colores';
  *  2. 1 sesión a la vez: si el usuario ingresa en otro equipo, el backend cierra la sesión del primero (que vuelve
  *     aquí con el aviso "se inició sesión con tu usuario en otro equipo", ver SesionContext).
  *  3. Modo offline: no hay botón "Ingresar en modo offline". El primer ingreso necesita internet;
- *     con "Recordar sesión" la app abre sola sin conexión (SesionContext) y muestra lo guardado.
+ *     la sesión queda siempre guardada en el teléfono: la app abre sola, incluso sin conexión (SesionContext), y muestra lo guardado.
  */
 export default function PantallaLogin() {
   const { iniciarSesion, aviso, limpiarAviso, ultimoUsuario } = useSesion();
-  // Si la persona marcó "Recordar sesión" antes, se precarga su usuario.
+  // Se precarga el último usuario que ingresó en este teléfono.
   const [usuario, setUsuario] = useState(ultimoUsuario ?? '');
   const [contrasena, setContrasena] = useState('');
-  const [recordar, setRecordar] = useState(!!ultimoUsuario);
   const [enviando, setEnviando] = useState(false);
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [errores, setErrores] = useState<{ usuario?: string; contrasena?: string }>({});
@@ -48,12 +46,12 @@ export default function PantallaLogin() {
 
     setEnviando(true);
     try {
-      await iniciarSesion(usuario, contrasena, recordar);
+      await iniciarSesion(usuario, contrasena);
       // La navegación cambia sola al existir sesión (rutas protegidas en _layout).
     } catch (e) {
       setErrorGeneral(
         e instanceof ErrorApi && e.estadoHttp === 0
-          ? `${e.message} Para ingresar necesitas conexión; si marcas "Recordar sesión", la próxima vez la app abrirá aunque no tengas señal.`
+          ? `${e.message} Para ingresar necesitas conexión; una vez dentro, la sesión queda guardada y la app abrirá aunque no tengas señal.`
           : e instanceof ErrorApi
             ? e.message
             : 'No se pudo iniciar sesión. Inténtalo de nuevo.',
@@ -122,7 +120,6 @@ export default function PantallaLogin() {
         />
 
         <View style={estilos.filaOpciones}>
-          <Casilla etiqueta="Recordar sesión" marcada={recordar} onCambiar={setRecordar} />
           <Link href="/recuperar-contrasena" asChild>
             <Pressable hitSlop={8} accessibilityRole="link">
               <Text style={estilos.enlace}>Recuperar contraseña</Text>
@@ -170,7 +167,7 @@ const estilos = StyleSheet.create({
   filaOpciones: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     marginTop: 2,
     marginBottom: 22,
     flexWrap: 'wrap',

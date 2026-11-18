@@ -52,6 +52,8 @@ export function MonitorCampo() {
   const servicios = useRef<{ ids: number[]; en: number }>({ ids: [], en: 0 });
   const ultimoLatido = useRef(0);
   const avisoGps = useRef(false);
+  /** Diálogo del sistema abierto (permiso o "Activar ubicación") y hasta cuándo se ignora el regreso a primer plano que provoca al cerrarse. */
+  const dialogo = useRef({ enCurso: false, hasta: 0 });
 
   // 1 y 2 · GPS y seguimiento
   useEffect(() => {
@@ -59,16 +61,30 @@ export function MonitorCampo() {
     let vigente = true;
     let suscripcion: Location.LocationSubscription | null = null;
     let latiendo = false;
+    let rechazosEncender = 0;
 
     function avisarGps(motivo: 'permiso' | 'apagado') {
-      if (avisoGps.current) return; // una sola vez por apertura de la app
+      if (avisoGps.current) return; // no se apila: solo uno visible a la vez; al cerrarlo, el próximo regreso a la app lo vuelve a mostrar si sigue apagada
       avisoGps.current = true;
+      const cerrar = () => {
+        avisoGps.current = false;
+      };
       Alert.alert(
         'Activa tu ubicación',
         motivo === 'permiso'
           ? 'Permite el acceso a la ubicación para que Operaciones vea tu posición mientras tienes un servicio en curso y puedas registrar demoras y tu llegada.'
           : 'Enciende el GPS del teléfono para que Operaciones vea tu posición mientras tienes un servicio en curso y puedas registrar demoras y tu llegada.',
-        [{ text: 'Ahora no', style: 'cancel' }, { text: 'Abrir ajustes', onPress: () => void Linking.openSettings() }],
+        [
+          { text: 'Ahora no', style: 'cancel', onPress: cerrar },
+          {
+            text: 'Abrir ajustes',
+            onPress: () => {
+              cerrar();
+              void Linking.openSettings();
+            },
+          },
+        ],
+        { onDismiss: cerrar },
       );
     }
 
@@ -105,14 +121,43 @@ export function MonitorCampo() {
     async function iniciarGps() {
       if (suscripcion) return;
       try {
-        const permiso = await Location.requestForegroundPermissionsAsync();
-        if (permiso.status !== 'granted') return avisarGps('permiso');
+        // Los diálogos del sistema (permiso y "Activar ubicación") sacan a la app de primer plano y al cerrarse la devuelven, y ese regreso volvería a
+        // llamar a esta función: sin freno entraría en bucle (y taparía el diálogo del micrófono del Asistente). Mientras hay un diálogo abierto, y 2,5 s
+        // después de cerrarse, se ignora ese regreso; en cualquier OTRO regreso a la app (p. ej. el técnico apagó la ubicación) se vuelve a comprobar.
+        if (dialogo.current.enCurso || Date.now() < dialogo.current.hasta) return;
+        let permiso = await Location.getForegroundPermissionsAsync();
+        if (permiso.status !== 'granted') {
+          if (!permiso.canAskAgain) return avisarGps('permiso');
+          dialogo.current.enCurso = true;
+          try {
+            permiso = await Location.requestForegroundPermissionsAsync();
+          } finally {
+            dialogo.current = { enCurso: false, hasta: Date.now() + 2_500 };
+          }
+          if (permiso.status !== 'granted') return avisarGps('permiso');
+        }
         if (Platform.OS === 'android' && !(await Location.hasServicesEnabledAsync())) {
+          dialogo.current.enCurso = true;
+          let activada = true;
           try {
             await Location.enableNetworkProviderAsync(); // diálogo del sistema: "Activar ubicación"
           } catch {
-            return avisarGps('apagado');
+            activada = false; // "No, gracias" (o el sistema no pudo mostrar el diálogo)
+          } finally {
+            dialogo.current = { enCurso: false, hasta: Date.now() + (activada ? 2_500 : 900) };
           }
+          if (!activada) {
+            // Con "No, gracias" el diálogo vuelve a salir de inmediato (~1 s). Si lo rechaza 3 veces seguidas se muestra el aviso con "Abrir ajustes" como salida
+            // (por si el teléfono no puede mostrar el diálogo) y no se vuelve a pedir hasta cerrarlo.
+            rechazosEncender += 1;
+            if (rechazosEncender >= 3) {
+              rechazosEncender = 0;
+              return avisarGps('apagado');
+            }
+            setTimeout(() => void vigilarUbicacion(), 1_000);
+            return;
+          }
+          rechazosEncender = 0;
         }
         const nueva = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.Balanced, timeInterval: 30_000, distanceInterval: 15 },
@@ -148,12 +193,35 @@ export function MonitorCampo() {
       suscripcion = null;
     }
 
+    /**
+     * La ubicación puede apagarse con la app abierta (panel rápido de Android): el sistema no avisa, así que se comprueba cada pocos segundos. Al detectarlo se
+     * corta el seguimiento y se pide encenderla de inmediato (diálogo del sistema "Activar"); con "No, gracias" vuelve a salir en ~1 s, y al 3.er rechazo
+     * seguido aparece el aviso con "Abrir ajustes". En cuanto se enciende, el seguimiento se retoma solo. No se pide nada mientras haya un diálogo abierto.
+     */
+    async function vigilarUbicacion() {
+      if (!vigente || AppState.currentState !== 'active' || avisoGps.current) return;
+      if (dialogo.current.enCurso || Date.now() < dialogo.current.hasta) return;
+      try {
+        const [encendida, permiso] = await Promise.all([Location.hasServicesEnabledAsync(), Location.getForegroundPermissionsAsync()]);
+        if (encendida && permiso.status === 'granted') {
+          if (!suscripcion) void iniciarGps();
+          return;
+        }
+        pausarGps();
+        void iniciarGps();
+      } catch {
+        // sin respuesta del sistema por ahora: se vuelve a comprobar en el siguiente ciclo
+      }
+    }
+
     void iniciarGps();
     const reloj = setInterval(() => void latir(), CADA_LATIDO_MS);
+    const vigilancia = setInterval(() => void vigilarUbicacion(), 2_000);
     const estadoApp = AppState.addEventListener('change', (e) => (e === 'active' ? void iniciarGps() : pausarGps()));
     return () => {
       vigente = false;
       clearInterval(reloj);
+      clearInterval(vigilancia);
       estadoApp.remove();
       pausarGps();
       olvidarPosicion();

@@ -27,7 +27,7 @@ const EAS_PROJECT_ID = '550fdce7-c8a4-473f-97c7-e301b92cd08e';
  * Súbela ('2', '3'...) SOLO cuando se agregue una librería nativa (cámara, GPS, etc.):
  * en ese caso hay que generar e instalar un APK nuevo con `npm run apk`.
  */
-const VERSION_NATIVA = '4'; // 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
+const VERSION_NATIVA = '5'; // 5: expo-asset (requerido por expo-audio) y SDK 58 alineado · 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
 
 /**
  * Variante de la app:
