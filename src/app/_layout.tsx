@@ -2,6 +2,7 @@ import { SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useBuscarActualizacion } from '@/actualizaciones/actualizaciones';
+import { RegistroPush } from '@/notificaciones/RegistroPush';
 import { ProveedorSesion, useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
 
@@ -16,6 +17,7 @@ export default function RaizApp() {
     <SafeAreaProvider>
       <ProveedorSesion>
         <ControladorSplash />
+        <RegistroPush />
         <Navegacion />
         <StatusBar style="dark" />
       </ProveedorSesion>

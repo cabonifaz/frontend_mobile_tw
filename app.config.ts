@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { existsSync } from 'node:fs';
 import type { ExpoConfig } from 'expo/config';
 
 /**
@@ -27,7 +29,7 @@ const EAS_PROJECT_ID = 'a7b8f297-3a22-4019-a66a-647a0626579b';
  * Súbela ('2', '3'...) SOLO cuando se agregue una librería nativa (cámara, GPS, etc.):
  * en ese caso hay que generar e instalar un APK nuevo con `npm run apk`.
  */
-const VERSION_NATIVA = '5'; // 5: expo-asset (requerido por expo-audio) y SDK 58 alineado · 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
+const VERSION_NATIVA = '6'; // 6: notificaciones push (expo-notifications + Firebase) · 5: expo-asset (requerido por expo-audio) y SDK 58 alineado · 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
 
 /**
  * Variante de la app:
@@ -37,6 +39,14 @@ const VERSION_NATIVA = '5'; // 5: expo-asset (requerido por expo-audio) y SDK 58
  *  - normal: el APK que recibe los avances con `npm run actualizar`.
  */
 const esDesarrollo = process.env.APP_VARIANT === 'development';
+
+/**
+ * Notificaciones push en Android (Firebase Cloud Messaging): el archivo google-services.json de la app com.totalweight.campo se descarga de la consola
+ * de Firebase y se guarda en la raíz de este proyecto (junto a este archivo). Sin el archivo el APK se compila igual, pero no recibe avisos en la bandeja
+ * del teléfono (se siguen viendo en la pestaña Notificaciones). Paso a paso en docs/NOTIFICACIONES_PUSH.md.
+ */
+const archivoFirebase = './google-services.json';
+const tieneFirebase = existsSync(archivoFirebase);
 const paquete = esDesarrollo ? 'com.totalweight.campo.dev' : 'com.totalweight.campo';
 
 const config: ExpoConfig = {
@@ -62,6 +72,7 @@ const config: ExpoConfig = {
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    ...(tieneFirebase && !esDesarrollo ? { googleServicesFile: archivoFirebase } : {}),
   },
   plugins: [
     'expo-router',
@@ -91,6 +102,11 @@ const config: ExpoConfig = {
         isAndroidBackgroundLocationEnabled: false,
         isIosBackgroundLocationEnabled: false,
       },
+    ],
+    [
+      // Notificaciones push: cada aviso nuevo llega a la bandeja de notificaciones del teléfono (src/notificaciones)
+      'expo-notifications',
+      { color: '#0057B8' },
     ],
     [
       'expo-splash-screen',
