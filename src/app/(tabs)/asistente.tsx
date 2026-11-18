@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Easing, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +52,32 @@ const SUGERENCIAS_JEFATURA = ['¿Qué están haciendo los técnicos ahora?', '¿
 /** Para la conversación general basta con que haya algo escrito (hasta 500 caracteres): un "hola" ya es una consulta. */
 const preguntaChatValida = (t: string) => limpiarPregunta(t).length >= 1 && limpiarPregunta(t).length <= PREGUNTA_MAX;
 
+/** Tres puntos que "saltan" en cadena: el asistente está escribiendo la respuesta. */
+function PuntosEscribiendo() {
+  const [puntos] = useState(() => [new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]);
+  useEffect(() => {
+    const animaciones = puntos.map((p, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 160),
+          Animated.timing(p, { toValue: 1, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(p, { toValue: 0, duration: 320, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+          Animated.delay(480 - i * 160),
+        ]),
+      ),
+    );
+    animaciones.forEach((a) => a.start());
+    return () => animaciones.forEach((a) => a.stop());
+  }, [puntos]);
+  return (
+    <View style={estilos.puntos}>
+      {puntos.map((p, i) => (
+        <Animated.View key={i} style={[estilos.punto, { opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }), transform: [{ translateY: p.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }] }]} />
+      ))}
+    </View>
+  );
+}
+
 
 /**
  * HU-19 — Asistente IA y Procedimientos.
@@ -78,6 +104,7 @@ export default function PantallaAsistente() {
   const [texto, setTexto] = useState('');
   const [elegirEquipo, setElegirEquipo] = useState(false);
   const [voz, setVoz] = useState(false);
+  const [enfocado, setEnfocado] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'info'; texto: string } | null>(null);
   const guardados = useGuardadosAsistente(idUsuario);
   const claves = new Set(guardados.map((g) => g.clave));
@@ -246,7 +273,7 @@ export default function PantallaAsistente() {
             {(
               [
                 ['general', 'Asistente', 'chatbubble-ellipses-outline'],
-                ['manuales', 'Manuales del equipo', 'book-outline'],
+                ['manuales', 'Manuales', 'book-outline'],
               ] as const
             ).map(([valor, etiqueta, icono]) => (
               <Pressable
@@ -400,9 +427,12 @@ export default function PantallaAsistente() {
                       </View>
                       <View style={{ marginTop: 10 }}>
                         {t.estado === 'cargando' && (
-                          <View style={estilos.pensando} testID="consultando">
-                            <ActivityIndicator color={colores.primario} />
-                            <Text style={estilos.pensandoTexto}>{t.modo === 'general' ? 'Pensando…' : 'Buscando en los manuales oficiales…'}</Text>
+                          <View style={estilos.pensando} testID="consultando" accessibilityLiveRegion="polite">
+                            <View style={estilos.avatar}>
+                              <Ionicons name="sparkles" size={14} color={colores.blanco} />
+                            </View>
+                            <Text style={estilos.pensandoTexto}>{t.modo === 'general' ? 'Asistente escribiendo' : 'Buscando en los manuales oficiales'}</Text>
+                            <PuntosEscribiendo />
                           </View>
                         )}
                         {t.estado === 'error' && (
@@ -430,8 +460,11 @@ export default function PantallaAsistente() {
                         {t.estado === 'listo' && t.chat && (
                           <View style={estilos.respuestaChat} testID="respuesta-chat">
                             <View style={estilos.respuestaChatCabecera}>
-                              <Ionicons name="sparkles" size={15} color={colores.primario} />
-                              <Text style={estilos.respuestaChatQuien}>Asistente</Text>
+                              <View style={estilos.avatar}>
+                                <Ionicons name="sparkles" size={14} color={colores.blanco} />
+                              </View>
+                              <Text style={estilos.respuestaChatQuien}>Asistente IA</Text>
+                              {!!t.chat.hora && <Text style={estilos.respuestaChatHora}>{t.chat.hora}</Text>}
                             </View>
                             <Text style={estilos.respuestaChatTexto} selectable>
                               {t.chat.respuesta}
@@ -461,21 +494,27 @@ export default function PantallaAsistente() {
         </ScrollView>
 
         <View style={estilos.entrada}>
-          <TextInput
-            value={texto}
-            onChangeText={setTexto}
-            placeholder={general ? 'Escribe aquí… (puedes empezar con un "hola")' : contexto ? 'Escribe tu consulta...' : 'Elige un equipo para consultar'}
-            placeholderTextColor={colores.placeholder}
-            style={estilos.campo}
-            multiline
-            maxLength={PREGUNTA_MAX}
-            editable={general || !!contexto}
-            returnKeyType="send"
-            blurOnSubmit
-            onSubmitEditing={() => puedeEnviar && void enviar(texto, 'texto')}
-            accessibilityLabel="Escribe tu consulta"
-            testID="campo-consulta"
-          />
+          <View style={[estilos.campoCaja, enfocado && estilos.campoEnfocado]}>
+            <TextInput
+              value={texto}
+              onChangeText={setTexto}
+              onFocus={() => setEnfocado(true)}
+              onBlur={() => setEnfocado(false)}
+              placeholder={general ? 'Escribe tu mensaje…' : contexto ? 'Escribe tu consulta…' : 'Elige un equipo para consultar'}
+              placeholderTextColor={colores.placeholder}
+              style={estilos.campo}
+              multiline
+              maxLength={PREGUNTA_MAX}
+              editable={general || !!contexto}
+              accessibilityLabel="Escribe tu consulta"
+              testID="campo-consulta"
+            />
+            {texto.length >= PREGUNTA_MAX - 100 && (
+              <Text style={[estilos.contador, texto.length >= PREGUNTA_MAX && { color: colores.error }]}>
+                {texto.length}/{PREGUNTA_MAX}
+              </Text>
+            )}
+          </View>
           {texto.trim().length > 0 ? (
             <Pressable
               onPress={() => void enviar(texto, 'texto')}
@@ -547,11 +586,18 @@ const estilos = StyleSheet.create({
   nuevaTexto: { fontSize: 15.5, fontWeight: '700', color: colores.primario },
   burbuja: { alignSelf: 'flex-end', maxWidth: '86%', backgroundColor: colores.primario, borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 14 },
   burbujaTexto: { fontSize: 17, color: colores.blanco, lineHeight: 24 },
-  pensando: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, padding: 14 },
-  pensandoTexto: { fontSize: 15.5, color: colores.textoSecundario, flexShrink: 1 },
+  pensando: { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start', backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, borderTopLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 12 },
+  pensandoTexto: { fontSize: 15, color: colores.textoSecundario, flexShrink: 1 },
+  avatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: colores.primario, alignItems: 'center', justifyContent: 'center' },
+  puntos: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 16 },
+  punto: { width: 7, height: 7, borderRadius: 4, backgroundColor: colores.primario },
+  respuestaChatHora: { marginLeft: 'auto', fontSize: 12.5, color: colores.textoSecundario },
+  campoCaja: { flex: 1, backgroundColor: colores.blanco, borderWidth: 1.5, borderColor: colores.borde, borderRadius: radios.campo + 4 },
+  campoEnfocado: { borderColor: colores.primario },
+  contador: { alignSelf: 'flex-end', fontSize: 12, color: colores.textoSecundario, paddingRight: 14, paddingBottom: 6 },
   detalleTecnico: { fontSize: 11.5, color: colores.textoSecundario, fontFamily: 'monospace', marginTop: 6 },
   reintentar: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10 },
   entrada: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, backgroundColor: colores.fondo, borderTopWidth: 1, borderTopColor: colores.bordeSuave },
-  campo: { flex: 1, minHeight: 52, maxHeight: 120, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.borde, borderRadius: radios.campo + 4, paddingHorizontal: 16, paddingVertical: 12, fontSize: 17, color: colores.texto, textAlignVertical: 'center' },
+  campo: { minHeight: 49, maxHeight: 140, paddingHorizontal: 16, paddingVertical: 12, fontSize: 17, lineHeight: 23, color: colores.texto, textAlignVertical: 'center' },
   boton: { width: 64, height: 52, borderRadius: radios.campo + 4, backgroundColor: colores.primario, alignItems: 'center', justifyContent: 'center' },
 });
