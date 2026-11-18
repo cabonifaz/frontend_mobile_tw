@@ -61,15 +61,28 @@ export function colorEstado(estado: string): string {
   }
 }
 
-/** Color del pin del mapa (el de su estado). */
+/** Color del pin del mapa según el estado del servicio (se usa cuando el servidor no manda el color de la actividad). */
 export const colorPin = colorEstado;
 
+/**
+ * Color del pin / avatar de un técnico: el que calcula el servidor según lo que hace (el mismo del Mapa Operativo de la intranet: al marcar «Inicio de labores»
+ * sale verde, en refrigerio naranja…); si no llega, el del estado de su servicio.
+ */
+export function colorTecnico(p: { actividadColor?: string | null; estado: string }): string {
+  return /^#[0-9A-Fa-f]{6}$/.test(p.actividadColor ?? '') ? (p.actividadColor as string) : colorEstado(p.estado);
+}
+
+/** Leyenda del mapa: los mismos colores y nombres del Mapa Operativo de la intranet (los colores los manda el servidor en cada pin). */
 export const LEYENDA_MAPA: { texto: string; color: string }[] = [
-  { texto: 'En ruta', color: colores.primario },
-  { texto: 'En ejecución', color: colores.verde },
-  { texto: 'Demora', color: colores.naranja },
-  { texto: 'Incidencia', color: colores.rojo },
-  { texto: 'Sin salir / finalizado', color: colores.textoTenue },
+  { texto: 'Técnico activo', color: '#16A34A' },
+  { texto: 'En ruta', color: '#2563EB' },
+  { texto: 'En planta', color: '#14B8A6' },
+  { texto: 'Ejecutando trabajo', color: '#EAB308' },
+  { texto: 'En refrigerio', color: '#F97316' },
+  { texto: 'Con demora', color: '#EA580C' },
+  { texto: 'Con incidente crítico', color: '#DC2626' },
+  { texto: 'Finalizado', color: '#64748B' },
+  { texto: 'Sin salir aún', color: '#94A3B8' },
 ];
 
 /** "hace 5 min", "hace 2 h": hace cuánto llegó la última ubicación GPS de un técnico (null = aún no envía ninguna hoy). */

@@ -15,7 +15,7 @@ import { useDiseno } from '@/hooks/useDiseno';
 import { useRefrescoAutomatico } from '@/hooks/useRefrescoAutomatico';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { LEYENDA_MAPA, colorPin, etiquetaEstado, insigniaAlerta, lineaDetalleAlerta, lineaTecnicoAlerta, textoActualizado, textoHaceMinutos } from '@/utilidades/panelCampo';
+import { LEYENDA_MAPA, colorTecnico, etiquetaEstado, insigniaAlerta, lineaDetalleAlerta, lineaTecnicoAlerta, textoActualizado, textoHaceMinutos } from '@/utilidades/panelCampo';
 
 /**
  * HU-29 — Panel de Campo en tiempo real (Jefe de Área): KPIs de los servicios de hoy (en ruta, en ejecución, con demora, con incidencia, finalizados), un mapa
@@ -49,7 +49,7 @@ export default function PantallaPanelCampo() {
     latitud: p.latitud as number,
     longitud: p.longitud as number,
     texto: p.iniciales,
-    color: colorPin(p.estado),
+    color: colorTecnico(p),
     etiqueta: `${p.tecnico}${p.numeroOs ? ` · ${p.numeroOs}` : ''}`,
     onPress: p.idOs ? () => abrirServicio(p.idOs) : undefined,
   }));
@@ -136,15 +136,15 @@ export default function PantallaPanelCampo() {
                     accessibilityLabel={`${p.tecnico}, ${et.texto}`}
                     testID={`tecnico-${p.idUsuario}`}
                   >
-                    <View style={[estilos.avatar, { backgroundColor: colorPin(p.estado) }]}>
+                    <View style={[estilos.avatar, { backgroundColor: colorTecnico(p) }]}>
                       <Text style={estilos.avatarTexto}>{p.iniciales}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={estilos.tecnicoNombre} numberOfLines={1}>
                         {p.tecnico}
                       </Text>
-                      <Text style={estilos.tecnicoLinea} numberOfLines={1}>
-                        {p.numeroOs ? `${p.numeroOs}${p.cliente ? ` · ${p.cliente}` : ''}` : 'Sin servicio asignado'}
+                      <Text style={estilos.tecnicoLinea} numberOfLines={2}>
+                        {p.actividad || (p.numeroOs ? `${p.numeroOs}${p.cliente ? ` · ${p.cliente}` : ''}` : 'Sin servicio asignado')}
                       </Text>
                       <View style={estilos.tecnicoUbicacion}>
                         <Ionicons name="location-outline" size={14} color={colores.textoSecundario} />

@@ -41,6 +41,12 @@ export interface PinTecnico {
   idOs: number | null;
   numeroOs: string | null;
   cliente: string | null;
+  /** Estado del Reloj marcador de hoy (en_labores · en_refrigerio · salio_planta · finalizada); null = aún no marcó el inicio de labores. */
+  jornada?: string | null;
+  /** Lo que hace el técnico ("En labores · ejecutando OS-000845 en …") y su color hexadecimal: el mismo del Mapa Operativo de la intranet (verde = en labores, naranja = refrigerio…). */
+  actividad?: string | null;
+  actividadTono?: string | null;
+  actividadColor?: string | null;
 }
 
 export type TipoAlertaPanel = 'error_critico' | 'incidente' | 'demora' | 'perdida_contacto' | 'gps_parado' | 'sin_ingreso_post_llegada' | 'sin_iniciar_servicio';
