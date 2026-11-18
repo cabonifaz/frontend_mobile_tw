@@ -69,7 +69,16 @@ export const LEYENDA_MAPA: { texto: string; color: string }[] = [
   { texto: 'En ejecución', color: colores.verde },
   { texto: 'Demora', color: colores.naranja },
   { texto: 'Incidencia', color: colores.rojo },
+  { texto: 'Sin salir / finalizado', color: colores.textoTenue },
 ];
+
+/** "hace 5 min", "hace 2 h": hace cuánto llegó la última ubicación GPS de un técnico (null = aún no envía ninguna hoy). */
+export function textoHaceMinutos(minutos: number | null): string {
+  if (minutos === null) return 'Sin ubicación hoy';
+  if (minutos < 1) return 'ahora mismo';
+  if (minutos < 60) return `hace ${Math.round(minutos)} min`;
+  return `hace ${Math.floor(minutos / 60)} h`;
+}
 
 /** Color de un hito, un evento o un punto de la línea de tiempo según el tono que manda el back. */
 export function colorTono(tono: TonoHito | string): string {
