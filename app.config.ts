@@ -44,8 +44,11 @@ const esDesarrollo = process.env.APP_VARIANT === 'development';
  * Notificaciones push en Android (Firebase Cloud Messaging): el archivo google-services.json de la app com.totalweight.campo se descarga de la consola
  * de Firebase y se guarda en la raíz de este proyecto (junto a este archivo). Sin el archivo el APK se compila igual, pero no recibe avisos en la bandeja
  * del teléfono (se siguen viendo en la pestaña Notificaciones). Paso a paso en docs/NOTIFICACIONES_PUSH.md.
+ *
+ * El archivo NO se sube al repositorio (está en .gitignore). En EAS llega como variable de tipo archivo `GOOGLE_SERVICES_JSON` (EAS la guarda cifrada y en el build
+ * `process.env.GOOGLE_SERVICES_JSON` es la ruta del archivo); en tu PC se usa el google-services.json local de la raíz.
  */
-const archivoFirebase = './google-services.json';
+const archivoFirebase = process.env.GOOGLE_SERVICES_JSON ?? './google-services.json';
 const tieneFirebase = existsSync(archivoFirebase);
 const paquete = esDesarrollo ? 'com.totalweight.campo.dev' : 'com.totalweight.campo';
 

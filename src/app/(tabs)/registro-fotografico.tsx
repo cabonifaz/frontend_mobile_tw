@@ -5,7 +5,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { capturarEvidencia, obtenerEvidenciasConRespaldo, urlArchivoEvidencia, type Evidencia, type Evidencias } from '@/api/evidencias';
+import { MAX_FOTOS_ADICIONALES, capturarEvidencia, obtenerEvidenciasConRespaldo, quitarFotoAdicional, urlArchivoEvidencia, type Evidencia, type Evidencias, type FotoAdicional } from '@/api/evidencias';
 import { puedeGuardarSinConexion, sincronizarEvidencias } from '@/api/colaEvidencias';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
@@ -18,7 +18,21 @@ import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { fechaCorta, horaDe } from '@/utilidades/formato';
-import { ETIQUETA_EN_COLA, estaCompleta, etiquetaEvidencia, siguientePagina, textoAvance, textoDuracion, textoEnCola, textoFaltan, textoForzadas, tituloServicio } from '@/utilidades/evidencias';
+import {
+  ETIQUETA_EN_COLA,
+  EVIDENCIA_ADICIONAL,
+  estaCompleta,
+  etiquetaEvidencia,
+  puedeAgregarAdicional,
+  siguientePagina,
+  textoAdicionales,
+  textoAvance,
+  textoDuracion,
+  textoEnCola,
+  textoFaltan,
+  textoForzadas,
+  tituloServicio,
+} from '@/utilidades/evidencias';
 
 /**
  * HU-11 — Registro fotográfico y validación IA (con HU-12 evidencia forzada y HU-13 microvideo de encendido).
@@ -114,6 +128,38 @@ export default function PantallaRegistroFotografico() {
       { text: 'Cancelar', style: 'cancel' as const },
     ];
     Alert.alert(e.nombre, 'Esta evidencia ya está registrada. ¿Qué quieres hacer?', opciones);
+  }
+
+  /** Fotos adicionales: extras opcionales, sin IA; no cuentan en las 9 ni en "Guardar y volver". */
+  function agregarAdicional() {
+    setMensaje(null);
+    if (!c?.puedeRegistrar) {
+      return setMensaje({ tipo: 'info', texto: 'Para agregar fotos el equipo debe estar en ejecución. Reanúdalo o inícialo desde los objetivos.' });
+    }
+    setCaptura({ evidencia: EVIDENCIA_ADICIONAL, pagina: 1 });
+  }
+
+  function quitarAdicional(f: FotoAdicional) {
+    Alert.alert(`Quitar la foto adicional ${f.numero}`, 'La foto dejará de formar parte del servicio. ¿Quieres quitarla?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Quitar',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            if (!sesion || !c) return;
+            setMensaje(null);
+            try {
+              await quitarFotoAdicional(sesion.token, c.idOs, c.idOsEquipo, f.idEvidencia);
+              await recargar();
+              setPanel(null);
+            } catch (e) {
+              setMensaje({ tipo: 'error', texto: e instanceof Error ? e.message : 'No se pudo quitar la foto.' });
+            }
+          })();
+        },
+      },
+    ]);
   }
 
   async function alLeerQr(contenido: string) {
@@ -242,6 +288,16 @@ export default function PantallaRegistroFotografico() {
               ))}
             </View>
 
+            <SeccionAdicionales
+              fotos={actual.adicionales ?? []}
+              enCola={pendientes.filter((p) => p.codigo === 'adicional').length}
+              idOs={c.idOs}
+              idOsEquipo={c.idOsEquipo}
+              token={token}
+              onAgregar={agregarAdicional}
+              onQuitar={quitarAdicional}
+            />
+
             <Pressable
               onPress={() => router.back()}
               disabled={!c.puedeGuardar}
@@ -359,6 +415,78 @@ function TarjetaEvidencia(props: {
   );
 }
 
+/** «Fotos adicionales»: extras opcionales del servicio (hasta 20). No pasan por la IA, no cuentan en "N de 9 completas" y no bloquean "Guardar y volver". */
+function SeccionAdicionales(props: {
+  fotos: FotoAdicional[];
+  /** Fotos adicionales guardadas en el teléfono esperando señal. */
+  enCola: number;
+  idOs: number;
+  idOsEquipo: number;
+  token: string;
+  onAgregar: () => void;
+  onQuitar: (f: FotoAdicional) => void;
+}) {
+  const puede = puedeAgregarAdicional(props.fotos.length, props.enCola, MAX_FOTOS_ADICIONALES);
+  return (
+    <View style={estilos.adicionales} testID="fotos-adicionales">
+      <View style={estilos.adicionalesCabecera}>
+        <Text style={[estilos.nombre, { marginTop: 0, flex: 1 }]}>Fotos adicionales</Text>
+        <View style={[estilos.pill, { backgroundColor: colores.grisFondo }]}>
+          <Text style={[estilos.pillTexto, { color: colores.grisTexto }]}>OPCIONAL</Text>
+        </View>
+      </View>
+      <Text style={estilos.descripcion}>Fotos extra del servicio. No cuentan en las 9 evidencias ni las revisa la IA.</Text>
+      <Text style={estilos.adicionalesContador}>{textoAdicionales(props.fotos.length, props.enCola, MAX_FOTOS_ADICIONALES)}</Text>
+
+      {(props.fotos.length > 0 || props.enCola > 0) && (
+        <View style={estilos.adicionalesRejilla}>
+          {props.fotos.map((f) => (
+            <View key={f.idEvidencia} style={estilos.adicionalMiniatura} testID={`adicional-${f.numero}`}>
+              <Image
+                source={{ uri: urlArchivoEvidencia(props.idOs, props.idOsEquipo, f.idEvidencia), headers: { Authorization: `Bearer ${props.token}` } }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+                accessibilityLabel={`Foto adicional ${f.numero}`}
+              />
+              <View style={estilos.adicionalNumero}>
+                <Text style={estilos.insigniaTexto}>{f.numero}</Text>
+              </View>
+              <Pressable
+                onPress={() => props.onQuitar(f)}
+                hitSlop={8}
+                style={estilos.adicionalQuitar}
+                accessibilityRole="button"
+                accessibilityLabel={`Quitar la foto adicional ${f.numero}`}
+                testID={`quitar-adicional-${f.numero}`}
+              >
+                <Ionicons name="close" size={16} color={colores.blanco} />
+              </Pressable>
+            </View>
+          ))}
+          {Array.from({ length: props.enCola }, (_, i) => (
+            <View key={`cola-${i}`} style={[estilos.adicionalMiniatura, estilos.miniaturaVacia]}>
+              <Ionicons name="cloud-upload-outline" size={24} color={colores.azulTexto} />
+              <Text style={estilos.nuevaEnCola}>En cola</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <Pressable
+        onPress={props.onAgregar}
+        disabled={!puede}
+        style={[estilos.adicionalBoton, !puede && { opacity: 0.5 }]}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !puede }}
+        testID="agregar-adicional"
+      >
+        <Ionicons name="camera-outline" size={22} color={colores.primario} />
+        <Text style={estilos.adicionalBotonTexto}>{puede ? 'Agregar foto adicional' : `Máximo ${MAX_FOTOS_ADICIONALES} fotos`}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function Dato({ k, v, largo = false }: { k: string; v: string; largo?: boolean }) {
   return largo ? (
     <View style={estilos.datoLargo}>
@@ -410,6 +538,15 @@ const estilos = StyleSheet.create({
   datoK: { fontSize: 16, color: colores.titulo },
   datoV: { fontSize: 16, fontWeight: '800', color: colores.titulo, flexShrink: 1, textAlign: 'right' },
   datoDetalle: { fontSize: 15, color: colores.textoSecundario, marginTop: 3, lineHeight: 21 },
+  adicionales: { marginTop: 12, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, padding: 14 },
+  adicionalesCabecera: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  adicionalesContador: { fontSize: 14, fontWeight: '700', color: colores.textoSecundario, marginTop: 6 },
+  adicionalesRejilla: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  adicionalMiniatura: { width: 78, height: 78, borderRadius: 10, overflow: 'hidden', backgroundColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
+  adicionalNumero: { position: 'absolute', left: 4, bottom: 4, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 1 },
+  adicionalQuitar: { position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
+  adicionalBoton: { marginTop: 12, minHeight: 50, borderRadius: radios.boton, borderWidth: 1.5, borderColor: colores.primario, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  adicionalBotonTexto: { color: colores.primario, fontSize: 16.5, fontWeight: '700' },
   enviarAhora: { minHeight: 46, borderRadius: radios.boton, backgroundColor: colores.primario, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   enviarAhoraTexto: { color: colores.blanco, fontSize: 16.5, fontWeight: '700' },
   nuevaEnCola: { color: colores.azulTexto, fontSize: 13, fontWeight: '700', marginTop: 4 },

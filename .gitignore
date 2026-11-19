@@ -25,7 +25,9 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
-
+# Llaves de Firebase: no se suben (en EAS van como variable de tipo archivo GOOGLE_SERVICES_JSON)
+google-services.json
+GoogleService-Info.plist
 # macOS
 .DS_Store
 *.pem

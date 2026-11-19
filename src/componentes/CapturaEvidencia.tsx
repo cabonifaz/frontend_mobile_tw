@@ -63,6 +63,8 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
   const camara = useRef<CameraView>(null);
   const esVideo = evidencia.medio === 'video';
   const codigo = evidencia.codigo as CodigoEvidencia;
+  /** Foto adicional: extra opcional del servicio; no pasa por la IA y cada toma que se guarda es una foto distinta (no se repite ni reemplaza). */
+  const esAdicional = codigo === 'adicional';
 
   const [fase, setFase] = useState<Fase>('camara');
   const [modo, setModo] = useState<'picture' | 'video'>('picture');
@@ -265,7 +267,7 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
     : rechazada
       ? { t: 'RECHAZADA POR IA', f: '#FEE2E2', c: colores.rojoEtiquetaTexto }
       : resultado.estado === 'omitida'
-        ? { t: 'GUARDADA · SIN IA', f: colores.grisFondo, c: colores.grisTexto }
+        ? { t: esAdicional ? 'FOTO ADICIONAL' : 'GUARDADA · SIN IA', f: colores.grisFondo, c: colores.grisTexto }
         : { t: codigo === 'placa' ? 'VERIFICADA POR IA' : esVideo ? `APROBADO ${Math.round(duracion)} s` : 'APROBADA', f: '#DCFCE7', c: colores.verdeEtiquetaTexto };
 
   return (
@@ -278,7 +280,7 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
           <Text style={estilos.titulo}>{esVideo ? 'Validación de encendido' : evidencia.nombre}</Text>
           <Text style={estilos.subtitulo}>
             {esVideo ? `Captura de microvideo · ${cabecera.nombre} #${String(cabecera.numero).padStart(2, '0')}` : evidencia.descripcion}
-            {resultado ? ` · intento ${resultado.intento}` : ''}
+            {resultado && !esAdicional ? ` · intento ${resultado.intento}` : ''}
             {codigo === 'informe' && paginaActual > 1 ? ` · hoja ${paginaActual}` : ''}
           </Text>
         </View>
@@ -334,14 +336,20 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
             {fase === 'camara' && (
               <View pointerEvents="none" style={estilos.indicacion}>
                 <Text style={estilos.indicacionTexto}>
-                  {esVideo ? 'Enfoca el display del equipo y graba el encendido.' : codigo === 'placa' ? 'Encuadra la placa completa dentro del marco' : `Toma la foto: ${evidencia.descripcion.toLowerCase()}`}
+                  {esVideo
+                    ? 'Enfoca el display del equipo y graba el encendido.'
+                    : codigo === 'placa'
+                      ? 'Encuadra la placa completa dentro del marco'
+                      : esAdicional
+                        ? 'Toma una foto extra del servicio.'
+                        : `Toma la foto: ${evidencia.descripcion.toLowerCase()}`}
                 </Text>
               </View>
             )}
             {fase === 'analizando' && (
               <View style={estilos.analizando}>
                 <ActivityIndicator color={colores.blanco} />
-                <Text style={estilos.analizandoTexto}>Analizando con IA…</Text>
+                <Text style={estilos.analizandoTexto}>{esAdicional ? 'Guardando foto…' : 'Analizando con IA…'}</Text>
               </View>
             )}
           </View>
@@ -407,12 +415,14 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
                 <View style={estilos.cajaAzul} testID="captura-en-cola">
                   <Text style={estilos.cajaAzulTexto}>
                     <Text style={{ fontWeight: '800' }}>Guardada en el teléfono, sin señal. </Text>
-                    Se enviará sola a la IA cuando haya conexión (con la hora y el GPS de esta toma). Hasta que la IA la valide, la evidencia NO cuenta como completa.
+                    {esAdicional
+                      ? 'Se enviará sola cuando haya conexión (con la hora y el GPS de esta toma). Es una foto adicional: no pasa por la IA ni cuenta en las 9 evidencias.'
+                      : 'Se enviará sola a la IA cuando haya conexión (con la hora y el GPS de esta toma). Hasta que la IA la valide, la evidencia NO cuenta como completa.'}
                   </Text>
                 </View>
                 <View style={estilos.botones}>
                   <Pressable onPress={repetir} style={[estilos.boton, estilos.botonBorde]} accessibilityRole="button" testID="repetir-en-cola">
-                    <Text style={[estilos.botonTexto, { color: colores.blanco }]}>{esVideo ? 'Grabar de nuevo' : 'Tomar de nuevo'}</Text>
+                    <Text style={[estilos.botonTexto, { color: colores.blanco }]}>{esVideo ? 'Grabar de nuevo' : esAdicional ? 'Otra foto' : 'Tomar de nuevo'}</Text>
                   </Pressable>
                   {codigo === 'informe' && paginaActual < 10 && (
                     <Pressable
@@ -460,9 +470,16 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
                   <>
                     <Detalle codigo={codigo} datos={datos} coincide={resultado.coincide} numeroRq={resultado.numeroRq} duracion={duracion} omitida={resultado.estado === 'omitida'} />
                     <View style={estilos.botones}>
-                      <Pressable onPress={repetir} style={[estilos.boton, estilos.botonBorde]} accessibilityRole="button" testID="repetir">
-                        <Text style={[estilos.botonTexto, { color: colores.blanco }]}>Repetir</Text>
-                      </Pressable>
+                      {esAdicional ? (
+                        <Pressable onPress={repetir} style={[estilos.boton, estilos.botonBorde]} accessibilityRole="button" testID="otra-foto-adicional">
+                          <Ionicons name="add" size={20} color={colores.blanco} />
+                          <Text style={[estilos.botonTexto, { color: colores.blanco }]}>Otra foto</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable onPress={repetir} style={[estilos.boton, estilos.botonBorde]} accessibilityRole="button" testID="repetir">
+                          <Text style={[estilos.botonTexto, { color: colores.blanco }]}>Repetir</Text>
+                        </Pressable>
+                      )}
                       {codigo === 'informe' && paginaActual < 10 && (
                         <Pressable
                           onPress={() => {
@@ -479,7 +496,7 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
                       )}
                       <Pressable onPress={() => onCerrar(true)} style={[estilos.boton, { backgroundColor: colores.primario }]} accessibilityRole="button" testID="usar-captura">
                         <Ionicons name="checkmark" size={20} color={colores.blanco} />
-                        <Text style={estilos.botonTexto}>{esVideo ? 'Guardar video' : 'Usar foto'}</Text>
+                        <Text style={estilos.botonTexto}>{esVideo ? 'Guardar video' : esAdicional ? 'Listo' : 'Usar foto'}</Text>
                       </Pressable>
                     </View>
                   </>
@@ -582,6 +599,7 @@ function CapturaActiva({ evidencia, pagina, cabecera, token, idUsuario, onCerrar
 /** Lo que muestra el panel cuando la IA aprobó la toma, según la evidencia. */
 function Detalle(props: { codigo: CodigoEvidencia; datos: ResultadoEvidencia['datosIa']; coincide: boolean | null; numeroRq: string | null; duracion: number; omitida: boolean }) {
   const { codigo, datos } = props;
+  if (codigo === 'adicional') return <Text style={estilos.ayuda}>Foto adicional guardada. No pasa por la IA ni cuenta en las 9 evidencias.</Text>;
   if (props.omitida) return <Text style={estilos.ayuda}>La IA no estuvo disponible: la evidencia se guardó sin validar.</Text>;
   if (codigo === 'placa') {
     const filas = datosPlaca(datos);

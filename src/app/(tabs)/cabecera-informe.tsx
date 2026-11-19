@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { guardarCabeceraInforme, obtenerCabeceraInformeConRespaldo, type CabeceraInforme, type CuerpoFalla, type GuardarCabecera, type Severidad } from '@/api/informe';
+import { descargarPreInforme } from '@/api/preInforme';
+import { abrirPdf } from '@/api/procedimientos';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
@@ -33,6 +35,7 @@ import {
   fallaDesde,
   fallaGuardadaACuerpo,
   fallaVacia,
+  pendientesPreInforme,
   progresoInforme,
   diferenciaExcentricidad,
   progresoObservacion,
@@ -99,6 +102,7 @@ export default function PantallaCabeceraInforme() {
   const [abiertos, setAbiertos] = useState<Set<Bloque>>(new Set());
   const [guardada, setGuardada] = useState<CabeceraInforme | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [descargando, setDescargando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'info'; texto: string; detalle?: string } | null>(null);
   const [modal, setModal] = useState<{ indice: number | null; inicial: FallaEditable } | null>(null);
 
@@ -204,6 +208,40 @@ export default function PantallaCabeceraInforme() {
       setMensaje({ tipo: 'error', texto: e instanceof Error ? e.message : 'No se pudo guardar la cabecera.', detalle: e instanceof ErrorApi && e.estadoHttp === 0 ? e.detalleTecnico : undefined });
     } finally {
       setGuardando(false);
+    }
+  }
+
+  /** Pre-informe: solo con la cabecera completa y GUARDADA (el PDF lo arma el servidor con lo guardado). Antes de descargar pide confirmación. */
+  function pedirPreInforme() {
+    if (!cab || descargando) return;
+    if (datos?.sinConexion) return setMensaje({ tipo: 'info', texto: 'Sin conexión: el pre-informe se genera en el servidor. Inténtalo cuando tengas señal.' });
+    if (sucio) {
+      return Alert.alert('Guarda los cambios', 'Hay cambios sin guardar en la cabecera. Guárdalos primero para que el pre-informe los incluya.');
+    }
+    const faltan = pendientesPreInforme(cab);
+    if (faltan.length > 0) {
+      return Alert.alert('La cabecera no está completa', `Para descargar el pre-informe completa:\n\n${faltan.map((x) => `• ${x}`).join('\n')}`);
+    }
+    Alert.alert(
+      'Descargar pre-informe',
+      'Se generará un PDF con los datos guardados de la cabecera del informe y un espacio para la firma del encargado de planta. No es el informe oficial.\n\n¿Seguro que quieres descargarlo?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Descargar', onPress: () => void descargarYAbrir() },
+      ],
+    );
+  }
+
+  async function descargarYAbrir() {
+    setDescargando(true);
+    setMensaje(null);
+    try {
+      const uri = await descargarPreInforme(token, idOs, idOsEquipo);
+      await abrirPdf(uri);
+    } catch (e) {
+      setMensaje({ tipo: 'error', texto: e instanceof Error ? e.message : 'No se pudo descargar el pre-informe.' });
+    } finally {
+      setDescargando(false);
     }
   }
 
@@ -587,6 +625,19 @@ export default function PantallaCabeceraInforme() {
             </>
           )}
         </ScrollView>
+
+        {!!cab && (
+          <Pressable
+            onPress={pedirPreInforme}
+            style={[estilos.flotante, estilos.flotantePreInforme, (sucio || pendientesPreInforme(cab).length > 0) && { opacity: 0.45 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Descargar pre-informe"
+            accessibilityState={{ busy: descargando }}
+            testID="descargar-pre-informe"
+          >
+            {descargando ? <ActivityIndicator color={colores.primario} /> : <Ionicons name="document-text-outline" size={26} color={colores.primario} />}
+          </Pressable>
+        )}
 
         {!!cab && (
           <Pressable
@@ -1052,6 +1103,8 @@ const estilos = StyleSheet.create({
   minicabecera: { fontSize: 12, color: colores.textoSecundario, textAlign: 'center' },
   excentricidad: { fontSize: 14, color: colores.titulo, lineHeight: 20 },
   detalleTecnico: { marginTop: 6, color: colores.textoSecundario, fontSize: 11.5, fontFamily: 'monospace' },
+  /** El botón del pre-informe va encima del de Guardar (mismo diseño). */
+  flotantePreInforme: { bottom: 86 },
   flotante: {
     position: 'absolute',
     right: 18,
