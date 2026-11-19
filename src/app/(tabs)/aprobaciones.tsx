@@ -5,6 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { obtenerAprobaciones, type Aprobacion, type TipoAprobacion } from '@/api/aprobaciones';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
+import { marcarNotificacionLeida, obtenerNotificaciones } from '@/api/notificaciones';
 import { Aviso } from '@/componentes/Aviso';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { Chips } from '@/componentes/ViaticosUI';
@@ -12,6 +13,7 @@ import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
+import { esAvisoDeAprobacion } from '@/utilidades/notificaciones';
 import { etiquetaTipo, filtrarAprobaciones, haceTexto, separarUrgentes, type FiltroAprobaciones } from '@/utilidades/aprobaciones';
 
 /**
@@ -35,6 +37,8 @@ export default function PantallaAprobaciones() {
   const usuario = sesion?.usuario;
   const d = useDiseno();
   const [filtro, setFiltro] = useState<FiltroAprobaciones>('todas');
+  const [leyendo, setLeyendo] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     const [bandeja, cargos] = await Promise.all([obtenerAprobaciones(token), obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => null)]);
@@ -58,6 +62,24 @@ export default function PantallaAprobaciones() {
   const items: Aprobacion[] = useMemo(() => filtrarAprobaciones(bandeja?.items ?? [], filtro), [bandeja, filtro]);
   const { urgentes, pendientes } = useMemo(() => separarUrgentes(items), [items]);
 
+  // «Leer todo»: marca como leídos los avisos de aprobaciones (salidas, llegadas forzadas, ensayos con error, evidencias forzadas, equipos nuevos).
+  // Las aprobaciones siguen pendientes hasta que el jefe las decide.
+  async function leerTodo() {
+    const token = sesion?.token;
+    if (!token || leyendo) return;
+    setLeyendo(true);
+    setAviso(null);
+    try {
+      const pendientes = (await obtenerNotificaciones(token)).filter((n) => !n.leida && esAvisoDeAprobacion(n.tipo));
+      await Promise.all(pendientes.map((n) => marcarNotificacionLeida(token, n.id).catch(() => undefined)));
+      setAviso(pendientes.length === 0 ? 'No tienes avisos de aprobaciones sin leer.' : `Marcaste ${pendientes.length} ${pendientes.length === 1 ? 'aviso' : 'avisos'} de aprobaciones como leídos. Las aprobaciones siguen pendientes hasta que las decidas.`);
+    } catch {
+      setAviso('No se pudieron marcar los avisos. Inténtalo de nuevo.');
+    } finally {
+      setLeyendo(false);
+    }
+  }
+
   const opciones = [
     { id: 'todas' as FiltroAprobaciones, texto: 'Todas', cantidad: bandeja?.total ?? 0 },
     ...(bandeja?.tipos ?? []).map((t) => ({ id: t.tipo as FiltroAprobaciones, texto: etiquetaTipo[t.tipo]?.plural ?? t.tipo, cantidad: t.cantidad })),
@@ -72,10 +94,21 @@ export default function PantallaAprobaciones() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={recargando} onRefresh={recargar} colors={[colores.primario]} />}
       >
-        <Text style={[estilos.titulo, { fontSize: d.tituloPantalla }]} accessibilityRole="header">
-          Aprobaciones
-        </Text>
+        <View style={estilos.tituloFila}>
+          <Text style={[estilos.titulo, { fontSize: d.tituloPantalla, flex: 1 }]} accessibilityRole="header">
+            Aprobaciones
+          </Text>
+          <Pressable onPress={() => void leerTodo()} disabled={leyendo} accessibilityRole="button" accessibilityLabel="Leer todo" style={[estilos.leerTodo, leyendo && { opacity: 0.6 }]} testID="aprobaciones-leer-todo">
+            {leyendo ? <ActivityIndicator size="small" color={colores.primario} /> : <Ionicons name="checkmark-done" size={18} color={colores.primario} />}
+            <Text style={estilos.leerTodoTexto}>Leer todo</Text>
+          </Pressable>
+        </View>
         <Text style={estilos.subtitulo}>Todo lo que espera tu decisión</Text>
+        {!!aviso && (
+          <View style={{ marginBottom: 8 }} testID="aprobaciones-aviso">
+            <Aviso tipo="info" mensaje={aviso} />
+          </View>
+        )}
 
         {cargando ? (
           <ActivityIndicator color={colores.primario} style={{ marginTop: 32 }} />
@@ -169,6 +202,9 @@ const estilos = StyleSheet.create({
   area: { flex: 1, backgroundColor: colores.fondo },
   contenido: { padding: 16, paddingBottom: 28, maxWidth: 560, width: '100%', alignSelf: 'center' },
   titulo: { fontSize: 26, fontWeight: '700', color: colores.titulo, marginTop: 4 },
+  tituloFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  leerTodo: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, marginTop: 4, borderRadius: 18, borderWidth: 1, borderColor: colores.primario, backgroundColor: colores.blanco },
+  leerTodoTexto: { fontSize: 13.5, fontWeight: '700', color: colores.primario },
   subtitulo: { fontSize: 14, color: colores.textoSecundario, marginTop: 4, marginBottom: 6 },
   grupo: { fontSize: 12.5, fontWeight: '700', letterSpacing: 1.4, color: colores.textoSecundario },
   tarjeta: {

@@ -118,3 +118,10 @@ export function tituloNotificacion(n: Pick<Notificacion, 'tipo' | 'titulo'>): st
 export function conLeidas(lista: readonly Notificacion[], leidas: ReadonlySet<number>): Notificacion[] {
   return lista.map((n) => (leidas.has(n.id) ? { ...n, leida: true } : n));
 }
+
+/**
+ * Avisos que corresponden a la pestaña Aprobaciones del jefe: lo que un técnico le pide decidir (visto bueno de salida, llegada forzada, ensayo con error crítico,
+ * evidencia forzada y equipo nuevo por aprobar). «Leer todo» en Aprobaciones marca estos avisos como leídos (las aprobaciones siguen pendientes hasta decidirlas).
+ */
+const TIPOS_APROBACION: readonly string[] = ['autorizacion_solicitud', 'llegada_forzada_solicitud', 'ensayo_critico', 'evidencia_forzada', 'equipo_nuevo'];
+export const esAvisoDeAprobacion = (tipo: string): boolean => TIPOS_APROBACION.includes(tipo);

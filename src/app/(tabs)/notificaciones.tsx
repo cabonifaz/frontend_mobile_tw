@@ -135,6 +135,18 @@ export default function PantallaNotificaciones() {
     });
     marcarTodasLeidas(token).catch(() => undefined);
   };
+  // «Leer todo»: en Todas / No leídas marca todas las del usuario; en Críticas, solo las críticas (las demás siguen sin leer)
+  const sinLeerEnVista = visibles.filter((n) => !n.leida);
+  const leerTodo = () => {
+    if (!token || sinLeerEnVista.length === 0) return;
+    if (filtro !== 'criticas') return marcarTodas();
+    setLeidas((p) => {
+      const nuevas = new Set(p);
+      sinLeerEnVista.forEach((n) => nuevas.add(n.id));
+      return nuevas;
+    });
+    void Promise.all(sinLeerEnVista.map((n) => marcarNotificacionLeida(token, n.id).catch(() => undefined)));
+  };
   const abrir = (n: Notificacion, destino: DestinoNotificacion) => {
     marcarLeida(n);
     if (destino.pantalla === 'servicio' && destino.idOs) router.push({ pathname: '/detalle-servicio', params: { id: String(destino.idOs) } });
@@ -173,12 +185,13 @@ export default function PantallaNotificaciones() {
           <Chip texto="Todas" activo={filtro === 'todas'} onPress={() => setFiltro('todas')} />
           <Chip texto={`No leídas (${noLeidas})`} activo={filtro === 'no-leidas'} onPress={() => setFiltro('no-leidas')} />
           {esJefe && <Chip texto="Críticas" activo={filtro === 'criticas'} onPress={() => setFiltro('criticas')} />}
-          {noLeidas > 0 && (
-            <Pressable onPress={marcarTodas} accessibilityRole="button" style={estilos.marcarTodas} testID="marcar-todas">
-              <Text style={estilos.marcarTodasTexto}>Marcar todas como leídas</Text>
-            </Pressable>
-          )}
         </View>
+        {sinLeerEnVista.length > 0 && (
+          <Pressable onPress={leerTodo} accessibilityRole="button" accessibilityLabel={filtro === 'criticas' ? 'Leer todas las críticas' : 'Leer todo'} style={estilos.leerTodo} testID="marcar-todas">
+            <Ionicons name="checkmark-done" size={18} color={colores.primario} />
+            <Text style={estilos.leerTodoTexto}>{filtro === 'criticas' ? 'Leer todas las críticas' : 'Leer todo'}</Text>
+          </Pressable>
+        )}
 
         {cargando ? (
           <ActivityIndicator color={colores.primario} style={{ marginTop: 32 }} />
@@ -273,8 +286,8 @@ const estilos = StyleSheet.create({
   contenido: { padding: 20, paddingBottom: 28, width: '100%', alignSelf: 'center' },
   titulo: { fontSize: 26, fontWeight: '700', color: colores.titulo, marginBottom: 12 },
   filtros: { flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' },
-  marcarTodas: { paddingHorizontal: 6, paddingVertical: 8 },
-  marcarTodasTexto: { fontSize: 13, fontWeight: '600', color: colores.primario },
+  leerTodo: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, borderRadius: 18, borderWidth: 1, borderColor: colores.primario, backgroundColor: colores.blanco },
+  leerTodoTexto: { fontSize: 13.5, fontWeight: '700', color: colores.primario },
   chip: { borderWidth: 1, borderColor: colores.borde, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: colores.tarjeta },
   chipActivo: { backgroundColor: colores.primario, borderColor: colores.primario },
   chipTexto: { fontSize: 14, color: colores.texto },
