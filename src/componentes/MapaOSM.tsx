@@ -2,7 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colores } from '@/tema/colores';
+import type { PuntoGeo } from '@/utilidades/panelCampo';
 import type { PinMapa } from './MapaEsquematico';
+
+/** Línea sobre el mapa (la ruta por calles, el recorrido real…): puntos en orden, se dibuja con tramos de color. */
+export interface LineaMapa {
+  clave: string;
+  puntos: PuntoGeo[];
+  color: string;
+  grosor?: number;
+  opacidad?: number;
+}
+const SIN_LINEAS: LineaMapa[] = [];
 
 /**
  * Mapa REAL de calles (OpenStreetMap), como el Mapa Operativo de la intranet: se arrastra con el dedo, tiene los botones + y −, "Centrar" (encuadra a todos los
@@ -38,7 +49,7 @@ const latitudDe = (y: number, zoom: number) => {
 };
 
 /** Vista que deja a todos los pines dentro del mapa (uno solo: cerca; ninguno: Lima). */
-function encuadrar(pines: PinMapa[], ancho: number, alto: number): Vista {
+function encuadrar(pines: PuntoGeo[], ancho: number, alto: number): Vista {
   if (pines.length === 0) return { ...LIMA, zoom: 11 };
   if (pines.length === 1) return { latitud: pines[0].latitud, longitud: pines[0].longitud, zoom: 15 };
 
@@ -69,11 +80,13 @@ interface Props {
   vacio?: string;
   /** Cada vez que cambia, el mapa se centra en ese punto (p. ej. al tocar un técnico de la lista). */
   enfoque?: { latitud: number; longitud: number; n: number } | null;
+  /** Líneas a dibujar debajo de los pines. Entran en el encuadre ("Centrar"). */
+  lineas?: LineaMapa[];
   /** Avisa cuando el dedo está sobre el mapa: la pantalla desactiva su desplazamiento mientras tanto, para que arrastrar mueva el mapa y no la página. */
   alTocarMapa?: (tocando: boolean) => void;
 }
 
-export function MapaOSM({ pines, alto = 320, vacio = 'Aún no hay posiciones GPS de hoy.', enfoque = null, alTocarMapa }: Props) {
+export function MapaOSM({ pines, alto = 320, vacio = 'Aún no hay posiciones GPS de hoy.', enfoque = null, lineas = SIN_LINEAS, alTocarMapa }: Props) {
   const [ancho, setAncho] = useState(0);
   const [vista, setVista] = useState<Vista>({ ...LIMA, zoom: 11 });
   const [arrastre, setArrastre] = useState({ dx: 0, dy: 0 });
@@ -108,9 +121,9 @@ export function MapaOSM({ pines, alto = 320, vacio = 'Aún no hay posiciones GPS
   useEffect(() => {
     if (ancho > 0 && pines.length > 0 && !encuadrado.current) {
       encuadrado.current = true;
-      setVista(encuadrar(pines, ancho, alto));
+      setVista(encuadrar([...pines, ...lineas.flatMap((l) => l.puntos)], ancho, alto));
     }
-  }, [ancho, alto, pines]);
+  }, [ancho, alto, pines, lineas]);
 
   // Tocar un técnico de la lista centra el mapa en él (se aplica una sola vez por cada toque: «n» cambia)
   if (enfoque && enfoque.n !== enfoqueAplicado) {
@@ -158,6 +171,8 @@ export function MapaOSM({ pines, alto = 320, vacio = 'Aún no hay posiciones GPS
         <Image key={t.clave} source={{ uri: t.uri, headers: CABECERAS }} style={[estilos.tile, { left: t.x, top: t.y }]} fadeDuration={0} />
       ))}
 
+      {ancho > 0 && lineas.map((l) => tramosDeLinea(l, vista.zoom, izquierda, arriba, ancho, alto))}
+
       {ancho > 0 &&
         pines.map((p) => {
           const px = mundoX(p.longitud, vista.zoom) - izquierda;
@@ -169,11 +184,11 @@ export function MapaOSM({ pines, alto = 320, vacio = 'Aún no hay posiciones GPS
               key={p.clave}
               onPress={p.onPress}
               disabled={!p.onPress}
-              style={[estilos.pin, { left: px - t / 2, top: py - t / 2, width: t, height: t, borderRadius: t / 2, backgroundColor: p.color }]}
+              style={[estilos.pin, { left: px - t / 2, top: py - t / 2, width: t, height: t, borderRadius: p.cuadrado ? 10 : t / 2, backgroundColor: p.color }]}
               accessibilityRole={p.onPress ? 'button' : 'image'}
               accessibilityLabel={p.etiqueta ?? p.texto}
             >
-              <Text style={estilos.pinTexto}>{p.texto}</Text>
+              {p.icono ? <Ionicons name={p.icono} size={Math.round(t * 0.52)} color={colores.blanco} /> : <Text style={estilos.pinTexto}>{p.texto}</Text>}
             </Pressable>
           );
         })}
@@ -190,7 +205,7 @@ export function MapaOSM({ pines, alto = 320, vacio = 'Aún no hay posiciones GPS
       </View>
 
       <Pressable
-        onPress={() => setVista(encuadrar(pines, ancho, alto))}
+        onPress={() => setVista(encuadrar([...pines, ...lineas.flatMap((l) => l.puntos)], ancho, alto))}
         style={estilos.centrar}
         accessibilityRole="button"
         accessibilityLabel="Centrar el mapa en todos los técnicos"
@@ -210,6 +225,40 @@ export function MapaOSM({ pines, alto = 320, vacio = 'Aún no hay posiciones GPS
       </View>
     </View>
   );
+}
+
+/** Tramos de una línea como barras rectas con los extremos redondeados (sin librería de dibujo); solo los que caen dentro del mapa. */
+function tramosDeLinea(l: LineaMapa, zoom: number, izquierda: number, arriba: number, ancho: number, alto: number) {
+  const px = l.puntos.map((p) => ({ x: mundoX(p.longitud, zoom) - izquierda, y: mundoY(p.latitud, zoom) - arriba }));
+  const g = l.grosor ?? 5;
+  const tramos = [];
+  for (let i = 1; i < px.length; i++) {
+    const a = px[i - 1];
+    const b = px[i];
+    if ((a.x < -60 && b.x < -60) || (a.x > ancho + 60 && b.x > ancho + 60) || (a.y < -60 && b.y < -60) || (a.y > alto + 60 && b.y > alto + 60)) continue;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const largo = Math.hypot(dx, dy);
+    if (largo < 0.5) continue;
+    tramos.push(
+      <View
+        key={`${l.clave}-${i}`}
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: (a.x + b.x) / 2 - largo / 2,
+          top: (a.y + b.y) / 2 - g / 2,
+          width: largo,
+          height: g,
+          borderRadius: g / 2,
+          backgroundColor: l.color,
+          opacity: l.opacidad ?? 1,
+          transform: [{ rotate: `${(Math.atan2(dy, dx) * 180) / Math.PI}deg` }],
+        }}
+      />,
+    );
+  }
+  return tramos;
 }
 
 const estilos = StyleSheet.create({

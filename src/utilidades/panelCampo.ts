@@ -363,3 +363,44 @@ export function errorAviso(mensaje: string): string | null {
   if (n > MAX_AVISO) return `El aviso no puede superar los ${MAX_AVISO} caracteres.`;
   return null;
 }
+
+/** Distancia en línea recta entre dos puntos (haversine, metros). */
+export function distanciaMetros(a: PuntoGeo, b: PuntoGeo): number {
+  const R = 6371000;
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const dLat = rad(b.latitud - a.latitud);
+  const dLon = rad(b.longitud - a.longitud);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.latitud)) * Math.cos(rad(b.latitud)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function minutosDeHora(hora: string | null | undefined): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hora ?? '');
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/**
+ * Minutos que el técnico lleva en el mismo punto (como "Tiempo en punto" de la intranet): desde la primera de las últimas posiciones que están a menos de
+ * "radioM" metros de la actual hasta la hora actual del servidor ("actualizado", HH:MM de Lima). 0 si se está moviendo o no hay datos.
+ */
+export function minutosEnPunto(recorrido: { latitud: number; longitud: number; hora: string | null }[], actualizado: string | null | undefined, radioM = 60): number {
+  if (recorrido.length === 0) return 0;
+  const ultima = recorrido[recorrido.length - 1];
+  let inicio = minutosDeHora(ultima.hora);
+  for (let i = recorrido.length - 2; i >= 0; i--) {
+    if (distanciaMetros(recorrido[i], ultima) > radioM) break;
+    const m = minutosDeHora(recorrido[i].hora);
+    if (m !== null) inicio = m;
+  }
+  const ahora = minutosDeHora(actualizado);
+  if (inicio === null || ahora === null) return 0;
+  const d = ahora - inicio < 0 ? ahora - inicio + 1440 : ahora - inicio;
+  return d >= 1440 ? 0 : d;
+}
+
+/** Hora (HH:MM) de la primera posición del recorrido a menos de "radioM" metros de la planta (la "pre-llegada" del cronograma GPS); null si aún no se acercó. */
+export function horaPreLlegada(recorrido: { latitud: number; longitud: number; hora: string | null }[], planta: PuntoGeo | null, radioM = 300): string | null {
+  if (!planta) return null;
+  const p = recorrido.find((x) => distanciaMetros(x, planta) <= radioM);
+  return p?.hora ?? null;
+}

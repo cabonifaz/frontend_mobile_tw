@@ -185,6 +185,8 @@ export interface ResumenRuta {
   etaPorCalles?: boolean;
   /** false: la sede no tiene ubicación registrada (el back omite destino, distancia y ETA). */
   plantaUbicada?: boolean;
+  /** Precisión del GPS de la última posición (m). Opcional: un back anterior no lo envía. */
+  precisionM?: number | null;
   demoraTexto: string | null;
   demoraOrigen: 'tecnico' | 'asistente' | string | null;
   contactoNombre: string | null;
@@ -210,6 +212,8 @@ export interface RutaServicio {
   resumen: ResumenRuta;
   recorrido: PuntoGps[];
   eventos: EventoRuta[];
+  /** Trazado por las calles de la posición actual a la planta (el back lo calcula con OSRM). null / ausente: se dibuja una línea recta. */
+  calles?: PuntoGps[] | null;
 }
 
 export interface ResultadoRegistro {
@@ -361,8 +365,12 @@ const mockPanel = {
         idOs: s.idOs, numero: s.numero, cliente: s.cliente, estado: s.estado, idTecnico: s.idTecnico, tecnico: s.tecnico, telefonoTecnico: '987654321',
         latitud: -12.07, longitud: -77.035, minutosUbicacion: 1, velocidadKmh: 18, distanciaM: 6200, destinoLatitud: -12.09, destinoLongitud: -77.0, destinoNombre: s.lugar,
         origenLatitud: -12.04, origenLongitud: -77.08, eta: '09:45', etaProgramada: s.horaProgramada, demoraTexto: 'Ingreso a planta · +35 min · "Cola de camiones en garita" · Impacto: retrasa el servicio',
-        demoraOrigen: 'tecnico', contactoNombre: 'Rosa Quispe', contactoTelefono: '987111222', actualizado: '10:46',
+        demoraOrigen: 'tecnico', contactoNombre: 'Rosa Quispe', contactoTelefono: '987111222', actualizado: '10:46', precisionM: 25,
       },
+      calles: [
+        { latitud: -12.07, longitud: -77.035, hora: null }, { latitud: -12.0735, longitud: -77.0345, hora: null }, { latitud: -12.0762, longitud: -77.0262, hora: null },
+        { latitud: -12.0815, longitud: -77.0215, hora: null }, { latitud: -12.0858, longitud: -77.0105, hora: null }, { latitud: -12.09, longitud: -77.0, hora: null },
+      ],
       recorrido: [
         { latitud: -12.04, longitud: -77.08, hora: '07:55' }, { latitud: -12.047, longitud: -77.068, hora: '08:10' }, { latitud: -12.056, longitud: -77.058, hora: '08:25' },
         { latitud: -12.06, longitud: -77.05, hora: '08:40' }, { latitud: -12.066, longitud: -77.043, hora: '09:00' }, { latitud: -12.07, longitud: -77.035, hora: '09:12' },
