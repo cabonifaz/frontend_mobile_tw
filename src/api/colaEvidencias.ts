@@ -18,7 +18,7 @@ import type { Ubicacion } from './ruta';
  *    un motivo escrito (HU-12). El servidor conserva la hora original de la toma si es de las últimas 24 h.
  *  - Los archivos se copian a la carpeta de documentos de la app (la caché la puede borrar el sistema); los datos van al almacenamiento seguro
  *    (una clave por captura más un índice, porque cada valor tiene un tamaño máximo).
- *  - Una sola captura por evidencia y hoja: volver a tomarla reemplaza a la que estaba en cola.
+ *  - Una sola captura por evidencia y hoja: volver a tomarla reemplaza a la que estaba en cola (salvo las fotos adicionales, que se acumulan: cada una es distinta).
  *  - Sin el módulo de archivos (la app instalada es anterior) no se guarda nada y se mantiene el aviso de "exige conexión".
  */
 
@@ -155,9 +155,12 @@ export async function guardarCapturaPendiente(e: EntradaCaptura): Promise<Captur
     throw error;
   }
 
-  for (const anterior of [...m.values()]) {
-    if (anterior.idUsuario === e.idUsuario && anterior.idOsEquipo === e.idOsEquipo && anterior.codigo === e.codigo && anterior.pagina === e.pagina) {
-      await quitar(anterior.idLocal);
+  // Las fotos adicionales nunca se reemplazan: cada toma es una foto extra distinta
+  if (e.codigo !== 'adicional') {
+    for (const anterior of [...m.values()]) {
+      if (anterior.idUsuario === e.idUsuario && anterior.idOsEquipo === e.idOsEquipo && anterior.codigo === e.codigo && anterior.pagina === e.pagina) {
+        await quitar(anterior.idLocal);
+      }
     }
   }
 

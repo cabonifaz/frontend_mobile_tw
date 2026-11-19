@@ -1,5 +1,5 @@
 import { agregarArchivo } from './archivosLocales';
-import { solicitar } from './cliente';
+import { ErrorApi, solicitar } from './cliente';
 import { entorno } from '@/config/entorno';
 import { conRespaldo, type ConRespaldo } from './respaldo';
 import type { Ubicacion } from './ruta';
@@ -13,7 +13,17 @@ import type { Ubicacion } from './ruta';
  * El back valida el archivo, la IA y las reglas (serie de la placa, QR del equipo, 3 a 5 s): la app solo captura y muestra.
  */
 
-export type CodigoEvidencia = 'placa' | 'inicial' | 'encendido' | 'desmontaje' | 'abierto' | 'prueba' | 'final' | 'informe' | 'qr';
+export type CodigoEvidencia = 'placa' | 'inicial' | 'encendido' | 'desmontaje' | 'abierto' | 'prueba' | 'final' | 'informe' | 'qr' | 'adicional';
+
+/** Fotos adicionales: extras opcionales del servicio (hasta 20 por equipo). No cuentan en las 9, no pasan por la IA y no bloquean "Guardar y volver". */
+export const MAX_FOTOS_ADICIONALES = 20;
+
+export interface FotoAdicional {
+  idEvidencia: number;
+  /** 1, 2, 3… en el orden en que se tomaron. */
+  numero: number;
+  capturadaEn: string | null;
+}
 export type EstadoEvidencia = 'pendiente' | 'aprobada' | 'rechazada' | 'forzada' | 'omitida';
 
 /** Lo que leyó la IA (según la evidencia): datos de la placa, legibilidad del informe, display del encendido… */
@@ -85,6 +95,8 @@ export interface CabeceraEvidencias {
 export interface Evidencias {
   cabecera: CabeceraEvidencias;
   evidencias: Evidencia[];
+  /** Fotos adicionales ya subidas (un back anterior no las envía: se trata como vacío). */
+  adicionales?: FotoAdicional[];
 }
 
 export interface CapturaEvidencia {
@@ -169,6 +181,13 @@ export async function forzarEvidencia(
   return { mensaje: r.mensaje, evidencias: r.datos ?? null };
 }
 
+/** Quita una foto adicional (solo con el equipo en ejecución; las 9 evidencias del panel no se quitan). Devuelve el panel actualizado. */
+export async function quitarFotoAdicional(token: string, idOs: number, idOsEquipo: number, idEvidencia: number): Promise<{ mensaje: string; evidencias: Evidencias | null }> {
+  if (entorno.usarMock) return mockEvidencias.quitarAdicional(idOs, idOsEquipo, idEvidencia);
+  const r = await solicitar<Evidencias>(`${ruta(idOs, idOsEquipo)}/adicionales/${encodeURIComponent(String(idEvidencia))}`, { token, metodo: 'DELETE' });
+  return { mensaje: r.mensaje, evidencias: r.datos ?? null };
+}
+
 /** Dirección del archivo de una evidencia (hay que pedirla con el token de la sesión en la cabecera Authorization). */
 export function urlArchivoEvidencia(idOs: number, idOsEquipo: number, idEvidencia: number, cuadro = false): string {
   return `${entorno.apiUrl}${ruta(idOs, idOsEquipo)}/${encodeURIComponent(String(idEvidencia))}/archivo${cuadro ? '?cuadro=true' : ''}`;
@@ -189,6 +208,7 @@ const CATALOGO: Omit<Evidencia, 'estado' | 'idEvidencia' | 'intento' | 'esVideo'
 ];
 const demo = new Map<string, Evidencia>();
 const intentos = new Map<string, number>();
+let adicionalesDemo: FotoAdicional[] = [];
 let siguienteId = 1;
 
 function panelDemo(idOs: number, idOsEquipo: number): Evidencias {
@@ -209,6 +229,7 @@ function panelDemo(idOs: number, idOsEquipo: number): Evidencias {
       puedeGuardar: completas === 9,
     },
     evidencias,
+    adicionales: [...adicionalesDemo],
   };
 }
 
@@ -218,6 +239,13 @@ const mockEvidencias = {
     return panelDemo(idOs, idOsEquipo);
   },
   async capturar(_idOs: number, _idOsEquipo: number, c: CapturaEvidencia): Promise<ResultadoEvidencia> {
+    if (c.codigo === 'adicional') {
+      await esperar(400);
+      if (adicionalesDemo.length >= MAX_FOTOS_ADICIONALES) throw new ErrorApi(`Un equipo admite hasta ${MAX_FOTOS_ADICIONALES} fotos adicionales. Quita alguna para agregar otra.`, 200, 1);
+      const idAd = siguienteId++;
+      adicionalesDemo.push({ idEvidencia: idAd, numero: (adicionalesDemo.at(-1)?.numero ?? 0) + 1, capturadaEn: c.capturadoEn });
+      return { idEvidencia: idAd, estado: 'omitida', motivoRechazo: null, intento: 1, coincide: null, numeroRq: 'RQ-000245', datosIa: null, mensaje: 'Foto adicional guardada.' };
+    }
     await esperar(900);
     const n = (intentos.get(c.codigo) ?? 0) + 1;
     intentos.set(c.codigo, n);
@@ -242,6 +270,11 @@ const mockEvidencias = {
     });
     return { idEvidencia: id, estado: rechaza ? 'rechazada' : 'aprobada', motivoRechazo: rechaza ? motivo : null, intento: n, coincide: c.codigo === 'placa' && !rechaza ? true : null,
       numeroRq: 'RQ-000245', datosIa: datos, mensaje: rechaza ? 'La IA rechazó la toma.' : 'Evidencia guardada y validada por la IA.' };
+  },
+  async quitarAdicional(idOs: number, idOsEquipo: number, idEvidencia: number) {
+    await esperar(250);
+    adicionalesDemo = adicionalesDemo.filter((a) => a.idEvidencia !== idEvidencia);
+    return { mensaje: 'Foto adicional quitada.', evidencias: panelDemo(idOs, idOsEquipo) };
   },
   async forzar(idOs: number, idOsEquipo: number, idEvidencia: number, motivo: string) {
     await esperar(300);

@@ -128,6 +128,42 @@ export function textoEnCola(n: number): string {
   return `${n} ${n === 1 ? 'evidencia esperando señal' : 'evidencias esperando señal'} · se ${n === 1 ? 'envía sola' : 'envían solas'} a la IA al recuperar la conexión; hasta entonces no ${n === 1 ? 'cuenta' : 'cuentan'} como completa${n === 1 ? '' : 's'}.`;
 }
 
+/**
+ * La "evidencia" que abre la cámara para las fotos adicionales: no es una de las 9 del panel (no la devuelve el back), solo da el título y la
+ * descripción al modal de captura. Son extras opcionales del servicio: no pasan por la IA y no cuentan para "Guardar y volver".
+ */
+export const EVIDENCIA_ADICIONAL: Evidencia = {
+  orden: 10,
+  codigo: 'adicional',
+  nombre: 'Fotos adicionales',
+  descripcion: 'Foto extra del servicio',
+  obligatoria: false,
+  medio: 'foto',
+  estado: 'pendiente',
+  idEvidencia: null,
+  intento: null,
+  esVideo: false,
+  duracionSeg: null,
+  paginas: 0,
+  motivoRechazoIa: null,
+  motivoForzado: null,
+  forzadaPor: null,
+  forzadaEn: null,
+  intentosPrevios: 0,
+  capturadaEn: null,
+  resultadoIa: null,
+  tieneCuadro: false,
+};
+
+/** "3 de 20" (suman las que esperan señal), con "· 1 esperando señal" si las hay. */
+export function textoAdicionales(subidas: number, enCola: number, max: number): string {
+  const base = `${subidas + enCola} de ${max}`;
+  return enCola > 0 ? `${base} · ${enCola} esperando señal` : base;
+}
+
+/** ¿Se pueden tomar más fotos adicionales? (cuentan las ya subidas y las que esperan señal) */
+export const puedeAgregarAdicional = (subidas: number, enCola: number, max: number): boolean => subidas + enCola < max;
+
 /** Título de la cabecera: "SERVICIO: MC · Báscula Camionera #01". */
 export function tituloServicio(c: Pick<CabeceraEvidencias, 'servicioSigla' | 'nombre' | 'numero'>): string {
   return `SERVICIO: ${c.servicioSigla ? `${c.servicioSigla} · ` : ''}${c.nombre} #${String(c.numero).padStart(2, '0')}`;
