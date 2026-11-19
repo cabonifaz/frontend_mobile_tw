@@ -24,6 +24,7 @@ const TIPOS: readonly TipoNotificacion[] = [
   'correlativo_solicitado',
   'correlativo_solicitud',
   'informe_observado',
+  'viatico_asignado',
   'informe_revisado',
   'general',
 ];
@@ -86,7 +87,8 @@ export function destinoNotificacion(n: Pick<Notificacion, 'id' | 'tipo' | 'entid
     case 'gasto_aprobado':
     case 'gasto_observado':
     case 'gasto_rechazado':
-      return { pantalla: 'gastos', etiqueta: 'Ver mis gastos' };
+    case 'viatico_asignado':
+      return { pantalla: 'gastos', etiqueta: n.tipo === 'viatico_asignado' ? 'Ver mis viáticos' : 'Ver mis gastos' };
     default:
       return null;
   }

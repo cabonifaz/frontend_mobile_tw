@@ -104,7 +104,7 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-viaticos',
     titulo: 'Viáticos y Gastos',
     icono: ion('wallet-outline'),
-    ruta: null,
+    ruta: '/viaticos-equipo', // HU-35
     indicadores: (m) => (hay(m.viaticosPorRevisar) ? [{ texto: `${m.viaticosPorRevisar} por revisar`, tono: 'amarillo' }] : []),
   },
   { id: 'jefe-procedimientos', titulo: 'Procedimientos', icono: ion('book-outline'), ruta: '/procedimientos' }, // HU-24: la misma biblioteca del técnico

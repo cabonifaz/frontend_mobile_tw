@@ -66,6 +66,7 @@ const iconos: Record<TipoNotificacion, { nombre: IconoIon; color: string }> = {
   correlativo_asignado: { nombre: 'ribbon-outline', color: colores.primario },
   correlativo_solicitado: { nombre: 'paper-plane-outline', color: colores.primario },
   correlativo_solicitud: { nombre: 'ribbon-outline', color: colores.naranja },
+  viatico_asignado: { nombre: 'receipt-outline', color: colores.verde },
   informe_observado: { nombre: 'alert-circle-outline', color: colores.naranja },
   informe_revisado: { nombre: 'checkmark-circle', color: colores.verde },
   gasto_aprobado: { nombre: 'receipt-outline', color: colores.verde },

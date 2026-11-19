@@ -44,6 +44,8 @@ export type TipoNotificacion =
   | 'correlativo_solicitud'
   /** HU-33: el jefe observó el informe del técnico y le pidió una corrección (con motivo, secciones, qué corregir y plazo). */
   | 'informe_observado'
+  /** HU-35: el jefe le asignó (o corrigió) un viático al técnico (abre Viáticos y Gastos). */
+  | 'viatico_asignado'
   /** HU-33: el jefe aprobó el informe del técnico (queda revisado). */
   | 'informe_revisado'
   | 'general';

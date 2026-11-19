@@ -328,3 +328,18 @@ Tarjeta **Informes y Certificados** del menú de Jefatura → `/informes-revisio
 - **Quién ve qué (regla Área + Rol):** las áreas Gerencia, Operaciones, Administración, TI, SSOMA, Calidad y Comercial (cualquier rol) y los Administradores ven los informes de todas las áreas; el Supervisor de Servicio Técnico / Metrología, solo los de su área; Usuario / Visor de ST o Metrología no tienen Jefatura. Además hacen falta los permisos de la intranet `rt_bandeja` (ver) y `rt_revisar` (aprobar u observar).
 - **Observar:** el informe pasa a `observado` (pestaña "En corrección") y el técnico recibe una notificación (y el push al celular) con el motivo, las secciones, qué corregir y el plazo. Solo una corrección pendiente por informe.
 - **Pendiente (HU del técnico):** que el técnico vea la solicitud dentro de su app, corrija y reenvíe el informe (hoy recibe el aviso en Notificaciones).
+
+## HU-35 — Viáticos y gastos del equipo (Jefe de Área)
+
+Tarjeta **Viáticos y Gastos** del menú de Jefatura → `/viaticos-equipo`. Todo exige conexión. Reutiliza la gestión de viáticos de la intranet (HU-45): asignar = `SP_GuardarViaticosProgramacion`; revisar un gasto = `SP_RevisarGastoMovil` (→ `SP_RevisarGastoProgramacion`).
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Resumen por servicio (asignado · rendido · por revisar) | `GET api/movil/jefatura/viaticos` | `SP_ObtenerViaticosEquipoMovil` (alcance en `SP_ArmarAlcanceViaticosMovil`) | `gasto_viatico`, `programacion`, `orden_servicio`, `programacion_rendicion` |
+| Detalle de un servicio (viáticos por técnico y concepto, gastos rendidos con la lectura de la IA) | `GET api/movil/jefatura/viaticos/{idOs}` | `SP_ObtenerViaticoServicioEquipoMovil` | las anteriores + `gasto_viatico_foto` |
+| Asignar viático (movilidad, alimentación, alojamiento, otros · pendiente o ya depositado) | `PUT api/movil/jefatura/viaticos/{idOs}/asignacion` | `SP_AsignarViaticoEquipoMovil` → `SP_GuardarViaticosProgramacion` | `gasto_viatico`, `notificacion`, `auditoria_evento` |
+| Revisar gasto con comprobante (aprobar · observar con comentario · rechazar con motivo) | `PUT api/movil/aprobaciones/gastos/{id}` (HU-31) | `SP_RevisarGastoMovil` | `gasto_viatico` |
+
+- **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, los servicios de todas las áreas; el Supervisor de Servicio Técnico / Metrología, los de su área (según la RQ). Asignar y revisar exige además el permiso de la intranet `prog_aprobar_reprogramacion`.
+- **Depósito:** el jefe puede marcar «Ya depositado» al asignar (excepción pedida por el dueño a la regla «este módulo nunca marca depositado»; Contabilidad también puede marcarlo en la intranet). Un depósito no se revierte. El técnico recibe «Viático asignado» y lo ve al instante en Viáticos y Gastos (HU-25).
+- **Concurrencia:** si Contabilidad o otro jefe cambió la asignación mientras se editaba, se rechaza y hay que recargar.
