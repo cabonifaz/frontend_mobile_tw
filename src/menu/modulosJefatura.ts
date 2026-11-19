@@ -90,7 +90,7 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-mi-equipo',
     titulo: 'Mi Equipo',
     icono: ion('people-outline'),
-    ruta: null,
+    ruta: '/equipo', // HU-36
     indicadores: (m) => indicadorMiEquipo(m.miEquipoTotal, m.miEquipoEnLabores),
   },
   {

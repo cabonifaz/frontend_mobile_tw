@@ -343,3 +343,18 @@ Tarjeta **Viáticos y Gastos** del menú de Jefatura → `/viaticos-equipo`. Tod
 - **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, los servicios de todas las áreas; el Supervisor de Servicio Técnico / Metrología, los de su área (según la RQ). Asignar y revisar exige además el permiso de la intranet `prog_aprobar_reprogramacion`.
 - **Depósito:** el jefe puede marcar «Ya depositado» al asignar (excepción pedida por el dueño a la regla «este módulo nunca marca depositado»; Contabilidad también puede marcarlo en la intranet). Un depósito no se revierte. El técnico recibe «Viático asignado» y lo ve al instante en Viáticos y Gastos (HU-25).
 - **Concurrencia:** si Contabilidad o otro jefe cambió la asignación mientras se editaba, se rechaza y hay que recargar.
+
+## HU-36 — Mi equipo: asistencia y ubicación (Jefe de Área)
+
+Tarjeta **Mi Equipo** del menú de Jefatura → `/equipo` → `/equipo-tecnico?id=` (ficha) → `/equipo-horas?id=` (horas contabilizadas). Todo exige conexión.
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Mi equipo (En labores · Refrigerio · Tardanza · Sin marcar, servicio actual y ubicación) | `GET api/movil/jefatura/equipo` | `SP_ObtenerEquipoJefaturaMovil` (equipo en `SP_ArmarEquipoJefaturaMovil`, estado en `SP_EstadoJornadaMovil`) | `jornada_marcacion`, `jornada_salida`, `orden_servicio`, `ubicacion_tecnico`, `usuario` |
+| Ficha del técnico (marcaciones del día, SSOMA, carga de la semana, llamar) | `GET api/movil/jefatura/equipo/tecnicos/{id}` | `SP_ObtenerFichaEquipoTecnicoMovil` | las anteriores + `programacion`, `evento_campo` |
+| Horas contabilizadas (calendario del mes, acumulado semanal y mensual, historial) | `GET api/movil/jefatura/equipo/tecnicos/{id}/horas?mes=yyyy-MM` | `SP_ObtenerHorasTecnicoMovil` → `SP_ConsolidarHorasTecnicoMovil` | `evento_campo`, `tecnico_horas_dia`, `tecnico_horas_servicio`, `tecnico_horas_mes` |
+
+- **Estado** (excluyentes): finalizó > refrigerio > sin marcar > tardanza > en labores, según el Reloj Marcador (HU-20).
+- **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, todos los técnicos; el Supervisor de Servicio Técnico / Metrología, los de su área.
+- **Horas contabilizadas:** tiempo real en servicio (desde `INICIO_TRABAJO` hasta `CIERRE` de cada OS u OM; unión sin doble conteo). Servicio de hoy sin fin: se cuenta hasta ahora; de un día anterior sin fin: 0 y el día queda «sin cierre». Un mes pasado queda cerrado como foto (historial); el historial de meses anteriores se completa la primera vez que se abren las horas del técnico.
+- **Carga de la semana:** horas programadas por día (lunes a viernes) frente a 5 × `HORAS_JORNADA`; baja < 50 %, normal 50–84 %, alta ≥ 85 %.

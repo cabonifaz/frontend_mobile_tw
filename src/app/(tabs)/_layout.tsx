@@ -75,7 +75,7 @@ export default function LayoutPestanas() {
   // Jefatura entra al Asistente IA desde la tarjeta del menú (su barra no tiene pestaña Asistente): ahí queda marcada la pestaña Menú.
   // HU-29 / HU-30: el Panel de Campo y el seguimiento de un servicio (pantallas del jefe) marcan la pestaña "Menú".
   // HU-34: los Correlativos del Jefe de Metrología también marcan "Menú".
-  const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio', '/correlativos', '/alertas', '/alertas-incidencia', '/alertas-reasignar', '/informes-revision', '/informe-revision', '/viaticos-equipo'].includes(pathname);
+  const enPanelCampo = ['/panel-campo', '/servicios-activos', '/servicio-jefatura', '/ruta-servicio', '/correlativos', '/alertas', '/alertas-incidencia', '/alertas-reasignar', '/informes-revision', '/informe-revision', '/viaticos-equipo', '/equipo', '/equipo-tecnico', '/equipo-horas'].includes(pathname);
   const menuMarcado = enServicios || (esJefatura && (enAsistente || pathname === '/asistente' || enPanelCampo));
   // En el detalle de una solicitud la pestaña Aprobaciones se pinta como activa (como Menú y Perfil en sus pantallas internas).
   const enDetalleAprobacion = pathname === '/aprobacion-salida' || pathname === '/aprobacion-llegada' || pathname === '/aprobacion-detalle';
@@ -301,6 +301,10 @@ export default function LayoutPestanas() {
         name="cabecera-informe"
         options={{ title: 'Cabecera del informe', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* HU-36: Mi equipo (asistencia y ubicación), ficha del técnico y sus horas contabilizadas (Jefatura; se entra desde el menú). */}
+      <Tabs.Screen name="equipo" options={{ title: 'Mi equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="equipo-tecnico" options={{ title: 'Ficha del técnico', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="equipo-horas" options={{ title: 'Horas contabilizadas', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       {/* HU-35: viáticos y gastos del equipo (Jefatura; se entra desde el menú). */}
       <Tabs.Screen
         name="viaticos-equipo"
