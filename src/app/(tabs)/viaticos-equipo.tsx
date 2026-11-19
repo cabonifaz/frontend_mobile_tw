@@ -59,6 +59,7 @@ export default function PantallaViaticosEquipo() {
 
   // Formulario «Asignar viático»
   const [modal, setModal] = useState(false);
+  const [listaServicios, setListaServicios] = useState(false);
   const [idOsForm, setIdOsForm] = useState<number | null>(null);
   const [idTecnico, setIdTecnico] = useState<number | null>(null);
   const [montos, setMontos] = useState(montosVacios());
@@ -72,6 +73,7 @@ export default function PantallaViaticosEquipo() {
   const servicios = datos?.servicios ?? [];
   const asignables = servicios.filter((s) => s.puedeAsignar);
   const detalleForm = idOsForm !== null ? detalles[idOsForm] : undefined;
+  const servicioForm = servicios.find((x) => x.idOs === idOsForm) ?? null;
   const form = { idTecnico, montos, depositado };
   const errorForm = errorAsignacion(form);
   const total = totalAsignacion(form);
@@ -106,6 +108,7 @@ export default function PantallaViaticosEquipo() {
     setMontos(montosVacios());
     setIdTecnico(null);
     setIdOsForm(objetivo);
+    setListaServicios(false);
     setModal(true);
     if (objetivo !== null) await prepararServicio(objetivo);
   }
@@ -320,25 +323,52 @@ export default function PantallaViaticosEquipo() {
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
               <Text style={estilos.modalTitulo}>Asignar viático</Text>
 
-              <Text style={estilos.campo}>Servicio</Text>
-              <View style={estilos.chips}>
-                {asignables.map((s) => (
-                  <Pressable
-                    key={s.idOs}
-                    onPress={() => {
-                      setIdOsForm(s.idOs);
-                      setIdTecnico(null);
-                      setMontos(montosVacios());
-                      void prepararServicio(s.idOs);
-                    }}
-                    style={[estilos.chip, idOsForm === s.idOs && estilos.chipActivo]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: idOsForm === s.idOs }}
-                  >
-                    <Text style={[estilos.chipTexto, idOsForm === s.idOs && { color: colores.blanco }]}>{s.numeroOs}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={estilos.campo}>Orden (OS u OM)</Text>
+              <Pressable onPress={() => setListaServicios((v) => !v)} style={estilos.selector} accessibilityRole="button" accessibilityState={{ expanded: listaServicios }} testID="asignar-servicio">
+                <Text style={[estilos.selectorTexto, !servicioForm && { color: colores.placeholder }]} numberOfLines={1}>
+                  {servicioForm ? textoServicio(servicioForm) : 'Elige la orden'}
+                </Text>
+                <Ionicons name={listaServicios ? 'chevron-up' : 'chevron-down'} size={18} color={colores.textoSecundario} />
+              </Pressable>
+              {listaServicios && (
+                <View style={estilos.opciones}>
+                  <ScrollView style={{ maxHeight: 230 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {servicios.map((sv, i) => {
+                      const activo = sv.idOs === idOsForm;
+                      return (
+                        <Pressable
+                          key={sv.idOs}
+                          disabled={!sv.puedeAsignar}
+                          onPress={() => {
+                            setListaServicios(false);
+                            if (sv.idOs === idOsForm) return;
+                            setIdOsForm(sv.idOs);
+                            setIdTecnico(null);
+                            setMontos(montosVacios());
+                            setDepositado(false);
+                            setFallo(null);
+                            void prepararServicio(sv.idOs);
+                          }}
+                          style={[estilos.opcionLista, i > 0 && estilos.opcionBorde, !sv.puedeAsignar && { opacity: 0.5 }]}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: activo, disabled: !sv.puedeAsignar }}
+                          testID={`asignar-servicio-${sv.idOs}`}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text style={[estilos.opcionTitulo, activo && { color: colores.primario }]} numberOfLines={1}>
+                              {textoServicio(sv)}
+                            </Text>
+                            <Text style={estilos.opcionSub} numberOfLines={1}>
+                              {sv.puedeAsignar ? sv.tecnicos : 'No admite asignar ahora (solo servicios confirmados, con la rendición abierta y sin salir a campo)'}
+                            </Text>
+                          </View>
+                          {activo && <Ionicons name="checkmark" size={18} color={colores.primario} />}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
 
               <Text style={estilos.campo}>Técnico</Text>
               {cargandoDetalle !== null && !detalleForm ? (
@@ -416,6 +446,11 @@ export default function PantallaViaticosEquipo() {
   );
 }
 
+/** "OS 0845-2026 · Molinos del Sur" (la OS o la OM tal como la nombra el servidor). */
+function textoServicio(sv: ServicioViaticoEquipo): string {
+  return sv.cliente ? `${sv.numeroOs} · ${sv.cliente}` : sv.numeroOs;
+}
+
 function Kpi({ valor, texto, color }: { valor: string; texto: string; color: string }) {
   return (
     <View style={estilos.kpi}>
@@ -470,6 +505,13 @@ const estilos = StyleSheet.create({
   fondoModal: { flex: 1, backgroundColor: 'rgba(11,31,58,0.55)', justifyContent: 'center', padding: 20 },
   modal: { backgroundColor: colores.tarjeta, borderRadius: 18, padding: 20, maxWidth: 520, width: '100%', alignSelf: 'center', maxHeight: '92%' },
   modalTitulo: { fontSize: 19, fontWeight: '800', color: colores.titulo },
+  selector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderWidth: 1, borderColor: colores.borde, borderRadius: radios.campo, paddingHorizontal: 12, minHeight: 46 },
+  selectorTexto: { flex: 1, fontSize: 14.5, color: colores.texto },
+  opciones: { borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.campo, backgroundColor: colores.blanco, overflow: 'hidden' },
+  opcionLista: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  opcionBorde: { borderTopWidth: 1, borderTopColor: colores.bordeSuave },
+  opcionTitulo: { fontSize: 14.5, fontWeight: '700', color: colores.titulo },
+  opcionSub: { fontSize: 12.5, color: colores.textoSecundario, marginTop: 1 },
   campo: { fontSize: 13.5, fontWeight: '700', color: colores.titulo, marginTop: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: colores.borde, backgroundColor: colores.blanco },
