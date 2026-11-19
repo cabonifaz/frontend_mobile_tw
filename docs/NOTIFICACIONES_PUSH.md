@@ -23,6 +23,7 @@ Expo Push (https://exp.host/--/api/v2/push/send)  →  Firebase (FCM)  →  band
 ## Lo que hay que configurar UNA vez (no está en el código)
 
 1. **Firebase** (https://console.firebase.google.com): crear un proyecto → agregar app Android con el paquete `com.totalweight.campo` → descargar `google-services.json` y guardarlo en la raíz de `frontend_mobile_tw/` (junto a `app.config.ts`). Sin ese archivo el APK compila, pero no recibe avisos en la bandeja.
+   **El archivo NO se sube a git** (`.gitignore`). Para los builds en EAS se sube como variable de tipo archivo, una por entorno: `npx eas-cli@latest env:create --environment preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret` (y lo mismo con `--environment development`). `app.config.ts` la lee de `process.env.GOOGLE_SERVICES_JSON` y, si no existe, usa el archivo local.
 2. **Clave de FCM V1 en EAS**: en Firebase → Configuración del proyecto → Cuentas de servicio → "Generar nueva clave privada" (un `.json`). Subirla con `npx eas-cli@latest credentials` → Android → `preview` → Google Service Account → "Manage your Google Service Account Key for Push Notifications (FCM V1)" → subir el `.json`. **No guardar este archivo en el repositorio.**
 3. **Base de datos**: ejecutar `backend_intranet_tw/database/_aplicar_push_movil.sql` en cada ambiente (staging, preprod…).
 4. **APK nuevo** (`npm run apk`): `expo-notifications` es nativo (versión nativa 6). Con un APK anterior la app funciona igual, sin avisos en la bandeja.
