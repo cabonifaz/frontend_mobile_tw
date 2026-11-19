@@ -271,6 +271,22 @@ export function progresoInforme(c: CabeceraInforme): number {
   return Math.round((100 * pasos.filter(Boolean).length) / pasos.length);
 }
 
+/**
+ * Lo que falta para poder descargar el pre-informe (vacío = cabecera completa): las mismas 6 etapas del progreso de la cabecera. El servidor aplica la misma regla
+ * (`ReglasPreInformeMovil`) al generar el PDF; aquí solo sirve para avisar al técnico qué falta antes de pedirlo.
+ */
+export function pendientesPreInforme(c: CabeceraInforme): string[] {
+  const b = bloquesObservacion(c);
+  const faltan: string[] = [];
+  if (!c.datos.responsableNombre?.trim()) faltan.push('Quién atiende en planta');
+  if (!c.detalle.guardado) faltan.push('Detalle Serv.');
+  if (!b.recomendaciones) faltan.push('Recomendaciones inmediatas');
+  if (!b.fallas) faltan.push('Fallas y su prueba');
+  if (!b.pruebas) faltan.push('Pruebas generales (finalizar Ensayos y Calibración)');
+  if (!b.diagnostico) faltan.push('Diagnóstico final');
+  return faltan;
+}
+
 /** "Marcar TODOS los checks": todos marcados → los desmarca; si falta alguno → los marca todos. */
 export function alternarChecks(codigos: string[], marcados: Set<string>): Set<string> {
   return codigos.every((c) => marcados.has(c)) ? new Set() : new Set(codigos);
