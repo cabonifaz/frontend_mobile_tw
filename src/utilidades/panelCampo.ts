@@ -61,15 +61,37 @@ export function colorEstado(estado: string): string {
   }
 }
 
-/** Color del pin del mapa (el de su estado). */
+/** Color del pin del mapa según el estado del servicio (se usa cuando el servidor no manda el color de la actividad). */
 export const colorPin = colorEstado;
 
+/**
+ * Color del pin / avatar de un técnico: el que calcula el servidor según lo que hace (el mismo del Mapa Operativo de la intranet: al marcar «Inicio de labores»
+ * sale verde, en refrigerio naranja…); si no llega, el del estado de su servicio.
+ */
+export function colorTecnico(p: { actividadColor?: string | null; estado: string }): string {
+  return /^#[0-9A-Fa-f]{6}$/.test(p.actividadColor ?? '') ? (p.actividadColor as string) : colorEstado(p.estado);
+}
+
+/** Leyenda del mapa: los mismos colores y nombres del Mapa Operativo de la intranet (los colores los manda el servidor en cada pin). */
 export const LEYENDA_MAPA: { texto: string; color: string }[] = [
-  { texto: 'En ruta', color: colores.primario },
-  { texto: 'En ejecución', color: colores.verde },
-  { texto: 'Demora', color: colores.naranja },
-  { texto: 'Incidencia', color: colores.rojo },
+  { texto: 'Técnico activo', color: '#16A34A' },
+  { texto: 'En ruta', color: '#2563EB' },
+  { texto: 'En planta', color: '#14B8A6' },
+  { texto: 'Ejecutando trabajo', color: '#EAB308' },
+  { texto: 'En refrigerio', color: '#F97316' },
+  { texto: 'Con demora', color: '#EA580C' },
+  { texto: 'Con incidente crítico', color: '#DC2626' },
+  { texto: 'Finalizado', color: '#64748B' },
+  { texto: 'Sin salir aún', color: '#94A3B8' },
 ];
+
+/** "hace 5 min", "hace 2 h": hace cuánto llegó la última ubicación GPS de un técnico (null = aún no envía ninguna hoy). */
+export function textoHaceMinutos(minutos: number | null): string {
+  if (minutos === null) return 'Sin ubicación hoy';
+  if (minutos < 1) return 'ahora mismo';
+  if (minutos < 60) return `hace ${Math.round(minutos)} min`;
+  return `hace ${Math.floor(minutos / 60)} h`;
+}
 
 /** Color de un hito, un evento o un punto de la línea de tiempo según el tono que manda el back. */
 export function colorTono(tono: TonoHito | string): string {
@@ -340,4 +362,45 @@ export function errorAviso(mensaje: string): string | null {
   if (n < MIN_AVISO) return `Escribe el aviso al cliente (mínimo ${MIN_AVISO} caracteres).`;
   if (n > MAX_AVISO) return `El aviso no puede superar los ${MAX_AVISO} caracteres.`;
   return null;
+}
+
+/** Distancia en línea recta entre dos puntos (haversine, metros). */
+export function distanciaMetros(a: PuntoGeo, b: PuntoGeo): number {
+  const R = 6371000;
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const dLat = rad(b.latitud - a.latitud);
+  const dLon = rad(b.longitud - a.longitud);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.latitud)) * Math.cos(rad(b.latitud)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function minutosDeHora(hora: string | null | undefined): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hora ?? '');
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/**
+ * Minutos que el técnico lleva en el mismo punto (como "Tiempo en punto" de la intranet): desde la primera de las últimas posiciones que están a menos de
+ * "radioM" metros de la actual hasta la hora actual del servidor ("actualizado", HH:MM de Lima). 0 si se está moviendo o no hay datos.
+ */
+export function minutosEnPunto(recorrido: { latitud: number; longitud: number; hora: string | null }[], actualizado: string | null | undefined, radioM = 60): number {
+  if (recorrido.length === 0) return 0;
+  const ultima = recorrido[recorrido.length - 1];
+  let inicio = minutosDeHora(ultima.hora);
+  for (let i = recorrido.length - 2; i >= 0; i--) {
+    if (distanciaMetros(recorrido[i], ultima) > radioM) break;
+    const m = minutosDeHora(recorrido[i].hora);
+    if (m !== null) inicio = m;
+  }
+  const ahora = minutosDeHora(actualizado);
+  if (inicio === null || ahora === null) return 0;
+  const d = ahora - inicio < 0 ? ahora - inicio + 1440 : ahora - inicio;
+  return d >= 1440 ? 0 : d;
+}
+
+/** Hora (HH:MM) de la primera posición del recorrido a menos de "radioM" metros de la planta (la "pre-llegada" del cronograma GPS); null si aún no se acercó. */
+export function horaPreLlegada(recorrido: { latitud: number; longitud: number; hora: string | null }[], planta: PuntoGeo | null, radioM = 300): string | null {
+  if (!planta) return null;
+  const p = recorrido.find((x) => distanciaMetros(x, planta) <= radioM);
+  return p?.hora ?? null;
 }

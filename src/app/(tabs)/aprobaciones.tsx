@@ -5,6 +5,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { obtenerAprobaciones, type Aprobacion, type TipoAprobacion } from '@/api/aprobaciones';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
+import { guardarMarcaAprobaciones, leerMarcaAprobaciones } from '@/almacen/aprobacionesLeidas';
+import { marcarNotificacionLeida, obtenerNotificaciones } from '@/api/notificaciones';
 import { Aviso } from '@/componentes/Aviso';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { Chips } from '@/componentes/ViaticosUI';
@@ -12,7 +14,8 @@ import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { etiquetaTipo, filtrarAprobaciones, haceTexto, separarUrgentes, type FiltroAprobaciones } from '@/utilidades/aprobaciones';
+import { esAvisoDeAprobacion } from '@/utilidades/notificaciones';
+import { etiquetaTipo, filtrarAprobaciones, haceTexto, marcaDeLectura, separarUrgentes, sinLeer, type FiltroAprobaciones } from '@/utilidades/aprobaciones';
 
 /**
  * HU-31 — Centro de aprobaciones del Jefe de Servicio Técnico / Jefe de Metrología.
@@ -35,10 +38,17 @@ export default function PantallaAprobaciones() {
   const usuario = sesion?.usuario;
   const d = useDiseno();
   const [filtro, setFiltro] = useState<FiltroAprobaciones>('todas');
+  const [leyendo, setLeyendo] = useState(false);
+  const [verLeidas, setVerLeidas] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
-    const [bandeja, cargos] = await Promise.all([obtenerAprobaciones(token), obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => null)]);
-    return { bandeja, cargos };
+    const [bandeja, cargos, marca] = await Promise.all([
+      obtenerAprobaciones(token),
+      obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => null),
+      usuario ? leerMarcaAprobaciones(usuario.idUsuario) : Promise.resolve(null),
+    ]);
+    return { bandeja, cargos, marca };
   });
 
   // Al volver de decidir una solicitud, se relee la bandeja (la decidida ya no está).
@@ -55,12 +65,42 @@ export default function PantallaAprobaciones() {
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Jefe de Área';
   const bandeja = datos?.bandeja ?? null;
-  const items: Aprobacion[] = useMemo(() => filtrarAprobaciones(bandeja?.items ?? [], filtro), [bandeja, filtro]);
+  const marca = datos?.marca ?? null;
+  // «Leer todo» saca de la bandeja lo pedido hasta la marca; «Ver leídas» las vuelve a mostrar
+  const visibles: Aprobacion[] = useMemo(() => (verLeidas ? (bandeja?.items ?? []) : sinLeer(bandeja?.items ?? [], marca)), [bandeja, marca, verLeidas]);
+  const ocultas = (bandeja?.items.length ?? 0) - sinLeer(bandeja?.items ?? [], marca).length;
+  const items: Aprobacion[] = useMemo(() => filtrarAprobaciones(visibles, filtro), [visibles, filtro]);
   const { urgentes, pendientes } = useMemo(() => separarUrgentes(items), [items]);
 
+  // «Leer todo»: marca como leídos los avisos de aprobaciones (salidas, llegadas forzadas, ensayos con error, evidencias forzadas, equipos nuevos).
+  // Las aprobaciones siguen pendientes hasta que el jefe las decide.
+  async function leerTodo() {
+    const token = sesion?.token;
+    if (!token || leyendo) return;
+    setLeyendo(true);
+    setAviso(null);
+    try {
+      const pendientes = (await obtenerNotificaciones(token)).filter((n) => !n.leida && esAvisoDeAprobacion(n.tipo));
+      await Promise.all(pendientes.map((n) => marcarNotificacionLeida(token, n.id).catch(() => undefined)));
+      // La bandeja queda limpia: se guarda la marca y se relee (el globo de la pestaña se actualiza solo)
+      const total = bandeja?.items ?? [];
+      if (usuario && total.length > 0) await guardarMarcaAprobaciones(usuario.idUsuario, marcaDeLectura(total));
+      setVerLeidas(false);
+      setFiltro('todas');
+      await recargar();
+      setAviso(total.length === 0 && pendientes.length === 0 ? 'No tienes aprobaciones ni avisos sin leer.' : 'Bandeja limpia. Las aprobaciones siguen pendientes hasta que las decidas: puedes verlas en «Ver leídas».');
+    } catch {
+      setAviso('No se pudieron marcar los avisos. Inténtalo de nuevo.');
+    } finally {
+      setLeyendo(false);
+    }
+  }
+
   const opciones = [
-    { id: 'todas' as FiltroAprobaciones, texto: 'Todas', cantidad: bandeja?.total ?? 0 },
-    ...(bandeja?.tipos ?? []).map((t) => ({ id: t.tipo as FiltroAprobaciones, texto: etiquetaTipo[t.tipo]?.plural ?? t.tipo, cantidad: t.cantidad })),
+    { id: 'todas' as FiltroAprobaciones, texto: 'Todas', cantidad: visibles.length },
+    ...(bandeja?.tipos ?? [])
+      .map((t) => ({ id: t.tipo as FiltroAprobaciones, texto: etiquetaTipo[t.tipo]?.plural ?? t.tipo, cantidad: visibles.filter((v) => v.tipo === t.tipo).length }))
+      .filter((o) => o.cantidad > 0),
   ];
 
   return (
@@ -72,10 +112,21 @@ export default function PantallaAprobaciones() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={recargando} onRefresh={recargar} colors={[colores.primario]} />}
       >
-        <Text style={[estilos.titulo, { fontSize: d.tituloPantalla }]} accessibilityRole="header">
-          Aprobaciones
-        </Text>
+        <View style={estilos.tituloFila}>
+          <Text style={[estilos.titulo, { fontSize: d.tituloPantalla, flex: 1 }]} accessibilityRole="header">
+            Aprobaciones
+          </Text>
+          <Pressable onPress={() => void leerTodo()} disabled={leyendo} accessibilityRole="button" accessibilityLabel="Leer todo" style={[estilos.leerTodo, leyendo && { opacity: 0.6 }]} testID="aprobaciones-leer-todo">
+            {leyendo ? <ActivityIndicator size="small" color={colores.primario} /> : <Ionicons name="checkmark-done" size={18} color={colores.primario} />}
+            <Text style={estilos.leerTodoTexto}>Leer todo</Text>
+          </Pressable>
+        </View>
         <Text style={estilos.subtitulo}>Todo lo que espera tu decisión</Text>
+        {!!aviso && (
+          <View style={{ marginBottom: 8 }} testID="aprobaciones-aviso">
+            <Aviso tipo="info" mensaje={aviso} />
+          </View>
+        )}
 
         {cargando ? (
           <ActivityIndicator color={colores.primario} style={{ marginTop: 32 }} />
@@ -84,11 +135,17 @@ export default function PantallaAprobaciones() {
         ) : (
           <>
             {opciones.length > 1 && <Chips opciones={opciones} activo={filtro} onCambiar={setFiltro} />}
+            {ocultas > 0 && (
+              <Pressable onPress={() => setVerLeidas((v) => !v)} accessibilityRole="button" hitSlop={8} style={estilos.verLeidas} testID="aprobaciones-ver-leidas">
+                <Ionicons name={verLeidas ? 'eye-off-outline' : 'eye-outline'} size={16} color={colores.primario} />
+                <Text style={estilos.verLeidasTexto}>{verLeidas ? 'Ocultar leídas' : `Ver leídas (${ocultas})`}</Text>
+              </Pressable>
+            )}
 
             {items.length === 0 ? (
               <View style={estilos.vacio}>
                 <Ionicons name="checkmark-done-circle-outline" size={44} color={colores.textoTenue} />
-                <Text style={estilos.vacioTitulo}>No tienes nada pendiente</Text>
+                <Text style={estilos.vacioTitulo}>{ocultas > 0 ? 'Bandeja limpia' : 'No tienes nada pendiente'}</Text>
                 <Text style={estilos.vacioTexto}>Cuando un técnico de tu área pida tu visto bueno o una llegada forzada, aparecerá aquí.</Text>
               </View>
             ) : (
@@ -169,6 +226,11 @@ const estilos = StyleSheet.create({
   area: { flex: 1, backgroundColor: colores.fondo },
   contenido: { padding: 16, paddingBottom: 28, maxWidth: 560, width: '100%', alignSelf: 'center' },
   titulo: { fontSize: 26, fontWeight: '700', color: colores.titulo, marginTop: 4 },
+  tituloFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  leerTodo: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, marginTop: 4, borderRadius: 18, borderWidth: 1, borderColor: colores.primario, backgroundColor: colores.blanco },
+  leerTodoTexto: { fontSize: 13.5, fontWeight: '700', color: colores.primario },
+  verLeidas: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 8 },
+  verLeidasTexto: { fontSize: 13.5, fontWeight: '700', color: colores.primario },
   subtitulo: { fontSize: 14, color: colores.textoSecundario, marginTop: 4, marginBottom: 6 },
   grupo: { fontSize: 12.5, fontWeight: '700', letterSpacing: 1.4, color: colores.textoSecundario },
   tarjeta: {

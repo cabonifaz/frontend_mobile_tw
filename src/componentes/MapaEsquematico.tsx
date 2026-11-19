@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { Ionicons } from '@expo/vector-icons';
 import { colores } from '@/tema/colores';
 import { guiones, proyectar, segmentos, type PuntoGeo } from '@/utilidades/panelCampo';
 
@@ -9,6 +10,10 @@ export interface PinMapa extends PuntoGeo {
   texto: string;
   color: string;
   tamano?: number;
+  /** Ícono en lugar del texto (solo lo dibuja MapaOSM). */
+  icono?: ComponentProps<typeof Ionicons>['name'];
+  /** Pin cuadrado de esquinas redondeadas (la planta) en lugar de circular (solo MapaOSM). */
+  cuadrado?: boolean;
   onPress?: () => void;
   etiqueta?: string;
 }

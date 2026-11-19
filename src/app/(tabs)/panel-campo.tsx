@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,23 +8,27 @@ import { obtenerPanelCampoConRespaldo } from '@/api/panelCampo';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
-import { MapaEsquematico, type PinMapa } from '@/componentes/MapaEsquematico';
+import type { PinMapa } from '@/componentes/MapaEsquematico';
+import { MapaOSM } from '@/componentes/MapaOSM';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useRefrescoAutomatico } from '@/hooks/useRefrescoAutomatico';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { LEYENDA_MAPA, colorPin, insigniaAlerta, lineaDetalleAlerta, lineaTecnicoAlerta, textoActualizado } from '@/utilidades/panelCampo';
+import { LEYENDA_MAPA, colorTecnico, etiquetaEstado, insigniaAlerta, lineaDetalleAlerta, lineaTecnicoAlerta, textoActualizado, textoHaceMinutos } from '@/utilidades/panelCampo';
 
 /**
  * HU-29 — Panel de Campo en tiempo real (Jefe de Área): KPIs de los servicios de hoy (en ruta, en ejecución, con demora, con incidencia, finalizados), un mapa
- * con un pin por técnico del color de su estado y las alertas críticas primero. Muestra solo los servicios de su alcance (área de la RQ para Servicio Técnico y
- * Metrología). Se actualiza solo cada ~30 s y al deslizar hacia abajo; sin conexión muestra lo último guardado. El mapa es esquemático (sin librería de mapas).
+ * con un pin por técnico del color de su estado sobre un mapa de calles real (OpenStreetMap, como el Mapa Operativo de la intranet), la lista de técnicos y las alertas
+ * críticas primero. El alcance lo decide el back: las áreas que ven todo y el Administrador de Servicio Técnico / Metrología ven todos los técnicos y servicios; el Supervisor,
+ * solo los de su área. Se actualiza solo cada ~30 s y al deslizar hacia abajo; sin conexión muestra lo último guardado.
  */
 export default function PantallaPanelCampo() {
   const { sesion } = useSesion();
   const usuario = sesion?.usuario;
   const d = useDiseno();
+  const [tocandoMapa, setTocandoMapa] = useState(false);
+  const [enfoque, setEnfoque] = useState<{ latitud: number; longitud: number; n: number } | null>(null);
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     const [r, cargos] = await Promise.all([obtenerPanelCampoConRespaldo(token, usuario?.idUsuario ?? 0), obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined)]);
@@ -44,7 +49,7 @@ export default function PantallaPanelCampo() {
     latitud: p.latitud as number,
     longitud: p.longitud as number,
     texto: p.iniciales,
-    color: colorPin(p.estado),
+    color: colorTecnico(p),
     etiqueta: `${p.tecnico}${p.numeroOs ? ` · ${p.numeroOs}` : ''}`,
     onPress: p.idOs ? () => abrirServicio(p.idOs) : undefined,
   }));
@@ -56,6 +61,7 @@ export default function PantallaPanelCampo() {
       <ScrollView
         contentContainerStyle={[estilos.contenido, { paddingHorizontal: d.margen, maxWidth: d.anchoMaximo }]}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!tocandoMapa}
         refreshControl={<RefreshControl refreshing={recargando} onRefresh={() => void recargar()} colors={[colores.primario]} />}
       >
         <View style={estilos.tituloFila}>
@@ -88,9 +94,12 @@ export default function PantallaPanelCampo() {
               <Kpi valor={k.finalizados} texto="Finaliz." color={colores.textoSecundario} />
             </View>
 
-            <View style={{ marginTop: 14 }}>
-              <MapaEsquematico pines={pines} alto={300} vacio="Aún no hay posiciones GPS de tus técnicos hoy." />
+            <View style={estilos.mapaCabecera}>
+              <Ionicons name="map-outline" size={20} color={colores.primario} />
+              <Text style={estilos.mapaTitulo}>Mapa operativo</Text>
             </View>
+            <Text style={estilos.mapaNota}>Última ubicación GPS de cada técnico del día</Text>
+            <MapaOSM pines={pines} alto={340} vacio="Aún no hay posiciones GPS de tus técnicos hoy." enfoque={enfoque} alTocarMapa={setTocandoMapa} />
             <View style={estilos.leyenda}>
               {LEYENDA_MAPA.map((l) => (
                 <View key={l.texto} style={estilos.leyendaItem}>
@@ -99,10 +108,61 @@ export default function PantallaPanelCampo() {
                 </View>
               ))}
             </View>
-            <Text style={estilos.nota}>
-              Mapa esquemático: los pines muestran quién está dónde respecto a los demás.
-              {sinUbicacion > 0 ? ` ${sinUbicacion} ${sinUbicacion === 1 ? 'técnico aún no envía' : 'técnicos aún no envían'} su ubicación hoy.` : ''} Toca un pin para ver su servicio.
-            </Text>
+            {sinUbicacion > 0 && (
+              <Text style={estilos.nota}>
+                {sinUbicacion} {sinUbicacion === 1 ? 'técnico aún no envía' : 'técnicos aún no envían'} su ubicación hoy. Toca un pin para ver su servicio.
+              </Text>
+            )}
+
+            <Text style={estilos.seccion}>TÉCNICOS EN CAMPO</Text>
+            {panel.pines.length === 0 ? (
+              <View style={estilos.vacioTarjeta}>
+                <Ionicons name="people-outline" size={22} color={colores.textoSecundario} />
+                <Text style={estilos.vacioTexto}>Ningún técnico con servicio o jornada iniciada hoy.</Text>
+              </View>
+            ) : (
+              panel.pines.map((p) => {
+                const et = etiquetaEstado(p.estado);
+                const tienePosicion = p.latitud !== null && p.longitud !== null;
+                return (
+                  <Pressable
+                    key={p.idUsuario}
+                    onPress={() => {
+                      if (tienePosicion) setEnfoque({ latitud: p.latitud as number, longitud: p.longitud as number, n: (enfoque?.n ?? 0) + 1 });
+                      else abrirServicio(p.idOs);
+                    }}
+                    style={estilos.tecnico}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${p.tecnico}, ${et.texto}`}
+                    testID={`tecnico-${p.idUsuario}`}
+                  >
+                    <View style={[estilos.avatar, { backgroundColor: colorTecnico(p) }]}>
+                      <Text style={estilos.avatarTexto}>{p.iniciales}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={estilos.tecnicoNombre} numberOfLines={1}>
+                        {p.tecnico}
+                      </Text>
+                      <Text style={estilos.tecnicoLinea} numberOfLines={2}>
+                        {p.actividad || (p.numeroOs ? `${p.numeroOs}${p.cliente ? ` · ${p.cliente}` : ''}` : 'Sin servicio asignado')}
+                      </Text>
+                      <View style={estilos.tecnicoUbicacion}>
+                        <Ionicons name="location-outline" size={14} color={colores.textoSecundario} />
+                        <Text style={estilos.tecnicoMinutos}>{textoHaceMinutos(p.minutosUbicacion)}</Text>
+                        {!!p.idOs && (
+                          <Pressable onPress={() => abrirServicio(p.idOs)} hitSlop={8} accessibilityRole="link" accessibilityLabel={`Ver el servicio ${p.numeroOs ?? ''}`}>
+                            <Text style={estilos.tecnicoVer}>Ver servicio ›</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                    <View style={[estilos.insignia, { backgroundColor: et.fondo }]}>
+                      <Text style={[estilos.insigniaTexto, { color: et.color }]}>{et.texto}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
 
             <Text style={estilos.seccion}>ALERTAS CRÍTICAS</Text>
             {panel.alertas.length === 0 ? (
@@ -179,6 +239,17 @@ const estilos = StyleSheet.create({
   punto: { width: 12, height: 12, borderRadius: 6 },
   leyendaTexto: { fontSize: 14.5, color: colores.texto },
   nota: { fontSize: 13, color: colores.textoSecundario, marginTop: 8, lineHeight: 18 },
+  mapaCabecera: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
+  mapaTitulo: { fontSize: 17, fontWeight: '800', color: colores.titulo },
+  mapaNota: { fontSize: 13.5, color: colores.textoSecundario, marginTop: 2, marginBottom: 10 },
+  tecnico: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, padding: 12, marginBottom: 10 },
+  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  avatarTexto: { color: colores.blanco, fontWeight: '800', fontSize: 15 },
+  tecnicoNombre: { fontSize: 16.5, fontWeight: '800', color: colores.titulo },
+  tecnicoLinea: { fontSize: 14, color: colores.textoSecundario, marginTop: 1 },
+  tecnicoUbicacion: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' },
+  tecnicoMinutos: { fontSize: 13, color: colores.textoSecundario },
+  tecnicoVer: { fontSize: 13, color: colores.primario, fontWeight: '700', marginLeft: 8 },
   seccion: { fontSize: 14, fontWeight: '800', letterSpacing: 1.2, color: colores.textoSecundario, marginTop: 22, marginBottom: 10 },
   alerta: { backgroundColor: colores.blanco, borderWidth: 1, borderColor: colores.bordeSuave, borderRadius: radios.tarjeta, padding: 14, marginBottom: 10 },
   alertaCritica: { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' },

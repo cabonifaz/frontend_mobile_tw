@@ -71,7 +71,7 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-informes-certificados',
     titulo: 'Informes y Certificados',
     icono: ion('document-text-outline'),
-    ruta: null,
+    ruta: '/informes-revision', // HU-33 (los certificados siguen en "Próximamente" dentro de la misma tarjeta)
     indicadores: (m) => [
       ...(hay(m.informesPorRevisar) ? [{ texto: plural(m.informesPorRevisar, 'informe', 'informes'), tono: 'amarillo' as const }] : []),
       ...(hay(m.certificadosPendientes) ? [{ texto: plural(m.certificadosPendientes, 'certificado', 'certificados'), tono: 'amarillo' as const }] : []),
@@ -90,21 +90,21 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-mi-equipo',
     titulo: 'Mi Equipo',
     icono: ion('people-outline'),
-    ruta: null,
+    ruta: '/equipo', // HU-36
     indicadores: (m) => indicadorMiEquipo(m.miEquipoTotal, m.miEquipoEnLabores),
   },
   {
     id: 'jefe-agenda-area',
     titulo: 'Agenda del Área',
     icono: ion('calendar-outline'),
-    ruta: null,
+    ruta: '/agenda-area', // HU-37
     indicadores: (m) => (hay(m.agendaConflictos) ? [{ texto: plural(m.agendaConflictos, 'conflicto', 'conflictos'), tono: 'rojo' }] : []),
   },
   {
     id: 'jefe-viaticos',
     titulo: 'Viáticos y Gastos',
     icono: ion('wallet-outline'),
-    ruta: null,
+    ruta: '/viaticos-equipo', // HU-35
     indicadores: (m) => (hay(m.viaticosPorRevisar) ? [{ texto: `${m.viaticosPorRevisar} por revisar`, tono: 'amarillo' }] : []),
   },
   { id: 'jefe-procedimientos', titulo: 'Procedimientos', icono: ion('book-outline'), ruta: '/procedimientos' }, // HU-24: la misma biblioteca del técnico

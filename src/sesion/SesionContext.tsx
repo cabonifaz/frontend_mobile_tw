@@ -2,6 +2,7 @@ import { AppState } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as api from '@/api/autenticacion';
 import { limpiarCacheCatalogos } from '@/api/catalogos';
+import { quitarDispositivoPush } from '@/api/push';
 import { ErrorApi, MENSAJE_SESION_TERMINADA, registrarManejadorSesionInvalida } from '@/api/cliente';
 import { entorno } from '@/config/entorno';
 import { borrarRespaldos } from '@/api/respaldo';
@@ -159,6 +160,11 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     const token = sesion?.token;
     // Se libera el equipo en el servidor; si no hay conexión, la sesión local se cierra igual.
     if (token) {
+      try {
+        await quitarDispositivoPush(token); // este teléfono deja de recibir avisos del usuario
+      } catch {
+        // sin conexión: el servidor igual solo envía a quien tiene la sesión vigente
+      }
       try {
         await api.cerrarSesion(token);
       } catch {

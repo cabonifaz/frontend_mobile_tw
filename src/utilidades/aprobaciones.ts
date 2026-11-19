@@ -49,3 +49,18 @@ export function haceTexto(solicitadaEn: string | null | undefined, ahoraLima: st
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(solicitadaEn)!;
   return `${m[3]}/${m[2]} ${m[4]}:${m[5]}`;
 }
+
+/**
+ * «Leer todo» (HU-31): la bandeja se da por leída hasta una marca de tiempo (hora de Lima de la solicitud más reciente que había). Se ocultan las aprobaciones pedidas hasta esa marca;
+ * las que no traen hora de solicitud o llegaron después se siguen mostrando. No decide nada: las aprobaciones siguen pendientes en el servidor.
+ */
+export function sinLeer<T extends { solicitadaEn: string | null }>(items: readonly T[], marca: string | null): T[] {
+  if (!marca) return [...items];
+  return items.filter((i) => !i.solicitadaEn || i.solicitadaEn > marca);
+}
+
+/** La marca que deja la bandeja leída: la solicitud más reciente que hay ahora (o la hora actual de Lima si ninguna trae hora). */
+export function marcaDeLectura(items: readonly { solicitadaEn: string | null }[], ahoraLima: string = new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 19)): string {
+  const mayor = items.reduce<string>((m, i) => (i.solicitadaEn && i.solicitadaEn > m ? i.solicitadaEn : m), '');
+  return mayor || ahoraLima;
+}

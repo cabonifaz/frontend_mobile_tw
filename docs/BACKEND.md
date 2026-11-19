@@ -45,6 +45,7 @@ docs/
 | Solicitar autorización (HU-04) | `POST api/movil/servicios/{idOs}/solicitar-autorizacion` | `SP_SolicitarAutorizacionSalidaMovil` | `autorizacion_salida_os`, `requerimiento`, `area_servicio_rq`, `notificacion`, `auditoria_evento` (notifica al Jefe de Servicio Técnico o al Jefe de Metrología según el área de la RQ) |
 | Iniciar traslado (HU-04) | `POST api/movil/servicios/{idOs}/iniciar-traslado` | `SP_IniciarTrasladoMovil` | `orden_servicio`, `evento_campo`, `auditoria_evento` |
 | Notificaciones (HU-02 / HU-04) | `GET api/movil/notificaciones` · `PUT api/movil/notificaciones/{id}/leida` · `PUT api/movil/notificaciones/leidas` | `SP_ObtenerNotificacionesMovil`, `SP_MarcarNotificacionMovil` | `notificacion`, `autorizacion_salida_os` (las 60 más recientes del token; solo se marcan las propias) |
+| Notificaciones push (bandeja del teléfono) | `POST api/movil/push/dispositivo` · `DELETE api/movil/push/dispositivo/{idDispositivo}` (+ proceso `PushNotificacionesWorker` en la API, sin pantalla) | `SP_RegistrarDispositivoPushMovil`, `SP_QuitarDispositivoPushMovil`, `SP_ObtenerDispositivosPushMovil`, `SP_DarDeBajaTokensPushMovil` (y `SP_ObtenerNotificacionesNuevas` para detectar las nuevas) | `dispositivo_push_movil`, `notificacion`, `sesion_usuario` (el worker envía con Expo Push → Firebase solo a quien tiene la sesión de la app vigente; paso a paso en `docs/NOTIFICACIONES_PUSH.md`) |
 | Registro de demoras (HU-05) | `GET api/movil/servicios/{idOs}/demoras` · `POST …/demoras` (multipart: `tipo`, `idMotivo`, `duracionMinutos`, `descripcion`, `latitud`, `longitud`, `precisionMetros`, `capturadoEn`, `foto`) | `SP_ObtenerDemorasMovil`, `SP_ObtenerEtaDemorasMovil`, `SP_RegistrarDemoraMovil` | `demora_registro`, `orden_servicio`, `evento_campo`, `tabla_maestra` (MOTIVO_DEMORA_RUTA), `usuario`, `notificacion`, `auditoria_evento` (avisa a Operaciones; la foto se guarda en `demoras/{idOs}/…`) |
 | Objetivos y selección de equipos (HU-07) | `GET api/movil/servicios/{idOs}/objetivos?buscar=` · `GET …/equipos/qr?codigo=` · `POST …/equipos/{idOsEquipo}/iniciar\|pausar\|reanudar` (JSON: `motivo` al pausar, `capturadoEn`) · `GET …/equipos/nuevo/opciones` · `POST …/equipos/nuevo` (multipart: `numeroSerie`, `codigo`, `marca`, `modelo`, `idSuministro`, `ubicacion`, `foto`) | `SP_ObtenerObjetivosMovil`, `SP_BuscarEquipoQrMovil`, `SP_CambiarEstadoEquipoMovil`, `SP_ObtenerOpcionesEquipoNuevoMovil`, `SP_RegistrarEquipoNuevoMovil` (reglas en `SP_ArmarObjetivosMovil` y `SP_EvaluarCampoMovil`) | `os_equipo`, `equipo_cliente`, `suministros`, `programacion_equipo`, `equipo_historial`, `evento_campo` (INICIO_TRABAJO, PAUSA, REANUDA), `alerta_predictiva`, `tabla_maestra` (TIPO_INTERVENCION_EQUIPO, MARCA_SUMINISTRO, PARAMETRO_PROGRAMACION), `auditoria_evento`, `notificacion` |
 | Registro de llegada y Hard Stop (HU-06) | `GET api/movil/servicios/{idOs}/llegada` · `POST …/llegada/validar` · `POST …/llegada` (JSON: `latitud`, `longitud`, `precisionMetros`, `capturadoEn`) | `SP_ObtenerLlegadaMovil`, `SP_ValidarLlegadaMovil`, `SP_RegistrarLlegadaMovil` (reglas en `SP_EvaluarLlegadaMovil`) | `evento_campo` (LLEGADA con GPS, precisión y distancia), `orden_servicio`, `sede`, `sede_cliente`, `cliente`, `tabla_maestra` (PARAMETRO_PROGRAMACION, TIPO_EVENTO_CAMPO), `auditoria_evento` |
@@ -311,3 +312,64 @@ Script: `backend_intranet_tw/database/procedures/_aplicar_firma_constancia_movil
 - `GET …/constancia` → `SP_ObtenerConstanciaMovil`; `POST …/constancia/firma` (JSON `trazos` + `nombre`), `…/constancia/fisico` (multipart, opcional) y `…/constancia/generar` → `SP_GuardarConstanciaMovil` (devuelven la constancia). `GET …/constancia/archivo[?tipo=foto]` sirve el PDF o la foto del formato físico.
 - **Cierre del servicio:** cuando todos los informes están completos y con sus responsables resueltos, y la constancia está firmada y generada, el caso de uso `CierreServicioMovilCasoDeUso` arma el PDF (QuestPDF, firmas como vectores), lo guarda y, solo con `CONSTANCIA_ENVIO_CORREO` = 1 y el correo configurado, lo envía al contacto del cliente; `SP_RegistrarCierreConstanciaMovil` persiste `cerrada_en` y el resultado del envío (en_espera · enviado · error · desactivado · sin_correo). **No cambia `orden_servicio.estado`**: no hay una regla de cierre iniciada por el técnico (la finalización la registra Seguimiento Operativo).
 - **Offline:** las pantallas muestran lo último guardado; firmar, subir el formato físico y generar la constancia exigen conexión. **Pendiente:** "Enviar link" y "Generar QR" (necesitan una página pública de firma que no existe; salen deshabilitados), guardar la constancia en el teléfono y enviarla al volver la señal, validar con IA la legibilidad de la foto del formato físico y que el cierre cambie el estado de la OS.
+
+## HU-33 — Revisión de informes técnicos (Jefe de Área)
+
+Tarjeta **Informes y Certificados** del menú de Jefatura → `/informes-revision` (lista) → `/informe-revision?id=` (detalle). Todo exige conexión. Es la versión móvil de la Revisión Técnica de la intranet (HU-56 a HU-59): usa la misma base de informes (`SP_ArmarBaseInformes`) y el mismo cierre (`SP_RegistrarRevisionInforme`).
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Informes por revisar (KPIs: pendientes, observados, sin evidencias, SLA vencido · pestañas Por revisar / En corrección / Aprobados · búsqueda) | `GET api/movil/jefatura/informes?grupo=&busqueda=` | `SP_ObtenerInformesRevisionMovil` | `informe_tecnico`, `informe_correccion`, `evidencia_fotografica`, `orden_servicio`, `usuario` |
+| Revisar informe (resumen, diagnóstico, validaciones, evidencias con las forzadas resaltadas, corrección pedida) | `GET api/movil/jefatura/informes/{id}` | `SP_ObtenerInformeRevisionMovil` | las anteriores + `informe_ensayo`, `informe_procedimiento`, `os_firma_responsable` |
+| Foto o video de una evidencia | `GET api/movil/jefatura/informes/{id}/evidencias/{idEvidencia}/archivo[?cuadro=true]` | `SP_ObtenerArchivoEvidenciaInformeMovil` | `evidencia_fotografica` |
+| Observar (motivo, secciones, qué corregir, plazo) | `PUT api/movil/jefatura/informes/{id}/observar` | `SP_ObservarInformeMovil` | `informe_correccion`, `informe_tecnico` (estado `observado`), `notificacion`, `auditoria_evento` |
+| Aprobar y liberar (solo con las validaciones obligatorias completas) | `PUT api/movil/jefatura/informes/{id}/aprobar` | `SP_AprobarInformeMovil` → `SP_RegistrarRevisionInforme` | `informe_tecnico` (estado `revisado`), `notificacion`, `auditoria_evento` |
+
+- **Quién ve qué (regla Área + Rol):** las áreas Gerencia, Operaciones, Administración, TI, SSOMA, Calidad y Comercial (cualquier rol) y los Administradores ven los informes de todas las áreas; el Supervisor de Servicio Técnico / Metrología, solo los de su área; Usuario / Visor de ST o Metrología no tienen Jefatura. Además hacen falta los permisos de la intranet `rt_bandeja` (ver) y `rt_revisar` (aprobar u observar).
+- **Observar:** el informe pasa a `observado` (pestaña "En corrección") y el técnico recibe una notificación (y el push al celular) con el motivo, las secciones, qué corregir y el plazo. Solo una corrección pendiente por informe.
+- **Pendiente (HU del técnico):** que el técnico vea la solicitud dentro de su app, corrija y reenvíe el informe (hoy recibe el aviso en Notificaciones).
+
+## HU-35 — Viáticos y gastos del equipo (Jefe de Área)
+
+Tarjeta **Viáticos y Gastos** del menú de Jefatura → `/viaticos-equipo`. Todo exige conexión. Reutiliza la gestión de viáticos de la intranet (HU-45): asignar = `SP_GuardarViaticosProgramacion`; revisar un gasto = `SP_RevisarGastoMovil` (→ `SP_RevisarGastoProgramacion`).
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Resumen por servicio (asignado · rendido · por revisar) | `GET api/movil/jefatura/viaticos` | `SP_ObtenerViaticosEquipoMovil` (alcance en `SP_ArmarAlcanceViaticosMovil`) | `gasto_viatico`, `programacion`, `orden_servicio`, `programacion_rendicion` |
+| Detalle de un servicio (viáticos por técnico y concepto, gastos rendidos con la lectura de la IA) | `GET api/movil/jefatura/viaticos/{idOs}` | `SP_ObtenerViaticoServicioEquipoMovil` | las anteriores + `gasto_viatico_foto` |
+| Asignar viático (movilidad, alimentación, alojamiento, otros · pendiente o ya depositado) | `PUT api/movil/jefatura/viaticos/{idOs}/asignacion` | `SP_AsignarViaticoEquipoMovil` → `SP_GuardarViaticosProgramacion` | `gasto_viatico`, `notificacion`, `auditoria_evento` |
+| Revisar gasto con comprobante (aprobar · observar con comentario · rechazar con motivo) | `PUT api/movil/aprobaciones/gastos/{id}` (HU-31) | `SP_RevisarGastoMovil` | `gasto_viatico` |
+
+- **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, los servicios de todas las áreas; el Supervisor de Servicio Técnico / Metrología, los de su área (según la RQ). Asignar y revisar exige además el permiso de la intranet `prog_aprobar_reprogramacion`.
+- **Depósito:** el jefe puede marcar «Ya depositado» al asignar (excepción pedida por el dueño a la regla «este módulo nunca marca depositado»; Contabilidad también puede marcarlo en la intranet). Un depósito no se revierte. El técnico recibe «Viático asignado» y lo ve al instante en Viáticos y Gastos (HU-25).
+- **Concurrencia:** si Contabilidad o otro jefe cambió la asignación mientras se editaba, se rechaza y hay que recargar.
+
+## HU-36 — Mi equipo: asistencia y ubicación (Jefe de Área)
+
+Tarjeta **Mi Equipo** del menú de Jefatura → `/equipo` → `/equipo-tecnico?id=` (ficha) → `/equipo-horas?id=` (horas contabilizadas). Todo exige conexión.
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Mi equipo (En labores · Refrigerio · Tardanza · Sin marcar, servicio actual y ubicación) | `GET api/movil/jefatura/equipo` | `SP_ObtenerEquipoJefaturaMovil` (equipo en `SP_ArmarEquipoJefaturaMovil`, estado en `SP_EstadoJornadaMovil`) | `jornada_marcacion`, `jornada_salida`, `orden_servicio`, `ubicacion_tecnico`, `usuario` |
+| Ficha del técnico (marcaciones del día, SSOMA, carga de la semana, llamar) | `GET api/movil/jefatura/equipo/tecnicos/{id}` | `SP_ObtenerFichaEquipoTecnicoMovil` | las anteriores + `programacion`, `evento_campo` |
+| Horas contabilizadas (calendario del mes, acumulado semanal y mensual, historial) | `GET api/movil/jefatura/equipo/tecnicos/{id}/horas?mes=yyyy-MM` | `SP_ObtenerHorasTecnicoMovil` → `SP_ConsolidarHorasTecnicoMovil` | `evento_campo`, `tecnico_horas_dia`, `tecnico_horas_servicio`, `tecnico_horas_mes` |
+
+- **Estado** (excluyentes): finalizó > refrigerio > sin marcar > tardanza > en labores, según el Reloj Marcador (HU-20).
+- **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, todos los técnicos; el Supervisor de Servicio Técnico / Metrología, los de su área.
+- **Horas contabilizadas:** tiempo real en servicio (desde `INICIO_TRABAJO` hasta `CIERRE` de cada OS u OM; unión sin doble conteo). Servicio de hoy sin fin: se cuenta hasta ahora; de un día anterior sin fin: 0 y el día queda «sin cierre». Un mes pasado queda cerrado como foto (historial); el historial de meses anteriores se completa la primera vez que se abren las horas del técnico.
+- **Carga de la semana:** horas programadas por día (lunes a viernes) frente a 5 × `HORAS_JORNADA`; baja < 50 %, normal 50–84 %, alta ≥ 85 %.
+
+## HU-37 — Agenda y carga del área (Jefe de Área)
+
+Tarjeta **Agenda del Área** del menú de Jefatura → `/agenda-area` (vistas Semana · Día · Carga y el modal «Conflicto de programación»). Todo exige conexión. La programación completa sigue en la intranet (Módulo 8); en la app el jefe consulta y hace ajustes rápidos. Envuelve las reglas de la Programación (HU-35 a HU-39); no duplica ninguna.
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Agenda semanal por técnico (estado por color, carga por día, conflictos) | `GET api/movil/jefatura/agenda?desde=yyyy-MM-dd` | `SP_ObtenerAgendaAreaMovil` (base en `SP_ArmarBaseProgramacion` y `SP_ArmarConflictosProgramacion`; alcance en `SP_ArmarEquipoAgendaMovil`) | `programacion`, `orden_servicio`, `os_personal`, `usuario` |
+| Detalle del conflicto (servicios cruzados, técnico sugerido, motivos) | `GET api/movil/jefatura/agenda/conflictos/detalle?tipo=&idTecnico=&idOsA=&idOsB=` | `SP_ObtenerConflictoAgendaMovil` → `SP_ObtenerConflictoProgramacion` | las anteriores + catálogo `MOTIVO_REPROGRAMACION` |
+| Resolver: cambiar técnico · cambiar horario · reprogramar con motivo | `PUT api/movil/jefatura/agenda/conflictos/resolver` | `SP_ResolverConflictoAgendaMovil` → `SP_ResolverConflictoProgramacion` → `SP_ReprogramarProgramacion` | `programacion`, `notificacion`, `auditoria_evento` |
+
+- **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, todos los técnicos; el Supervisor de Servicio Técnico / Metrología, los de su área. Ver exige `prog_bandeja`; resolver, `prog_gestionar`.
+- **Circuito (lo decide el servidor):** con `prog_aprobar_reprogramacion` el cambio se aplica al instante (`directa`); sin él queda como solicitud pendiente (`solicitud`) hasta que el Jefe de Operaciones la apruebe; sin `prog_gestionar` es solo lectura.
+- **Nivel de carga por día:** libre · baja · óptima · alta · sobrecarga (regla de la intranet: sobrecarga > 10 h o servicios solapados). El banner de conflictos muestra todos los pendientes del alcance (el mismo número que el menú).
+- «Cambiar horario» = reprogramar el mismo día con otras horas.

@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { existsSync } from 'node:fs';
 import type { ExpoConfig } from 'expo/config';
 
 /**
@@ -20,14 +22,14 @@ if (process.env.EAS_BUILD_PROFILE === 'production' && !apiUrl.startsWith('https:
  * Con esto se habilitan las actualizaciones por internet (EAS Update): se instala
  * UN solo APK y cada avance llega con `npm run actualizar`, sin reinstalar.
  */
-const EAS_PROJECT_ID = '550fdce7-c8a4-473f-97c7-e301b92cd08e';
+const EAS_PROJECT_ID = 'a7b8f297-3a22-4019-a66a-647a0626579b';
 
 /**
  * Versión nativa del APK. Las actualizaciones solo llegan a APKs con la misma versión nativa.
  * Súbela ('2', '3'...) SOLO cuando se agregue una librería nativa (cámara, GPS, etc.):
  * en ese caso hay que generar e instalar un APK nuevo con `npm run apk`.
  */
-const VERSION_NATIVA = '5'; // 5: expo-asset (requerido por expo-audio) y SDK 58 alineado · 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
+const VERSION_NATIVA = '7'; // 7: reproducir el video de las evidencias en la revisión de informes (expo-video, HU-33) · 6: notificaciones push (expo-notifications + Firebase) · 5: expo-asset (requerido por expo-audio) y SDK 58 alineado · 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
 
 /**
  * Variante de la app:
@@ -37,12 +39,20 @@ const VERSION_NATIVA = '5'; // 5: expo-asset (requerido por expo-audio) y SDK 58
  *  - normal: el APK que recibe los avances con `npm run actualizar`.
  */
 const esDesarrollo = process.env.APP_VARIANT === 'development';
+
+/**
+ * Notificaciones push en Android (Firebase Cloud Messaging): el archivo google-services.json de la app com.totalweight.campo se descarga de la consola
+ * de Firebase y se guarda en la raíz de este proyecto (junto a este archivo). Sin el archivo el APK se compila igual, pero no recibe avisos en la bandeja
+ * del teléfono (se siguen viendo en la pestaña Notificaciones). Paso a paso en docs/NOTIFICACIONES_PUSH.md.
+ */
+const archivoFirebase = './google-services.json';
+const tieneFirebase = existsSync(archivoFirebase);
 const paquete = esDesarrollo ? 'com.totalweight.campo.dev' : 'com.totalweight.campo';
 
 const config: ExpoConfig = {
   name: esDesarrollo ? 'TW Campo (Dev)' : 'TW Campo',
   slug: 'tw-campo',
-  owner: 'cryjack18',
+  owner: 'cryjack180305',
   version: '0.1.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
@@ -62,6 +72,7 @@ const config: ExpoConfig = {
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
+    ...(tieneFirebase && !esDesarrollo ? { googleServicesFile: archivoFirebase } : {}),
   },
   plugins: [
     'expo-router',
@@ -83,6 +94,8 @@ const config: ExpoConfig = {
       'expo-audio',
       { microphonePermission: 'La app usa el micrófono para que consultes al Asistente IA con tu voz.' },
     ],
+    // HU-33: reproducir el video de las evidencias de un informe
+    'expo-video',
     [
       'expo-location',
       {
@@ -91,6 +104,11 @@ const config: ExpoConfig = {
         isAndroidBackgroundLocationEnabled: false,
         isIosBackgroundLocationEnabled: false,
       },
+    ],
+    [
+      // Notificaciones push: cada aviso nuevo llega a la bandeja de notificaciones del teléfono (src/notificaciones)
+      'expo-notifications',
+      { color: '#0057B8' },
     ],
     [
       'expo-splash-screen',
