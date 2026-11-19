@@ -97,7 +97,7 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-agenda-area',
     titulo: 'Agenda del Área',
     icono: ion('calendar-outline'),
-    ruta: null,
+    ruta: '/agenda-area', // HU-37
     indicadores: (m) => (hay(m.agendaConflictos) ? [{ texto: plural(m.agendaConflictos, 'conflicto', 'conflictos'), tono: 'rojo' }] : []),
   },
   {

@@ -358,3 +358,18 @@ Tarjeta **Mi Equipo** del menú de Jefatura → `/equipo` → `/equipo-tecnico?i
 - **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, todos los técnicos; el Supervisor de Servicio Técnico / Metrología, los de su área.
 - **Horas contabilizadas:** tiempo real en servicio (desde `INICIO_TRABAJO` hasta `CIERRE` de cada OS u OM; unión sin doble conteo). Servicio de hoy sin fin: se cuenta hasta ahora; de un día anterior sin fin: 0 y el día queda «sin cierre». Un mes pasado queda cerrado como foto (historial); el historial de meses anteriores se completa la primera vez que se abren las horas del técnico.
 - **Carga de la semana:** horas programadas por día (lunes a viernes) frente a 5 × `HORAS_JORNADA`; baja < 50 %, normal 50–84 %, alta ≥ 85 %.
+
+## HU-37 — Agenda y carga del área (Jefe de Área)
+
+Tarjeta **Agenda del Área** del menú de Jefatura → `/agenda-area` (vistas Semana · Día · Carga y el modal «Conflicto de programación»). Todo exige conexión. La programación completa sigue en la intranet (Módulo 8); en la app el jefe consulta y hace ajustes rápidos. Envuelve las reglas de la Programación (HU-35 a HU-39); no duplica ninguna.
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Agenda semanal por técnico (estado por color, carga por día, conflictos) | `GET api/movil/jefatura/agenda?desde=yyyy-MM-dd` | `SP_ObtenerAgendaAreaMovil` (base en `SP_ArmarBaseProgramacion` y `SP_ArmarConflictosProgramacion`; alcance en `SP_ArmarEquipoAgendaMovil`) | `programacion`, `orden_servicio`, `os_personal`, `usuario` |
+| Detalle del conflicto (servicios cruzados, técnico sugerido, motivos) | `GET api/movil/jefatura/agenda/conflictos/detalle?tipo=&idTecnico=&idOsA=&idOsB=` | `SP_ObtenerConflictoAgendaMovil` → `SP_ObtenerConflictoProgramacion` | las anteriores + catálogo `MOTIVO_REPROGRAMACION` |
+| Resolver: cambiar técnico · cambiar horario · reprogramar con motivo | `PUT api/movil/jefatura/agenda/conflictos/resolver` | `SP_ResolverConflictoAgendaMovil` → `SP_ResolverConflictoProgramacion` → `SP_ReprogramarProgramacion` | `programacion`, `notificacion`, `auditoria_evento` |
+
+- **Quién ve qué (regla Área + Rol):** las áreas que ven todo y los Administradores, todos los técnicos; el Supervisor de Servicio Técnico / Metrología, los de su área. Ver exige `prog_bandeja`; resolver, `prog_gestionar`.
+- **Circuito (lo decide el servidor):** con `prog_aprobar_reprogramacion` el cambio se aplica al instante (`directa`); sin él queda como solicitud pendiente (`solicitud`) hasta que el Jefe de Operaciones la apruebe; sin `prog_gestionar` es solo lectura.
+- **Nivel de carga por día:** libre · baja · óptima · alta · sobrecarga (regla de la intranet: sobrecarga > 10 h o servicios solapados). El banner de conflictos muestra todos los pendientes del alcance (el mismo número que el menú).
+- «Cambiar horario» = reprogramar el mismo día con otras horas.
