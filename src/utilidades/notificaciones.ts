@@ -23,6 +23,8 @@ const TIPOS: readonly TipoNotificacion[] = [
   'correlativo_asignado',
   'correlativo_solicitado',
   'correlativo_solicitud',
+  'informe_observado',
+  'informe_revisado',
   'general',
 ];
 

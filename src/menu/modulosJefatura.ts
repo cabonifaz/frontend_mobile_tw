@@ -71,7 +71,7 @@ export const modulosJefaturaTodos: ModuloJefatura[] = [
     id: 'jefe-informes-certificados',
     titulo: 'Informes y Certificados',
     icono: ion('document-text-outline'),
-    ruta: null,
+    ruta: '/informes-revision', // HU-33 (los certificados siguen en "Próximamente" dentro de la misma tarjeta)
     indicadores: (m) => [
       ...(hay(m.informesPorRevisar) ? [{ texto: plural(m.informesPorRevisar, 'informe', 'informes'), tono: 'amarillo' as const }] : []),
       ...(hay(m.certificadosPendientes) ? [{ texto: plural(m.certificadosPendientes, 'certificado', 'certificados'), tono: 'amarillo' as const }] : []),

@@ -42,6 +42,10 @@ export type TipoNotificacion =
   | 'correlativo_solicitado'
   /** HU-34: un técnico solicita un correlativo (le llega al Jefe de Metrología). */
   | 'correlativo_solicitud'
+  /** HU-33: el jefe observó el informe del técnico y le pidió una corrección (con motivo, secciones, qué corregir y plazo). */
+  | 'informe_observado'
+  /** HU-33: el jefe aprobó el informe del técnico (queda revisado). */
+  | 'informe_revisado'
   | 'general';
 
 export interface Notificacion {
