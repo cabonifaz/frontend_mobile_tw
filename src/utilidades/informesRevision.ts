@@ -84,3 +84,18 @@ export function alternarSeccion(actuales: readonly string[], codigo: string, ord
   const nuevas = actuales.includes(codigo) ? actuales.filter((s) => s !== codigo) : [...actuales, codigo];
   return orden.filter((c) => nuevas.includes(c));
 }
+
+/** "50", "0.5", "100.25": el número sin ceros de más; "—" si no hay dato. */
+export function numeroTexto(n: number | null | undefined): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return '—';
+  return String(Number(n.toFixed(4)));
+}
+
+export const tituloEnsayo = (tipo: string): string => (tipo === 'pesaje' ? 'Pesaje (linealidad)' : tipo === 'excentricidad' ? 'Excentricidad' : tipo);
+
+export function estadoEquipoTexto(estado: string | null | undefined): string | null {
+  if (estado === 'operativo') return 'Operativo';
+  if (estado === 'con_observaciones') return 'Operativo con observaciones';
+  if (estado === 'inoperativo') return 'Inoperativo';
+  return null;
+}

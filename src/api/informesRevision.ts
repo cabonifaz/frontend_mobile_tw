@@ -86,6 +86,53 @@ export interface EvidenciaInforme {
   motivoForzada: string | null;
   esVideo: boolean;
   validacionIa: string | null;
+  /** Opcionales: un back anterior no los envía. */
+  descripcion?: string | null;
+  /** "yyyy-MM-ddTHH:mm:ss" (hora de Lima). */
+  tomadaEn?: string | null;
+  etapa?: string | null;
+}
+
+/** Datos generales del informe (como el "Detalle del Servicio Técnico" de la intranet). Todo opcional: un back anterior no lo envía. */
+export interface DatosInformeRevision {
+  version: number;
+  tipoEquipo: string | null;
+  marca: string | null;
+  modelo: string | null;
+  horaInicio: string | null;
+  horaFin: string | null;
+  duracionMin: number | null;
+  contacto: string | null;
+  numeroPropuesta: string | null;
+  enviadoEn: string | null;
+  resultadoGlobal: 'dentro' | 'fuera' | string | null;
+  toleranciaPesaje: number | null;
+  toleranciaExcentricidad: number | null;
+  descripcionComplementaria: string | null;
+  estadoEquipoFinal: 'operativo' | 'con_observaciones' | 'inoperativo' | string | null;
+}
+
+export interface EnsayoRevision {
+  tipo: 'pesaje' | 'excentricidad' | string;
+  orden: number;
+  punto: string;
+  notaPunto: string | null;
+  carga: number | null;
+  lectura: number | null;
+  error: number | null;
+  tolerancia: number | null;
+  resultado: 'conforme' | 'no_conforme' | string | null;
+}
+
+export interface PasoRevision {
+  orden: number;
+  descripcion: string;
+  realizado: boolean;
+}
+
+export interface TextoRevision {
+  texto: string;
+  detalle: string | null;
 }
 
 export interface CorreccionInforme {
@@ -118,6 +165,12 @@ export interface DetalleInformeRevision {
   motivos: OpcionInforme[];
   secciones: OpcionInforme[];
   plazos: PlazoInforme[];
+  /** Detalle del informe: opcionales, un back anterior no los envía. */
+  datos?: DatosInformeRevision | null;
+  ensayos?: EnsayoRevision[];
+  procedimiento?: PasoRevision[];
+  observaciones?: TextoRevision[];
+  recomendaciones?: TextoRevision[];
 }
 
 export interface ObservarInforme {
@@ -297,6 +350,26 @@ const mockInformes = {
       motivos: MOTIVOS,
       secciones: SECCIONES,
       plazos: PLAZOS,
+      datos: {
+        version: 1, tipoEquipo: 'Balanza de plataforma', marca: 'Ohaus', modelo: 'Defender 5000', horaInicio: '08:10', horaFin: '11:40', duracionMin: 210, contacto: 'Rosa Quispe',
+        numeroPropuesta: 'PRO-2026-0412', enviadoEn: '2026-11-17T18:20:00', resultadoGlobal: 'dentro', toleranciaPesaje: 0.5, toleranciaExcentricidad: 0.3,
+        descripcionComplementaria: 'Se ajustó la celda C2 y se verificó la linealidad.', estadoEquipoFinal: 'operativo',
+      },
+      ensayos: [
+        { tipo: 'pesaje', orden: 1, punto: 'Carga 1', notaPunto: null, carga: 50, lectura: 50.1, error: 0.1, tolerancia: 0.5, resultado: 'conforme' },
+        { tipo: 'pesaje', orden: 2, punto: 'Carga 2', notaPunto: null, carga: 100, lectura: 100.3, error: 0.3, tolerancia: 0.5, resultado: 'conforme' },
+        { tipo: 'pesaje', orden: 3, punto: 'Carga 3', notaPunto: 'tras ajuste', carga: 200, lectura: 200.7, error: 0.7, tolerancia: 0.5, resultado: 'no_conforme' },
+        { tipo: 'excentricidad', orden: 1, punto: 'Centro', notaPunto: null, carga: 100, lectura: 100.0, error: 0, tolerancia: 0.3, resultado: 'conforme' },
+        { tipo: 'excentricidad', orden: 2, punto: 'Esquina C2', notaPunto: null, carga: 100, lectura: 100.2, error: 0.2, tolerancia: 0.3, resultado: 'conforme' },
+      ],
+      procedimiento: [
+        { orden: 1, descripcion: 'Inspección visual y limpieza del equipo', realizado: true },
+        { orden: 2, descripcion: 'Verificación de nivelación', realizado: true },
+        { orden: 3, descripcion: 'Ajuste de la celda C2', realizado: true },
+        { orden: 4, descripcion: 'Pruebas de pesaje y excentricidad', realizado: true },
+      ],
+      observaciones: [{ texto: 'Celda C2 con deriva', detalle: 'Se recomienda cambio en el próximo mantenimiento.' }],
+      recomendaciones: [{ texto: 'Calibrar en 6 meses', detalle: null }],
     };
   },
   async observar(idInforme: number, d: ObservarInforme) {

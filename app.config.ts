@@ -29,7 +29,7 @@ const EAS_PROJECT_ID = 'a7b8f297-3a22-4019-a66a-647a0626579b';
  * Súbela ('2', '3'...) SOLO cuando se agregue una librería nativa (cámara, GPS, etc.):
  * en ese caso hay que generar e instalar un APK nuevo con `npm run apk`.
  */
-const VERSION_NATIVA = '6'; // 6: notificaciones push (expo-notifications + Firebase) · 5: expo-asset (requerido por expo-audio) y SDK 58 alineado · 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
+const VERSION_NATIVA = '7'; // 7: reproducir el video de las evidencias en la revisión de informes (expo-video, HU-33) · 6: notificaciones push (expo-notifications + Firebase) · 5: expo-asset (requerido por expo-audio) y SDK 58 alineado · 3: cámara (evidencia y QR) y GPS (HU-05, HU-06, HU-07) · 4: abrir PDF con el lector del teléfono (HU-24, expo-intent-launcher)
 
 /**
  * Variante de la app:
@@ -94,6 +94,8 @@ const config: ExpoConfig = {
       'expo-audio',
       { microphonePermission: 'La app usa el micrófono para que consultes al Asistente IA con tu voz.' },
     ],
+    // HU-33: reproducir el video de las evidencias de un informe
+    'expo-video',
     [
       'expo-location',
       {

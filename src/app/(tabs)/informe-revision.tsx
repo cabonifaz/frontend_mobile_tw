@@ -5,21 +5,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { ErrorApi } from '@/api/cliente';
-import { aprobarInforme, obtenerInformeRevision, observarInforme, urlEvidenciaInforme, type EvidenciaInforme } from '@/api/informesRevision';
+import { aprobarInforme, obtenerInformeRevision, observarInforme, urlEvidenciaInforme } from '@/api/informesRevision';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
+import { ReproductorVideo } from '@/componentes/ReproductorVideo';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
+import { textoDuracion } from '@/utilidades/jornada';
 import {
   MAX_INSTRUCCION,
   MAX_NOTA,
   alternarSeccion,
   errorObservar,
+  estadoEquipoTexto,
   estiloValidacion,
   etiquetaInforme,
+  numeroTexto,
+  tituloEnsayo,
   textoEspera,
   textoFechaHora,
 } from '@/utilidades/informesRevision';
@@ -47,7 +52,7 @@ export default function PantallaInformeRevision() {
   }, params.id ?? '');
 
   const [modal, setModal] = useState<'observar' | 'aprobar' | null>(null);
-  const [visor, setVisor] = useState<EvidenciaInforme | null>(null);
+  const [visorPos, setVisorPos] = useState<number | null>(null);
   const [motivo, setMotivo] = useState<string | null>(null);
   const [secciones, setSecciones] = useState<string[]>([]);
   const [instruccion, setInstruccion] = useState('');
@@ -61,6 +66,8 @@ export default function PantallaInformeRevision() {
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Jefe de Área';
   const det = datos?.detalle ?? null;
   const c = det?.cabecera ?? null;
+  const evidencias = det?.evidencias ?? [];
+  const visor = visorPos !== null ? (evidencias[visorPos] ?? null) : null;
   const et = c ? etiquetaInforme({ estado: c.estado, slaVencido: c.slaVencido }) : null;
   const errorForm = errorObservar({ motivo, secciones, instruccion, plazoHoras });
   const motivoNombre = det?.motivos.find((m) => m.codigo === motivo)?.nombre ?? null;
@@ -202,16 +209,154 @@ export default function PantallaInformeRevision() {
               })}
             </View>
 
+            {/* Datos del informe */}
+            <Text style={estilos.seccion}>DATOS DEL INFORME</Text>
+            <View style={estilos.tarjeta} testID="informe-datos">
+              <View style={estilos.datos}>
+                <Dato titulo="OS" valor={c.numeroOs} />
+                <Dato titulo="CLIENTE" valor={c.cliente} />
+                <Dato titulo="SEDE" valor={c.sede} />
+                <Dato titulo="TÉCNICO" valor={c.tecnico} />
+                <Dato titulo="EQUIPO" valor={c.equipo} />
+                <Dato titulo="CÓDIGO TW" valor={c.codigoTw} />
+                <Dato titulo="N° DE SERIE" valor={c.numeroSerie} />
+                <Dato titulo="MARCA / MODELO" valor={[det.datos?.marca, det.datos?.modelo].filter(Boolean).join(' ')} />
+                <Dato titulo="TIPO DE EQUIPO" valor={det.datos?.tipoEquipo} />
+                <Dato titulo="TIPO DE SERVICIO" valor={c.tipoServicio} />
+                <Dato titulo="FECHA DE EJECUCIÓN" valor={textoFechaHora(c.fechaEjecucion)} />
+                <Dato
+                  titulo="HORARIO"
+                  valor={
+                    det.datos?.horaInicio || det.datos?.horaFin
+                      ? `${det.datos?.horaInicio ?? '—'} – ${det.datos?.horaFin ?? '—'}${det.datos?.duracionMin != null ? ` · ${textoDuracion(det.datos.duracionMin)}` : ''}`
+                      : null
+                  }
+                />
+                <Dato titulo="CONTACTO DEL CLIENTE" valor={det.datos?.contacto} />
+                <Dato titulo="PROPUESTA" valor={det.datos?.numeroPropuesta} />
+                <Dato titulo="VERSIÓN DEL INFORME" valor={det.datos ? String(det.datos.version) : null} />
+                <Dato titulo="ENVIADO A REVISIÓN" valor={textoFechaHora(det.datos?.enviadoEn)} />
+                <Dato titulo="ESTADO FINAL DEL EQUIPO" valor={estadoEquipoTexto(det.datos?.estadoEquipoFinal)} />
+                <Dato
+                  titulo="RESULTADO DE ENSAYOS"
+                  valor={det.datos?.resultadoGlobal === 'dentro' ? 'Dentro del EMP' : det.datos?.resultadoGlobal === 'fuera' ? 'Fuera del EMP' : null}
+                  color={det.datos?.resultadoGlobal === 'fuera' ? colores.rojo : undefined}
+                />
+              </View>
+              {!!c.diagnostico && (
+                <View style={estilos.bloqueTexto}>
+                  <Text style={estilos.datoTitulo}>DIAGNÓSTICO</Text>
+                  <Text style={estilos.bloqueValor}>{c.diagnostico}</Text>
+                </View>
+              )}
+              {!!det.datos?.descripcionComplementaria && (
+                <View style={estilos.bloqueTexto}>
+                  <Text style={estilos.datoTitulo}>DESCRIPCIÓN COMPLEMENTARIA</Text>
+                  <Text style={estilos.bloqueValor}>{det.datos.descripcionComplementaria}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Ensayos */}
+            <Text style={estilos.seccion}>ENSAYOS</Text>
+            <View style={estilos.tarjeta} testID="informe-ensayos">
+              {(det.ensayos ?? []).length === 0 ? (
+                <Text style={estilos.vacioChico}>Sin ensayos registrados (no aplica).</Text>
+              ) : (
+                (['pesaje', 'excentricidad'] as const).map((tipo) => {
+                  const filas = (det.ensayos ?? []).filter((e) => e.tipo === tipo);
+                  if (filas.length === 0) return null;
+                  const tol = tipo === 'pesaje' ? det.datos?.toleranciaPesaje : det.datos?.toleranciaExcentricidad;
+                  return (
+                    <View key={tipo} style={{ gap: 4 }}>
+                      <Text style={estilos.ensayoTitulo}>
+                        {tituloEnsayo(tipo)}
+                        {tol != null ? ` · tolerancia ± ${numeroTexto(tol)}` : ''}
+                      </Text>
+                      <View style={estilos.tablaFila}>
+                        <Text style={[estilos.tablaCab, { flex: 1.5, textAlign: 'left' }]}>PUNTO</Text>
+                        <Text style={estilos.tablaCab}>CARGA</Text>
+                        <Text style={estilos.tablaCab}>LECT.</Text>
+                        <Text style={estilos.tablaCab}>ERROR</Text>
+                        <Text style={[estilos.tablaCab, { flex: 0.5 }]} />
+                      </View>
+                      {filas.map((e, i) => {
+                        const mal = e.resultado === 'no_conforme';
+                        return (
+                          <View key={`${tipo}-${i}`} style={[estilos.tablaFila, estilos.tablaDato, mal && estilos.tablaMal]}>
+                            <View style={{ flex: 1.5 }}>
+                              <Text style={estilos.tablaCelda} numberOfLines={2}>
+                                {e.punto}
+                              </Text>
+                              {!!e.notaPunto && <Text style={estilos.tablaNota}>{e.notaPunto}</Text>}
+                            </View>
+                            <Text style={[estilos.tablaCelda, estilos.tablaNum]}>{numeroTexto(e.carga)}</Text>
+                            <Text style={[estilos.tablaCelda, estilos.tablaNum]}>{numeroTexto(e.lectura)}</Text>
+                            <Text style={[estilos.tablaCelda, estilos.tablaNum, mal && { color: colores.rojo, fontWeight: '800' }]}>{numeroTexto(e.error)}</Text>
+                            <View style={{ flex: 0.5, alignItems: 'center' }}>
+                              {e.resultado ? (
+                                <Ionicons name={mal ? 'close-circle' : 'checkmark-circle'} size={18} color={mal ? colores.rojo : colores.verde} />
+                              ) : (
+                                <Text style={estilos.tablaCelda}>—</Text>
+                              )}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            {/* Procedimiento ejecutado */}
+            {(det.procedimiento ?? []).length > 0 && (
+              <>
+                <Text style={estilos.seccion}>PROCEDIMIENTO EJECUTADO</Text>
+                <View style={estilos.lista} testID="informe-procedimiento">
+                  {det.procedimiento!.map((p, i) => (
+                    <View key={`${p.orden}-${i}`} style={[estilos.validacion, i > 0 && estilos.separador]}>
+                      <Ionicons name={p.realizado ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={p.realizado ? colores.verde : colores.textoSecundario} />
+                      <Text style={[estilos.validacionTitulo, { fontWeight: '500', fontSize: 14.5 }]}>{p.descripcion}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Observaciones y recomendaciones */}
+            {((det.observaciones ?? []).length > 0 || (det.recomendaciones ?? []).length > 0) && (
+              <>
+                <Text style={estilos.seccion}>OBSERVACIONES Y RECOMENDACIONES</Text>
+                <View style={estilos.tarjeta} testID="informe-observaciones">
+                  {(det.observaciones ?? []).map((o, i) => (
+                    <View key={`o${i}`} style={estilos.bloqueTexto}>
+                      <Text style={estilos.datoTitulo}>OBSERVACIÓN</Text>
+                      <Text style={estilos.bloqueValor}>{o.texto}</Text>
+                      {!!o.detalle && <Text style={estilos.detalleChico}>{o.detalle}</Text>}
+                    </View>
+                  ))}
+                  {(det.recomendaciones ?? []).map((o, i) => (
+                    <View key={`r${i}`} style={estilos.bloqueTexto}>
+                      <Text style={estilos.datoTitulo}>RECOMENDACIÓN</Text>
+                      <Text style={estilos.bloqueValor}>{o.texto}</Text>
+                      {!!o.detalle && <Text style={estilos.detalleChico}>{o.detalle}</Text>}
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
             {/* Evidencias */}
             <Text style={estilos.seccion}>EVIDENCIAS</Text>
             {det.evidencias.length === 0 ? (
               <Text style={estilos.vacio}>El informe no tiene evidencias.</Text>
             ) : (
               <View style={estilos.rejilla} testID="informe-evidencias">
-                {det.evidencias.map((ev) => (
+                {det.evidencias.map((ev, pos) => (
                   <Pressable
                     key={ev.idEvidencia}
-                    onPress={() => setVisor(ev)}
+                    onPress={() => setVisorPos(pos)}
                     style={[estilos.evidencia, ev.forzada && estilos.evidenciaForzada]}
                     accessibilityRole="button"
                     accessibilityLabel={`Evidencia ${ev.etiqueta}${ev.forzada ? ' forzada' : ''}`}
@@ -221,7 +366,12 @@ export default function PantallaInformeRevision() {
                       style={estilos.miniatura}
                       resizeMode="cover"
                     />
-                    <Text style={[estilos.evidenciaTexto, ev.forzada && { color: '#B45309', fontWeight: '800' }]} numberOfLines={1}>
+                    {ev.esVideo && (
+                      <View style={estilos.playMini} pointerEvents="none">
+                        <Ionicons name="play" size={18} color={colores.blanco} />
+                      </View>
+                    )}
+                    <Text style={[estilos.evidenciaTexto, ev.forzada && { color: '#B45309', fontWeight: '800' }]} numberOfLines={2}>
                       {ev.etiqueta}
                       {ev.forzada ? ' · FORZADA' : ''}
                     </Text>
@@ -256,28 +406,57 @@ export default function PantallaInformeRevision() {
         )}
       </ScrollView>
 
-      {/* Evidencia ampliada con su motivo si es forzada */}
-      <Modal visible={visor !== null} transparent animationType="fade" onRequestClose={() => setVisor(null)}>
+      {/* Evidencia ampliada: foto o video, detalle y motivo si es forzada; flechas para pasar a la anterior o siguiente */}
+      <Modal visible={visor !== null} transparent animationType="fade" onRequestClose={() => setVisorPos(null)}>
         <View style={estilos.fondoModal}>
-          <View style={estilos.visor}>
-            {!!visor && (
-              <>
-                <Text style={estilos.modalTitulo}>
-                  {visor.etiqueta}
-                  {visor.forzada ? ' · FORZADA' : ''}
-                </Text>
-                <Image
-                  source={{ uri: urlEvidenciaInforme(id, visor.idEvidencia, visor.esVideo), headers: { Authorization: `Bearer ${token}` } }}
-                  style={estilos.fotoGrande}
-                  resizeMode="contain"
-                />
+          <View style={estilos.visor} testID="informe-visor">
+            {!!visor && visorPos !== null && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                <View style={estilos.visorCabecera}>
+                  <Pressable onPress={() => setVisorPos(Math.max(0, visorPos - 1))} disabled={visorPos === 0} hitSlop={10} accessibilityRole="button" accessibilityLabel="Evidencia anterior">
+                    <Ionicons name="chevron-back-circle" size={34} color={visorPos === 0 ? '#CBD5E1' : colores.primario} />
+                  </Pressable>
+                  <Text style={estilos.visorTitulo} numberOfLines={2}>
+                    {visor.etiqueta}
+                    {visor.forzada ? ' · FORZADA' : ''}
+                    {'\n'}
+                    <Text style={estilos.visorContador}>
+                      {visorPos + 1} de {evidencias.length}
+                    </Text>
+                  </Text>
+                  <Pressable
+                    onPress={() => setVisorPos(Math.min(evidencias.length - 1, visorPos + 1))}
+                    disabled={visorPos >= evidencias.length - 1}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel="Evidencia siguiente"
+                  >
+                    <Ionicons name="chevron-forward-circle" size={34} color={visorPos >= evidencias.length - 1 ? '#CBD5E1' : colores.primario} />
+                  </Pressable>
+                </View>
+                {visor.esVideo ? (
+                  <ReproductorVideo key={visor.idEvidencia} uri={urlEvidenciaInforme(id, visor.idEvidencia)} token={token} alto={300} />
+                ) : (
+                  <Image
+                    key={visor.idEvidencia}
+                    source={{ uri: urlEvidenciaInforme(id, visor.idEvidencia), headers: { Authorization: `Bearer ${token}` } }}
+                    style={estilos.fotoGrande}
+                    resizeMode="contain"
+                  />
+                )}
+                <View style={estilos.visorDatos}>
+                  {!!visor.tomadaEn && <Text style={estilos.visorLinea}>Tomada: {textoFechaHora(visor.tomadaEn)}</Text>}
+                  {!!visor.etapa && <Text style={estilos.visorLinea}>Etapa: {visor.etapa}</Text>}
+                  {!!visor.descripcion && <Text style={estilos.visorLinea}>{visor.descripcion}</Text>}
+                  {!!visor.validacionIa && <Text style={estilos.visorLinea}>Validación de la IA: {visor.validacionIa}</Text>}
+                </View>
                 {visor.forzada && (
                   <Text style={estilos.motivoForzada}>
-                    La IA no validó esta toma{visor.validacionIa ? ` (${visor.validacionIa})` : ''}. {visor.motivoForzada ? `Motivo del técnico: “${visor.motivoForzada}”` : ''}
+                    La IA no validó esta toma. {visor.motivoForzada ? `Motivo del técnico: “${visor.motivoForzada}”` : 'El técnico la aceptó con un motivo.'}
                   </Text>
                 )}
-                <Boton titulo="Cerrar" variante="secundario" onPress={() => setVisor(null)} />
-              </>
+                <Boton titulo="Cerrar" variante="secundario" onPress={() => setVisorPos(null)} />
+              </ScrollView>
             )}
           </View>
         </View>
@@ -398,6 +577,15 @@ export default function PantallaInformeRevision() {
   );
 }
 
+function Dato({ titulo, valor, color }: { titulo: string; valor: string | null | undefined; color?: string }) {
+  return (
+    <View style={estilos.dato}>
+      <Text style={estilos.datoTitulo}>{titulo}</Text>
+      <Text style={[estilos.datoValor, color ? { color } : null]}>{valor && valor.trim() ? valor : '—'}</Text>
+    </View>
+  );
+}
+
 function Selector({ texto, vacio, abierto, alAbrir, testID }: { texto: string | null; vacio: string; abierto: boolean; alAbrir: () => void; testID?: string }) {
   return (
     <Pressable onPress={alAbrir} style={estilos.selector} accessibilityRole="button" testID={testID}>
@@ -438,6 +626,28 @@ const estilos = StyleSheet.create({
   evidencia: { width: '31.5%', flexGrow: 1, borderRadius: 10, borderWidth: 1, borderColor: colores.bordeSuave, backgroundColor: colores.blanco, padding: 4, gap: 4 },
   evidenciaForzada: { borderColor: '#F59E0B', borderWidth: 2 },
   miniatura: { width: '100%', aspectRatio: 1.25, borderRadius: 7, backgroundColor: '#E2E8F0' },
+  datos: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  dato: { width: '47%', flexGrow: 1, gap: 2 },
+  datoTitulo: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.8, color: colores.textoSecundario },
+  datoValor: { fontSize: 14.5, color: colores.titulo, lineHeight: 20 },
+  bloqueTexto: { gap: 3, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colores.bordeSuave },
+  bloqueValor: { fontSize: 14, lineHeight: 20, color: colores.texto },
+  detalleChico: { fontSize: 13, lineHeight: 18, color: colores.textoSecundario },
+  vacioChico: { fontSize: 14, color: colores.textoSecundario, textAlign: 'center', paddingVertical: 6 },
+  ensayoTitulo: { fontSize: 13.5, fontWeight: '800', color: colores.titulo, marginTop: 4 },
+  tablaFila: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tablaCab: { flex: 1, fontSize: 10.5, fontWeight: '700', letterSpacing: 0.6, color: colores.textoSecundario, textAlign: 'right' },
+  tablaDato: { paddingVertical: 7, borderTopWidth: 1, borderTopColor: colores.bordeSuave, borderRadius: 6 },
+  tablaMal: { backgroundColor: '#FEF2F2' },
+  tablaCelda: { fontSize: 13.5, color: colores.titulo },
+  tablaNum: { flex: 1, textAlign: 'right' },
+  tablaNota: { fontSize: 11.5, color: colores.textoSecundario },
+  playMini: { position: 'absolute', top: '22%', alignSelf: 'center', width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(15,23,42,0.65)', alignItems: 'center', justifyContent: 'center' },
+  visorCabecera: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  visorTitulo: { flex: 1, fontSize: 16, fontWeight: '800', color: colores.titulo, textAlign: 'center' },
+  visorContador: { fontSize: 12.5, fontWeight: '600', color: colores.textoSecundario },
+  visorDatos: { gap: 3 },
+  visorLinea: { fontSize: 13.5, lineHeight: 19, color: colores.texto },
   evidenciaTexto: { fontSize: 11.5, color: colores.textoSecundario, textAlign: 'center' },
   botones: { flexDirection: 'row', gap: 12, marginTop: 16 },
   fondoModal: { flex: 1, backgroundColor: 'rgba(11,31,58,0.55)', justifyContent: 'center', padding: 20 },
