@@ -235,6 +235,12 @@ export default function PantallaRegistroFotografico() {
                 <Text style={estilos.bannerTexto}>Solo cámara de la app: la galería está deshabilitada. Cada evidencia la valida la IA.</Text>
               </View>
             )}
+            {c.informeFisico === false && (
+              <View style={[estilos.banner, estilos.bannerAzul]} testID="aviso-sin-informe-fisico">
+                <Ionicons name="document-outline" size={22} color={colores.titulo} />
+                <Text style={estilos.bannerTexto}>Este servicio no lleva informe físico: no se pide la foto del informe.</Text>
+              </View>
+            )}
             {c.forzadas > 0 && (
               <View style={[estilos.banner, estilos.bannerAmarillo]} testID="aviso-forzadas">
                 <Ionicons name="alert-circle-outline" size={22} color={colores.titulo} />

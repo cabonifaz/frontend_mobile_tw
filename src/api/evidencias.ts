@@ -88,8 +88,13 @@ export interface CabeceraEvidencias {
   forzadas: number;
   rechazadas: number;
   obligatoriasFaltan: number;
-  /** Las 9 completas: "Guardar y volver". */
+  /** Todas las evidencias del panel completas (9, u 8 si el servicio no lleva informe físico): "Guardar y volver". */
   puedeGuardar: boolean;
+  /**
+   * false = el cliente respondió que el servicio NO tendrá informe físico: la evidencia «informe» no está en el panel (no se pide esa foto).
+   * Un back anterior no lo envía: se trata como true (la foto del informe sigue siendo obligatoria).
+   */
+  informeFisico?: boolean;
 }
 
 export interface Evidencias {
