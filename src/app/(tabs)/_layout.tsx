@@ -53,6 +53,11 @@ export default function LayoutPestanas() {
     // Ingreso de equipos de la OS (HU-22)
     '/ingreso-equipo',
     '/ingreso-equipo-activo',
+    // Recepción de instrumentos OM en el taller (HU-23)
+    '/recepcion-om',
+    '/recepcion-om-detalle',
+    '/recepcion-om-instrumento',
+    '/recepcion-om-constancia',
     // Biblioteca de procedimientos (HU-24)
     '/procedimientos',
     '/procedimiento-ficha',
@@ -262,6 +267,11 @@ export default function LayoutPestanas() {
         name="ingreso-equipo-activo"
         options={{ title: 'Ingreso del equipo', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* HU-23: recepción de instrumentos de una OM en el taller (se entra desde el Menú → Recepción Instrumentos OM). */}
+      <Tabs.Screen name="recepcion-om" options={{ title: 'Recepción en taller', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="recepcion-om-detalle" options={{ title: 'Recepción de la OM', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="recepcion-om-instrumento" options={{ title: 'Estado del instrumento', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
+      <Tabs.Screen name="recepcion-om-constancia" options={{ title: 'Registrar recepción', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }} />
       {/* HU-24: biblioteca de procedimientos y su ficha (se entra desde el Menú). */}
       <Tabs.Screen
         name="procedimientos"

@@ -375,3 +375,27 @@ Tarjeta **Agenda del Área** del menú de Jefatura → `/agenda-area` (vistas Se
 - **Circuito (lo decide el servidor):** con `prog_aprobar_reprogramacion` el cambio se aplica al instante (`directa`); sin él queda como solicitud pendiente (`solicitud`) hasta que el Jefe de Operaciones la apruebe; sin `prog_gestionar` es solo lectura.
 - **Nivel de carga por día:** libre · baja · óptima · alta · sobrecarga (regla de la intranet: sobrecarga > 10 h o servicios solapados). El banner de conflictos muestra todos los pendientes del alcance (el mismo número que el menú).
 - «Cambiar horario» = reprogramar el mismo día con otras horas.
+
+## HU-23 — Recepción de instrumentos (OM) en el taller (Técnico de Metrología)
+
+Módulo **Recepción Instrumentos OM** del menú (hoy sin ruta) → `/recepcion-om` (Por recibir · Recibidos hoy), `/recepcion-om/detalle?om=` (instrumentos y trazabilidad de entrega), `/recepcion-om/instrumento?om&eq` (estado físico, observaciones, accesorios y fotos con cámara viva), recepción parcial con motivo, firma de quien entrega y constancia en PDF. Todo exige conexión. La OM vive en `orden_servicio` con `tipo = 'OM'` y sus instrumentos son sus `os_equipo`. No exige llegada GPS (el instrumento está en el taller). El técnico sale del token y solo ve las OM que tiene asignadas (principal u `os_personal`); la regla de acceso y la de «instrumento recibido» están una sola vez en `SP_ArmarOmTecnicoMovil` y `SP_ArmarInstrumentosRecepcionOmMovil`.
+
+| Pantalla | Endpoint | SP | Tablas |
+|---|---|---|---|
+| Por recibir / Recibidos hoy (búsqueda por N° de OM, cliente o guía) | `GET api/movil/recepcion-om?busqueda=` | `SP_ObtenerRecepcionesOmMovil` | `orden_servicio`, `os_equipo`, `om_recepcion`, `om_recepcion_equipo`, `cliente` |
+| Resumen de la OM, instrumentos y recepciones registradas | `GET api/movil/recepcion-om/{idOs}` | `SP_ObtenerRecepcionOmMovil` | las anteriores + `equipo_cliente`, `om_recepcion_foto`, `usuario` |
+| Foto de recepción de un instrumento (JPEG de la cámara ≤ 6 MB, máx. 8 pendientes, sin IA) | `POST api/movil/recepcion-om/{idOs}/instrumentos/{idOsEquipo}/fotos` (multipart `archivo`) | `SP_RegistrarFotoRecepcionOmMovil` | `om_recepcion_foto` |
+| Fotos pendientes del instrumento (reanudar) · quitar una | `GET` / `DELETE api/movil/recepcion-om/{idOs}/instrumentos/{idOsEquipo}/fotos[/{idFoto}]` | `SP_ObtenerFotosRecepcionOmMovil` · `SP_QuitarFotoRecepcionOmMovil` | `om_recepcion_foto` |
+| Ver una foto | `GET api/movil/recepcion-om/fotos/{idFoto}/archivo` | `SP_ObtenerArchivoFotoRecepcionOmMovil` | `om_recepcion_foto` |
+| Escanear etiqueta del instrumento | `GET api/movil/recepcion-om/{idOs}/buscar-qr?texto=` | `SP_BuscarInstrumentoQrRecepcionOmMovil` (usa `SP_NormalizarQrMovil`) | `equipo_cliente`, `equipo_qr` |
+| Registrar recepción (total o parcial) | `POST api/movil/recepcion-om/{idOs}` | `SP_RegistrarRecepcionOmMovil` → `SP_CatalogoAccesoriosRecepcionOmMovil`, `SP_ArmarAprobadoresOsMovil` | `om_recepcion`, `om_recepcion_equipo`, `om_recepcion_foto`, `notificacion`, `auditoria_evento` |
+| Constancia de recepción (PDF) | `GET api/movil/recepcion-om/recepciones/{idRecepcion}/constancia` | `SP_ObtenerConstanciaRecepcionOmMovil` · `SP_GuardarConstanciaRecepcionOmMovil` | `om_recepcion` + las anteriores |
+
+- **Datos obligatorios de la recepción:** N° de guía (3–40), medio (`cliente_taller` · `courier` · `traslado_tw`), quien entrega (3–120; empresa o cargo opcional ≤ 120), y por cada instrumento: estado físico (`conforme` · `observado`), observaciones (10–500, también si es conforme), accesorios y de 3 a 8 fotos. Recibió = el técnico del token; fecha y hora = las del servidor (Lima en las lecturas).
+- **Accesorios (catálogo fijo):** `caja_original` Caja original · `adaptador_corriente` Adaptador de corriente · `protector_plato` Protector de plato · `manual` Manual · `otro` Otro.
+- **Estado de la recepción (lo decide el SP):** `parcial` si quedan instrumentos sin recibir (motivo obligatorio de 10 a 300 caracteres) · si no, `observado` si alguno de los recibidos está observado · si no, `conforme`. Un instrumento no se recibe dos veces en la misma OM; la OM queda abierta hasta recibir lo que falta y aparece en «Por recibir» como `parcial`.
+- **Recepción parcial → aviso a Programación:** notificación «Recepción parcial: OM-…» (abre el servicio) a los usuarios de Operaciones con el permiso `prog_bandeja`; si no hay ninguno, a los jefes / administradores del área de la OM (`SP_ArmarAprobadoresOsMovil`).
+- **Firma de quien entrega:** `{ "trazos": [[[x,y],…],…] }` (trazos normalizados 0–1, igual que la firma de la HU-17: `ComparadorFirmas.Leer`); se guarda como JSON, sin imagen.
+- **Constancia:** PDF A4 (QuestPDF) con la trazabilidad, los instrumentos, el motivo y los pendientes si es parcial y la firma vectorial. Se genera y guarda al registrar; si `CONSTANCIA_ENVIO_CORREO` = 1 y el contacto de la OM tiene correo se envía (best-effort: si falla, la recepción queda igual y `correoEnviado = false`). Si el archivo ya no está, la descarga lo vuelve a generar.
+- **Pendiente / no incluido:** «Enviar link / QR» al cliente, y el aviso al técnico cuando Programación completa la recepción.
+- Script: `backend_intranet_tw/database/_aplicar_recepcion_om_movil.sql` (migración 124 + 13 procedimientos).

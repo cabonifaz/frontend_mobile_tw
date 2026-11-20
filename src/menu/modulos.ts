@@ -56,7 +56,7 @@ export const modulosMenu: ModuloMenu[] = [
     id: 'recepcion-instrumentos-om',
     titulo: 'Recepción Instrumentos OM',
     icono: { familia: 'ion', nombre: 'file-tray-outline' },
-    ruta: null,
+    ruta: '/recepcion-om', // HU-23
   },
   { id: 'ingreso-equipos-os', titulo: 'Ingreso de Equipos OS', icono: { familia: 'ion', nombre: 'cube-outline' }, ruta: '/ingreso-equipo' }, // HU-22
   {
