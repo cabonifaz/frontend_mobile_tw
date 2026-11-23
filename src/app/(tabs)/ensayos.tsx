@@ -1,17 +1,19 @@
-import { useRef, useState, type RefObject } from 'react';
+import { useMemo, useRef, useState, type RefObject } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { guardarEnsayos, obtenerEnsayosConRespaldo, registrarLlamadaEnsayo, type Ensayos } from '@/api/ensayos';
+import { guardarEnsayosOEncolar, puedeGuardarTrabajoSinConexion } from '@/api/colaTrabajo';
+import { obtenerEnsayosConRespaldo, registrarLlamadaEnsayo, type Ensayos } from '@/api/ensayos';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
+import { useTrabajoPendiente } from '@/hooks/useTrabajoPendiente';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import {
@@ -43,6 +45,7 @@ import {
   type GrupoExcentricidad,
 } from '@/utilidades/ensayos';
 import { fechaCorta, horaDe } from '@/utilidades/formato';
+import { TEXTO_EN_TELEFONO, ensayosConPendientes, pendienteDe } from '@/utilidades/trabajoPendiente';
 
 const AMARILLO = '#FEFBEA';
 
@@ -52,7 +55,9 @@ const AMARILLO = '#FEFBEA';
  *    los vuelve a calcular al guardar). Excentricidad: cargas desplegables, con las posiciones del plato (1 centro y 2 a 5 esquinas); se pueden agregar y quitar.
  *  - Error crítico (lectura fuera del EMP): Corregir lectura · Repetir ensayo · Llamar al encargado del área (queda registrado) · Guardar de todas formas
  *    (con motivo; avisa al encargado y deja el ensayo marcado con error). "Finalizar ensayo" queda bloqueado mientras haya un error crítico sin aceptar.
- *  - Al finalizar: resumen "Ensayo conforme" y los valores pasan a la Cabecera del informe (no se vuelven a digitar). Guardar exige conexión.
+ *  - Al finalizar: resumen "Ensayo conforme" y los valores pasan a la Cabecera del informe (no se vuelven a digitar).
+ *  - HU-18: sin conexión los cálculos son los mismos (clase y e del último ensayo descargado) y guardar / finalizar deja el ensayo en el teléfono («GUARDADO EN EL TELÉFONO ·
+ *    POR ENVIAR»); se envía solo al volver la señal y el servidor lo vuelve a calcular. Llamar al encargado abre el marcador igual, pero registrar la llamada exige conexión.
  */
 export default function PantallaEnsayos() {
   const { sesion } = useSesion();
@@ -62,19 +67,26 @@ export default function PantallaEnsayos() {
   const idOs = Number(params.id);
   const idOsEquipo = Number(params.equipo);
   const valido = Number.isInteger(idOs) && idOs > 0 && Number.isInteger(idOsEquipo) && idOsEquipo > 0;
-  const [reemplazo, setReemplazo] = useState<{ ensayos: Ensayos; version: number } | null>(null);
+  const [reemplazoGuardado, setReemplazo] = useState<{ ensayos: Ensayos; version: number; enviadas: number } | null>(null);
 
-  const { datos, cargando, error } = useConsulta(async (token) => {
+  // HU-18: lo guardado en el teléfono sin enviar; al terminar un envío (`enviadas`) se vuelve a leer del servidor
+  const { pendientes, enviadas, cargado } = useTrabajoPendiente(usuario?.idUsuario ?? 0, idOs, idOsEquipo);
+  // Lo reemplazado al finalizar solo vale hasta que se envía algo: después se vuelve a leer del servidor
+  const reemplazo = reemplazoGuardado && reemplazoGuardado.enviadas === enviadas ? reemplazoGuardado : null;
+
+  const { datos, cargando: cargandoServidor, error } = useConsulta(async (token) => {
     if (!valido) throw new ErrorApi('Servicio o equipo no válido.', 400, 1);
     const [r, cargos] = await Promise.all([
       obtenerEnsayosConRespaldo(token, usuario?.idUsuario ?? 0, idOs, idOsEquipo),
       obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined),
     ]);
     return { ensayos: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
-  }, `${params.id ?? ''}|${params.equipo ?? ''}`);
+  }, `${params.id ?? ''}|${params.equipo ?? ''}|${enviadas}`);
+  const cargando = cargandoServidor || !cargado;
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
-  const ensayos = reemplazo?.ensayos ?? datos?.ensayos ?? null;
+  const ensayos = useMemo(() => reemplazo?.ensayos ?? (datos?.ensayos ? ensayosConPendientes(datos.ensayos, pendientes) : null), [reemplazo, datos, pendientes]);
+  const enTelefono = pendienteDe(pendientes, 'ensayos') !== null;
   const c = ensayos?.cabecera;
 
   return (
@@ -106,10 +118,20 @@ export default function PantallaEnsayos() {
         <>
           {datos?.sinConexion && (
             <View style={{ paddingHorizontal: d.margen, marginBottom: 8 }}>
-              <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). Guardar exige conexión.`} />
+              <Aviso
+                mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). ${
+                  puedeGuardarTrabajoSinConexion() ? 'Lo que guardes queda en el teléfono y se envía solo al volver la señal.' : 'Guardar exige conexión.'
+                }`}
+              />
+            </View>
+          )}
+          {enTelefono && (
+            <View style={{ paddingHorizontal: d.margen, marginBottom: 8 }} testID="ensayos-en-telefono">
+              <Aviso mensaje={TEXTO_EN_TELEFONO} />
             </View>
           )}
           <Contenido
+            idUsuario={usuario?.idUsuario ?? 0}
             key={`${reemplazo?.version ?? 0}`}
             ensayos={ensayos}
             token={sesion?.token ?? ''}
@@ -118,7 +140,7 @@ export default function PantallaEnsayos() {
             margen={d.margen}
             anchoMaximo={d.anchoMaximo}
             onActualizado={(e, reiniciar) => {
-              if (reiniciar) setReemplazo((r) => ({ ensayos: e, version: (r?.version ?? 0) + 1 }));
+              if (reiniciar) setReemplazo((r) => ({ ensayos: e, version: (r?.version ?? 0) + 1, enviadas }));
             }}
           />
         </>
@@ -144,6 +166,7 @@ function agrupar(ensayos: Ensayos, forma: FormaPlato): GrupoExcentricidad[] {
 
 function Contenido(props: {
   ensayos: Ensayos;
+  idUsuario: number;
   token: string;
   idOs: number;
   idOsEquipo: number;
@@ -232,7 +255,8 @@ function Contenido(props: {
     if (!cuerpo) return setMensaje({ tipo: 'error', texto: 'Indica la carga de cada fila de pesaje y de excentricidad.' });
     setOcupado(true);
     try {
-      const r = await guardarEnsayos(props.token, props.idOs, props.idOsEquipo, cuerpo);
+      // HU-18: sin señal el ensayo queda en el teléfono (`r.datos` trae los ensayos con E, EMP y conformidad calculados aquí)
+      const r = await guardarEnsayosOEncolar(props.token, { idUsuario: props.idUsuario, idOs: props.idOs, idOsEquipo: props.idOsEquipo, numeroOs: c.numeroOs, equipo: `${c.nombre} #${String(c.numero).padStart(2, '0')}` }, cuerpo, ensayos);
       if (motivoError) {
         setAceptados(criticos.map(claveError));
         setMotivoAceptado(motivoError);
@@ -240,14 +264,14 @@ function Contenido(props: {
       setMensaje({ tipo: 'info', texto: r.mensaje });
       setConError(false);
       setMotivo('');
-      if (r.ensayos) props.onActualizado(r.ensayos, finalizar || !!motivoError);
+      if (r.datos) props.onActualizado(r.datos, finalizar || !!motivoError);
       if (finalizar) setVista('resumen');
     } catch (err) {
       setMensaje({
         tipo: 'error',
         texto:
           err instanceof ErrorApi && err.estadoHttp === 0
-            ? 'Sin conexión: los ensayos se guardan con señal. Tus lecturas siguen en pantalla; inténtalo cuando vuelva.'
+            ? 'Sin conexión: esta versión de la app no puede guardar en el teléfono. Tus lecturas siguen en pantalla; instala la última o inténtalo cuando vuelva la señal.'
             : err instanceof Error
               ? err.message
               : 'No se pudo guardar el ensayo.',
@@ -267,6 +291,12 @@ function Contenido(props: {
       if (tel) await Linking.openURL(`tel:${tel}`);
     } catch (err) {
       setLlamar(false);
+      if (err instanceof ErrorApi && err.estadoHttp === 0) {
+        // Sin señal el marcador del teléfono igual sirve; lo que no se puede es dejar la llamada registrada en el ensayo
+        const tel = telefonoMarcable(ensayos.encargado?.telefono);
+        if (tel) await Linking.openURL(`tel:${tel}`);
+        return setMensaje({ tipo: 'info', texto: 'Sin conexión: la llamada no quedó registrada en el ensayo (registrar la llamada exige conexión).' });
+      }
       setMensaje({ tipo: 'error', texto: err instanceof Error ? err.message : 'No se pudo registrar la llamada.' });
     }
   }

@@ -14,10 +14,12 @@ import { BannerProximoServicio } from '@/componentes/BannerProximoServicio';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { TarjetaModulo } from '@/componentes/TarjetaModulo';
 import { useConsulta } from '@/hooks/useConsulta';
+import { useDescargaDelDia } from '@/hooks/useDescargaDelDia';
 import { useDiseno } from '@/hooks/useDiseno';
 import { modulosMenu, type ModuloMenu } from '@/menu/modulos';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores } from '@/tema/colores';
+import { textoDescargaDelDia } from '@/utilidades/conexion';
 import { perfilDe } from '@/utilidades/perfil';
 import { ETIQUETA_TIPO, textoContador, textoGuardado } from '@/utilidades/progreso';
 import { MenuJefatura } from '@/componentes/MenuJefatura';
@@ -59,6 +61,8 @@ function MenuCampo() {
 
   // HU-21: progreso guardado en el teléfono (contador de la tarjeta y aviso al abrir la app)
   const idUsuario = usuario?.idUsuario ?? 0;
+  // HU-18: hora en que hoy se descargaron la agenda, las órdenes y lo demás para trabajar sin señal
+  const descarga = useDescargaDelDia(idUsuario);
   const [guardados, setGuardados] = useState<Progreso[]>([]);
   const [recuperar, setRecuperar] = useState<Progreso | null>(null);
   const cargarGuardados = useCallback(async () => setGuardados(await listarProgreso(idUsuario)), [idUsuario]);
@@ -127,7 +131,9 @@ function MenuCampo() {
         <Text style={[estilos.titulo, { fontSize: d.tituloPantalla + 2 }]} accessibilityRole="header">
           Menú Principal
         </Text>
-        <Text style={estilos.subtitulo}>Accesos operativos</Text>
+        <Text style={estilos.subtitulo} testID="menu-descarga-del-dia">
+          Accesos operativos{descarga ? ` · ${textoDescargaDelDia(descarga.hora)}` : ''}
+        </Text>
 
         {sinConexion && datos?.guardadoEn && (
           <View style={{ marginBottom: 16 }} testID="menu-sin-conexion">

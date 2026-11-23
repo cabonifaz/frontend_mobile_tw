@@ -1,17 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { accionesPendientes, sincronizarAccionesEquipos } from '@/api/colaEquipos';
-import { capturasPendientes, sincronizarEvidencias } from '@/api/colaEvidencias';
-import { gastosPendientes, sincronizarGastos } from '@/api/colaGastos';
-import { pendientesJornada, sincronizarJornada } from '@/api/colaJornada';
+import { descargarDelDia } from '@/api/descargaDelDia';
 import { enviarUbicacionJornada, obtenerJornada } from '@/api/jornada';
-import { pendientesLlegadas, sincronizarLlegadas } from '@/api/colaLlegadas';
-import { pendientesDeEnviar, sincronizarGuardados } from '@/api/guardadosAsistente';
-import { pendientesDe, sincronizarPendientes } from '@/api/colaDemoras';
 import type { Ubicacion } from '@/api/ruta';
 import { obtenerServiciosProgramados } from '@/api/servicios';
+import { sincronizarTodo } from '@/api/sincronizador';
 import { enviarUbicacion, type ExtrasUbicacion } from '@/api/ubicacion';
+import { anotarEnviadosTrasRecuperar, leerEstadoConexion, suscribirConexion } from '@/conexion/estadoConexion';
 import { entorno } from '@/config/entorno';
 import { useSesion } from '@/sesion/SesionContext';
 import { perfilDe } from '@/utilidades/perfil';
@@ -36,9 +32,11 @@ const JORNADA_VIGENTE_MS = 120_000;
  *     back cada ~45 s para el Seguimiento Operativo de la intranet. Sin servicio en curso no se envía nada; sin conexión se omite.
  *     HU-20: con la JORNADA en curso (inicio de labores marcado, sin fin de labores) también envía su posición, aunque no haya un servicio en curso: es lo que
  *     muestra al técnico en el mapa y alimenta la alerta de Jefatura «Sin movimiento» (10 min sin moverse).
- *  3. Marcaciones de la jornada (HU-20), llegadas (HU-06), demoras (HU-05) y acciones sobre los equipos (HU-07: iniciar, pausar, reanudar) guardadas sin conexión: las envía al abrir
- *     la app, al volver a ella y cada 30 s mientras haya pendientes. Primero las llegadas (una demora de ingreso a planta y las acciones de los
- *     equipos necesitan la llegada registrada) y al final las acciones de los equipos.
+ *  3. Todo lo guardado en el teléfono sin conexión (HU-18: jornada, llegadas, acciones de los equipos, demoras, trabajo del equipo, evidencias, gastos y guardados del asistente):
+ *     lo envía `sincronizarTodo`, en orden y sin botón, al abrir la app, al volver a ella, cada 30 s y EN CUANTO vuelve la señal (el aviso «Conexión recuperada» dice cuántos
+ *     registros salieron).
+ *  4. Descarga del día (HU-18): la primera vez que se abre la app con señal cada día (y al volver la señal si aún no se pudo) baja y guarda en el teléfono la agenda, las órdenes,
+ *     los formatos, los correlativos reservados y los contactos para poder trabajar sin señal (`descargarDelDia`).
  * El perfil de Jefatura no sale a ruta: no se le pide ubicación.
  */
 export function MonitorCampo() {
@@ -229,7 +227,7 @@ export function MonitorCampo() {
     };
   }, [activo, token]);
 
-  // 3 · Demoras guardadas sin conexión
+  // 3 · Envío de todo lo guardado sin conexión (HU-18)
   useEffect(() => {
     if (!activo || !token || !idUsuario) return;
     const mostrados = new Set<string>();
@@ -244,18 +242,10 @@ export function MonitorCampo() {
     async function enviar() {
       if (!token || AppState.currentState !== 'active') return;
       try {
-        // HU-20: marcaciones de la jornada hechas sin señal (en el orden en que se marcaron)
-        if ((await pendientesJornada(idUsuario)).length > 0) avisar((await sincronizarJornada(token, idUsuario)).avisos);
-        // Primero las llegadas (una demora de ingreso a planta necesita la llegada registrada)
-        if ((await pendientesLlegadas(idUsuario)).length > 0) avisar((await sincronizarLlegadas(token, idUsuario)).avisos);
-        if ((await pendientesDe(idUsuario)).length > 0) avisar((await sincronizarPendientes(token, idUsuario)).avisos);
-        if ((await accionesPendientes(idUsuario)).length > 0) avisar((await sincronizarAccionesEquipos(token, idUsuario)).avisos);
-        // Al final: una evidencia solo se acepta con el equipo ya en ejecución en el servidor
-        if ((await capturasPendientes(idUsuario)).length > 0) avisar((await sincronizarEvidencias(token, idUsuario)).avisos);
-        // HU-27: gastos de viáticos hechos sin señal (POR ENVIAR)
-        if ((await gastosPendientes(idUsuario)).length > 0) avisar((await sincronizarGastos(token, idUsuario)).avisos);
-        // HU-19: guardados del asistente hechos sin señal (y eliminaciones sin avisar al servidor)
-        if ((await pendientesDeEnviar(idUsuario)) > 0) avisar((await sincronizarGuardados(token, idUsuario)).avisos);
+        const r = await sincronizarTodo(token, idUsuario);
+        avisar(r.avisos);
+        // Si la señal volvió hace poco, el aviso «Conexión recuperada» dice cuántos registros salieron
+        if (r.enviadas > 0) anotarEnviadosTrasRecuperar(r.enviadas);
       } catch {
         // se reintenta en el siguiente ciclo
       }
@@ -266,10 +256,40 @@ export function MonitorCampo() {
     const estadoApp = AppState.addEventListener('change', (e) => {
       if (e === 'active') void enviar();
     });
+    // En cuanto el estado pasa de «sin conexión» a «en línea» se envía todo, sin esperar al siguiente ciclo
+    let estabaEnLinea = leerEstadoConexion().enLinea;
+    const bajaConexion = suscribirConexion(() => {
+      const enLinea = leerEstadoConexion().enLinea;
+      if (enLinea && !estabaEnLinea) void enviar();
+      estabaEnLinea = enLinea;
+    });
     return () => {
       vigente = false;
       clearInterval(reloj);
       estadoApp.remove();
+      bajaConexion();
+    };
+  }, [activo, token, idUsuario]);
+
+  // 4 · Descarga del día (HU-18): una vez por día (y al volver la señal si aún no se pudo)
+  useEffect(() => {
+    if (!activo || !token || !idUsuario) return;
+    const descargar = () => {
+      if (AppState.currentState === 'active') void descargarDelDia(token, idUsuario);
+    };
+    descargar();
+    const estadoApp = AppState.addEventListener('change', (e) => {
+      if (e === 'active') descargar();
+    });
+    let estabaEnLinea = leerEstadoConexion().enLinea;
+    const bajaConexion = suscribirConexion(() => {
+      const enLinea = leerEstadoConexion().enLinea;
+      if (enLinea && !estabaEnLinea) descargar();
+      estabaEnLinea = enLinea;
+    });
+    return () => {
+      estadoApp.remove();
+      bajaConexion();
     };
   }, [activo, token, idUsuario]);
 

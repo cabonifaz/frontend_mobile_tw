@@ -24,6 +24,8 @@ export interface EtapaTrabajo {
   detalle: string | null;
   /** La etapa ya tiene pantalla en la app. */
   disponible: boolean;
+  /** HU-18: tiene datos guardados en el teléfono que aún no se enviaron (solo lo pone la app; el servidor no lo envía). */
+  enTelefono?: boolean;
 }
 
 export interface CabeceraTrabajo {
@@ -94,6 +96,8 @@ export async function guardarVariablesAmbientales(
   idOs: number,
   idOsEquipo: number,
   v: NuevasVariables,
+  /** HU-18: la hora (ISO 8601, UTC) en que se tomaron; al reenviar lo guardado en el teléfono es la de entonces (el servidor solo la respeta dentro de 24 h). */
+  capturadoEn: string = new Date().toISOString(),
 ): Promise<{ mensaje: string; trabajo: TrabajoEquipo | null }> {
   if (entorno.usarMock) return mockTrabajo.guardar(idOs, idOsEquipo, v);
   const r = await solicitar<TrabajoEquipo>(`${ruta(idOs, idOsEquipo)}/variables-ambientales`, {
@@ -103,7 +107,7 @@ export async function guardarVariablesAmbientales(
       temperatura: v.temperatura,
       humedad: v.humedad,
       procedencia: v.procedencia.trim() || undefined,
-      capturadoEn: new Date().toISOString(),
+      capturadoEn,
     },
   });
   return { mensaje: r.mensaje, trabajo: r.datos ?? null };

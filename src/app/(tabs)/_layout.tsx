@@ -3,6 +3,7 @@ import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
+import { AvisoConexionRecuperada, VigilanteConexion } from '@/componentes/AvisoConexion';
 import { MonitorCampo } from '@/componentes/MonitorCampo';
 import { useAprobacionesPendientes } from '@/hooks/useAprobacionesPendientes';
 import { useSesion } from '@/sesion/SesionContext';
@@ -96,6 +97,8 @@ export default function LayoutPestanas() {
     <>
     {/* GPS automático al entrar, seguimiento mientras hay un servicio en curso y envío de demoras guardadas sin conexión */}
     <MonitorCampo />
+    {/* HU-18: confirma la conexión mientras no hay señal y avisa «Conexión recuperada» (el aviso «Sin conexión» va bajo la barra superior de cada pantalla) */}
+    <VigilanteConexion />
     <Tabs
       // "Volver" regresa a la pantalla anterior (agenda → detalle → checklist), no siempre al menú.
       backBehavior="history"
@@ -365,6 +368,7 @@ export default function LayoutPestanas() {
         options={{ title: 'Rendir gasto', tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
+    <AvisoConexionRecuperada />
     </>
   );
 }

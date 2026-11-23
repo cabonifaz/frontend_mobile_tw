@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
@@ -15,10 +15,12 @@ import { CierreEquipoModal } from '@/componentes/CierreEquipoModal';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
+import { useTrabajoPendiente } from '@/hooks/useTrabajoPendiente';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { porcentaje } from '@/utilidades/progreso';
 import { avanceEtapas, etapaResuelta, etapasPorResolver, rutaDeEtapa, textoEstadoEtapa, textoPendientesPorResolver } from '@/utilidades/trabajo';
+import { textoRegistros, trabajoConPendientes } from '@/utilidades/trabajoPendiente';
 
 /**
  * HU-08 — Trabajo en el equipo.
@@ -29,6 +31,8 @@ import { avanceEtapas, etapaResuelta, etapasPorResolver, rutaDeEtapa, textoEstad
  *  - HU-16 · Hard Stop: "Finalizar trabajo en equipo" siempre responde. El servidor valida las 5 etapas con una sola regla: con pendientes muestra "No es posible
  *    finalizar el trabajo en el equipo" (pendientes por etapa; "Revisar pendientes" marca en rojo las etapas y ofrece "Ir al primer pendiente"); con todo conforme,
  *    "Validación completa" y "Generar informe técnico", que completa el equipo y sigue a Firma de informes (HU-17).
+ *  - HU-18 · Sin conexión: las etapas con datos guardados en el teléfono (variables, ensayos, cabecera) muestran «en el teléfono» y su estado calculado aquí; mientras haya algo sin
+ *    enviar (o no haya señal) NO se puede finalizar el equipo: el Hard Stop solo lo valida el servidor y no se duplica en el teléfono.
  */
 export default function PantallaTrabajoEquipo() {
   const { sesion } = useSesion();
@@ -50,6 +54,9 @@ export default function PantallaTrabajoEquipo() {
   const [revisando, setRevisando] = useState(false);
   const token = sesion?.token ?? '';
 
+  // HU-18: lo guardado en el teléfono sin enviar; al terminar un envío (`enviadas`) se vuelve a leer del servidor
+  const { pendientes, enviadas } = useTrabajoPendiente(usuario?.idUsuario ?? 0, idOs, idOsEquipo);
+
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     if (!valido) throw new ErrorApi('Servicio o equipo no válido.', 400, 1);
     const [r, cargos] = await Promise.all([
@@ -57,7 +64,7 @@ export default function PantallaTrabajoEquipo() {
       obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined),
     ]);
     return { trabajo: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
-  }, `${params.id ?? ''}|${params.equipo ?? ''}`);
+  }, `${params.id ?? ''}|${params.equipo ?? ''}|${enviadas}`);
 
   // Al volver de una etapa (p. ej. de guardar las variables) se relee
   const primeraVez = useRef(true);
@@ -69,7 +76,7 @@ export default function PantallaTrabajoEquipo() {
   );
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
-  const t = datos?.trabajo;
+  const t = useMemo(() => (datos?.trabajo ? trabajoConPendientes(datos.trabajo, pendientes) : undefined), [datos, pendientes]);
   const c = t?.cabecera;
 
   // HU-21: el trabajo en curso queda en "Progreso Guardado" (paso donde se quedó y avance); al completarse el equipo sale de la lista
@@ -114,12 +121,21 @@ export default function PantallaTrabajoEquipo() {
   /** HU-16: el servidor valida las 5 etapas y la app muestra el modal que corresponda. */
   async function abrirCierre() {
     setMensaje(null);
+    // HU-18: el Hard Stop lo valida el servidor con TODO lo registrado; con trabajo sin enviar o sin señal no se puede finalizar
+    if (pendientes.length > 0) {
+      return setMensaje({ tipo: 'info', texto: `Hay ${textoRegistros(pendientes.length)} guardados en el teléfono; finaliza el equipo cuando se hayan enviado (se envían solos al volver la señal).` });
+    }
+    if (datos?.sinConexion) return setMensaje({ tipo: 'info', texto: 'Sin conexión: finalizar el equipo lo valida el servidor. Inténtalo cuando vuelva la señal.' });
     setErrorCierre(null);
     setCierre(null);
     setCierreAbierto(true);
     try {
       setCierre(await validarCierre(token, idOs, idOsEquipo));
     } catch (e) {
+      if (e instanceof ErrorApi && e.estadoHttp === 0) {
+        setCierreAbierto(false);
+        return setMensaje({ tipo: 'info', texto: 'Sin conexión: finalizar el equipo lo valida el servidor. Inténtalo cuando vuelva la señal.' });
+      }
       setErrorCierre(e instanceof Error ? e.message : 'No se pudo validar el cierre del equipo.');
     }
   }
@@ -190,7 +206,12 @@ export default function PantallaTrabajoEquipo() {
             </Text>
             {datos?.sinConexion && (
               <View style={{ marginBottom: 10 }}>
-                <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}).`} />
+                <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). Lo que registres se guarda en el teléfono.`} />
+              </View>
+            )}
+            {pendientes.length > 0 && (
+              <View style={{ marginBottom: 10 }} testID="aviso-trabajo-en-telefono">
+                <Aviso mensaje={`${textoRegistros(pendientes.length)} guardados en el teléfono · por enviar. Se envían solos cuando vuelva la señal.`} />
               </View>
             )}
 
@@ -255,6 +276,12 @@ export default function PantallaTrabajoEquipo() {
                 <View style={{ flex: 1 }}>
                   <Text style={estilos.etapaNombre}>{e.nombre}</Text>
                   {!!e.detalle && <Text style={estilos.etapaDetalle}>{e.detalle}</Text>}
+                  {e.enTelefono && (
+                    <View style={estilos.enTelefono} testID={`en-telefono-${e.codigo}`}>
+                      <Ionicons name="phone-portrait-outline" size={13} color={colores.naranja} />
+                      <Text style={estilos.enTelefonoTexto}>en el teléfono · por enviar</Text>
+                    </View>
+                  )}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
                   <EtiquetaEtapa estado={e.estado} />
@@ -292,7 +319,7 @@ export default function PantallaTrabajoEquipo() {
                 <Ionicons name="checkmark-done" size={22} color={colores.blanco} />
                 <Text style={estilos.finalizarTexto}>Finalizar trabajo en equipo</Text>
               </Pressable>
-              <Text style={estilos.ayuda}>Si falta algo o no está conforme, el sistema no deja cerrar (Hard Stop).</Text>
+              <Text style={estilos.ayuda}>Si falta algo o no está conforme, el sistema no deja cerrar (Hard Stop). El cierre se valida con señal y con todo lo guardado ya enviado.</Text>
             </View>
           </>
         )}
@@ -388,6 +415,8 @@ const estilos = StyleSheet.create({
   },
   etapaNombre: { fontSize: 18, fontWeight: '700', color: colores.titulo },
   etapaDetalle: { fontSize: 15, color: colores.textoSecundario, marginTop: 3, lineHeight: 20 },
+  enTelefono: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  enTelefonoTexto: { fontSize: 12.5, color: colores.naranja, fontWeight: '600' },
   etapaRoja: { borderColor: colores.rojo, borderWidth: 1.5, backgroundColor: '#FFF7F7' },
   bannerRojo: { flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radios.tarjeta, padding: 14, marginTop: 16 },
   bannerRojoTexto: { flex: 1, color: colores.titulo, fontSize: 15.5, lineHeight: 21 },

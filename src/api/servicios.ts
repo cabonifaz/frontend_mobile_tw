@@ -1,6 +1,7 @@
 import { entorno } from '@/config/entorno';
-import { solicitar } from './cliente';
+import { ErrorApi, solicitar } from './cliente';
 import { mockPresalida, mockServicios } from './mock';
+import { conRespaldo, leerRespaldo } from './respaldo';
 
 /**
  * Agenda de servicios programados (HU-03).
@@ -61,6 +62,25 @@ export async function obtenerServiciosProgramados(
   return (r.datos ?? []).map((s) =>
     s.estadoGeneral === 'LISTO' && !s.clienteConfirmado ? { ...s, estadoGeneral: 'PENDIENTE' as const } : s,
   );
+}
+
+/**
+ * HU-18 — Igual que `obtenerServiciosProgramados`, pero la agenda también se ve SIN conexión: cada respuesta se guarda en el teléfono (clave `servicios.todos`) y, sin señal,
+ * se muestra lo último guardado. Con búsqueda sin señal se filtra esa misma lista en el teléfono (N° de OS, RQ, OM o cliente).
+ */
+export async function obtenerServiciosProgramadosConRespaldo(token: string, idUsuario: number, busqueda: string): Promise<ServicioProgramado[]> {
+  if (entorno.usarMock) return obtenerServiciosProgramados(token, 'todos', busqueda);
+  const texto = busqueda.trim();
+  if (!texto) return (await conRespaldo(idUsuario, 'servicios.todos', () => obtenerServiciosProgramados(token, 'todos', ''))).datos;
+  try {
+    return await obtenerServiciosProgramados(token, 'todos', texto);
+  } catch (e) {
+    if (!(e instanceof ErrorApi) || e.estadoHttp !== 0) throw e;
+    const guardada = await leerRespaldo<ServicioProgramado[]>(idUsuario, 'servicios.todos');
+    if (!guardada) throw e;
+    const q = texto.toLowerCase();
+    return guardada.filter((s) => [s.numeroOs, s.numeroRq, s.numeroOm, s.cliente].some((v) => !!v && v.toLowerCase().includes(q)));
+  }
 }
 
 // ── HU-04 — Detalle del servicio y checklist de pre-salida ──────────────────
@@ -282,6 +302,18 @@ export async function obtenerChecklistSalida(token: string, idOs: number): Promi
   if (entorno.usarMock) return mockPresalida.checklist(idOs);
   const r = await solicitar<ChecklistSalida>(`${rutaServicio(idOs)}/checklist`, { token });
   return r.datos!;
+}
+
+/** HU-18: el detalle del servicio (cliente, contactos, equipos, documentos…) también se ve sin conexión con lo último guardado. */
+export async function obtenerDetalleServicioConRespaldo(token: string, idUsuario: number, idOs: number): Promise<DetalleServicio> {
+  if (entorno.usarMock) return obtenerDetalleServicio(token, idOs);
+  return (await conRespaldo(idUsuario, `servicio.detalle.${idOs}`, () => obtenerDetalleServicio(token, idOs))).datos;
+}
+
+/** HU-18: el checklist de pre-salida (los formatos del servicio) también se ve sin conexión con lo último guardado; marcarlo sí exige conexión. */
+export async function obtenerChecklistSalidaConRespaldo(token: string, idUsuario: number, idOs: number): Promise<ChecklistSalida> {
+  if (entorno.usarMock) return obtenerChecklistSalida(token, idOs);
+  return (await conRespaldo(idUsuario, `servicio.checklist.${idOs}`, () => obtenerChecklistSalida(token, idOs))).datos;
 }
 
 export async function marcarItemChecklist(

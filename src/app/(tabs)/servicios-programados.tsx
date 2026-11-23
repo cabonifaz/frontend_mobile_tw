@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { obtenerServiciosProgramados, type FiltroServicios, type ServicioProgramado } from '@/api/servicios';
+import { obtenerServiciosProgramadosConRespaldo, type FiltroServicios, type ServicioProgramado } from '@/api/servicios';
 import { Aviso } from '@/componentes/Aviso';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { TarjetaServicio } from '@/componentes/TarjetaServicio';
@@ -71,7 +71,7 @@ export default function PantallaServiciosProgramados() {
   const { datos, cargando, recargando, error, recargar } = useConsulta(
     async (token) => {
       const [servicios, cargos] = await Promise.all([
-        obtenerServiciosProgramados(token, 'todos', busqueda),
+        obtenerServiciosProgramadosConRespaldo(token, usuario?.idUsuario ?? 0, busqueda),
         obtenerCatalogo(token, 'CARGO_USUARIO'),
       ]);
       return { servicios, cargos };

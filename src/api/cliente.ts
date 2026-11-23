@@ -1,4 +1,5 @@
 import { entorno } from '@/config/entorno';
+import { marcarEnLinea, marcarSinConexion } from '@/conexion/estadoConexion';
 
 /**
  * Sobre de respuesta del backend (RespuestaDto<T> en .NET):
@@ -98,6 +99,8 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
       `${abortado ? 'TIMEOUT' : 'RED'} · ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)} · ${metodo} ${ruta} · ` +
       `${Date.now() - inicio} ms de ${timeoutMs} ms · ${esFormulario ? 'multipart' : cuerpo !== undefined ? 'json' : 'sin cuerpo'} · ${token ? 'con token' : 'sin token'} · base ${entorno.apiUrl}`;
     console.warn(`[API] ${detalle}`);
+    // HU-18: una caída de la red marca «sin conexión»; un simple tiempo de espera no (puede ser un servidor lento o la IA): lo confirma el sondeo
+    if (!abortado) marcarSinConexion();
     throw new ErrorApi(
       abortado
         ? 'El servidor tardó demasiado en responder. Revisa tu conexión e inténtalo de nuevo.'
@@ -109,6 +112,9 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
   } finally {
     clearTimeout(temporizador);
   }
+
+  // HU-18: el servidor respondió (con el código que sea): hay conexión
+  marcarEnLinea();
 
   let cuerpoRespuesta: Respuesta<T> | null = null;
   try {

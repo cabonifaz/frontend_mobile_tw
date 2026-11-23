@@ -8,7 +8,7 @@ import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import {
   iniciarTraslado,
   marcarItemChecklist,
-  obtenerChecklistSalida,
+  obtenerChecklistSalidaConRespaldo,
   solicitarAutorizacionSalida,
   type ChecklistSalida,
   type CodigoManual,
@@ -61,7 +61,7 @@ export default function PantallaChecklistSalida() {
   const { datos, cargando, recargando, error, recargar } = useConsulta(
     async (token) => {
       if (!Number.isInteger(idOs) || idOs <= 0) throw new ErrorApi('Servicio no válido.', 400, 1);
-      const [checklist, cargos] = await Promise.all([obtenerChecklistSalida(token, idOs), obtenerCatalogo(token, 'CARGO_USUARIO')]);
+      const [checklist, cargos] = await Promise.all([obtenerChecklistSalidaConRespaldo(token, usuario?.idUsuario ?? 0, idOs), obtenerCatalogo(token, 'CARGO_USUARIO')]);
       return { checklist, cargos };
     },
     params.id ?? '',

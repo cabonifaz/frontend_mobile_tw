@@ -8,8 +8,8 @@ import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { obtenerDemorasConRespaldo } from '@/api/ruta';
 import {
   marcarItemChecklist,
-  obtenerChecklistSalida,
-  obtenerDetalleServicio,
+  obtenerChecklistSalidaConRespaldo,
+  obtenerDetalleServicioConRespaldo,
   type CodigoManual,
   type HistorialServicio,
   type ItemChecklist,
@@ -66,8 +66,8 @@ export default function PantallaDetalleServicio() {
     async (token) => {
       if (!idValido) throw new ErrorApi('Servicio no válido.', 400, 1);
       const [detalle, checklist, cargos] = await Promise.all([
-        obtenerDetalleServicio(token, idOs),
-        obtenerChecklistSalida(token, idOs),
+        obtenerDetalleServicioConRespaldo(token, usuario?.idUsuario ?? 0, idOs),
+        obtenerChecklistSalidaConRespaldo(token, usuario?.idUsuario ?? 0, idOs),
         obtenerCatalogo(token, 'CARGO_USUARIO'),
       ]);
       // Traslado en curso: la salida y la ETA vigente (con las demoras ya registradas) salen del contexto de demoras.

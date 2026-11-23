@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { BannerSinConexion } from '@/componentes/AvisoConexion';
 import { colores } from '@/tema/colores';
 
 interface Props {
@@ -13,10 +14,12 @@ interface Props {
  * Barra superior de la zona privada: iniciales del técnico y título (sin botón de refresh).
  * Tocar el círculo con las iniciales abre "Mi cuenta" (pestaña Perfil), con los datos de la cuenta
  * y el botón "Salir de la app".
+ * HU-18: debajo de la barra aparece, en TODAS las pantallas con sesión, el aviso «Sin conexión · lo que registres se guarda en el teléfono» mientras no hay señal.
  */
 export function EncabezadoApp({ nombre, apellido, subtitulo }: Props) {
   const iniciales = `${nombre.charAt(0)}${(apellido ?? '').charAt(0)}`.toUpperCase() || 'TW';
   return (
+    <>
     <View style={estilos.barra}>
       <Pressable
         onPress={() => router.navigate('/perfil')}
@@ -39,6 +42,8 @@ export function EncabezadoApp({ nombre, apellido, subtitulo }: Props) {
         )}
       </View>
     </View>
+    <BannerSinConexion />
+    </>
   );
 }
 

@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { guardarCabeceraInforme, obtenerCabeceraInformeConRespaldo, type CabeceraInforme, type CuerpoFalla, type GuardarCabecera, type Severidad } from '@/api/informe';
+import { guardarCabeceraOEncolar, puedeGuardarTrabajoSinConexion } from '@/api/colaTrabajo';
+import { obtenerCabeceraInformeConRespaldo, type CabeceraInforme, type CuerpoFalla, type GuardarCabecera, type Severidad } from '@/api/informe';
 import { descargarPreInforme } from '@/api/preInforme';
 import { abrirPdf } from '@/api/procedimientos';
 import { horaRespaldo } from '@/api/respaldo';
@@ -15,6 +16,7 @@ import { NuevaFallaModal } from '@/componentes/NuevaFallaModal';
 import { Selector } from '@/componentes/Selector';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
+import { useTrabajoPendiente } from '@/hooks/useTrabajoPendiente';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { formatoError, formatoMiles, leerLectura } from '@/utilidades/ensayos';
@@ -50,6 +52,7 @@ import {
   type FallaEditable,
 } from '@/utilidades/informe';
 import { leerNumero, textoNumero } from '@/utilidades/trabajo';
+import { TEXTO_EN_TELEFONO, cabeceraConPendientes, pendienteDe } from '@/utilidades/trabajoPendiente';
 
 type Pestana = 'datos' | 'detalle' | 'observacion';
 const PESTANAS: { id: Pestana; texto: string }[] = [
@@ -85,7 +88,9 @@ interface Edicion {
  *  - Detalle Serv.: tipo de equipo, celdas (mV), checklist del tipo de orden (con "Marcar TODOS"), pruebas por sumatoria y por comparación, anillos de fijación.
  *  - Observación y pruebas: 4 bloques desplegables — Recomendaciones inmediatas, Fallas y su prueba (cada falla exige una prueba con L e I y el sistema calcula E),
  *    Pruebas generales (lo de Ensayos y Calibración) y Diagnóstico final.
- *  Guardar exige conexión; sin conexión se muestra lo último guardado. Con el equipo pausado o el informe ya generado, solo lectura.
+ *  Con el equipo pausado o el informe ya generado, solo lectura. HU-18: sin conexión se muestra lo último descargado y lo que se guarde queda en el teléfono («GUARDADO EN EL
+ *  TELÉFONO · POR ENVIAR»; las secciones se funden y se envían solas al volver la señal; el E y el EMP de las pruebas se calculan aquí y el servidor los vuelve a calcular).
+ *  Subir fotos de una falla sigue exigiendo conexión.
  */
 export default function PantallaCabeceraInforme() {
   const { sesion } = useSesion();
@@ -100,24 +105,35 @@ export default function PantallaCabeceraInforme() {
   const [tab, setTab] = useState<Pestana>(PESTANAS.some((p) => p.id === params.tab) ? (params.tab as Pestana) : 'datos');
   const [ed, setEd] = useState<Edicion>({});
   const [abiertos, setAbiertos] = useState<Set<Bloque>>(new Set());
-  const [guardada, setGuardada] = useState<CabeceraInforme | null>(null);
+  const [guardadaLocal, setGuardadaLocal] = useState<{ cabecera: CabeceraInforme; enviadas: number } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'info'; texto: string; detalle?: string } | null>(null);
   const [modal, setModal] = useState<{ indice: number | null; inicial: FallaEditable } | null>(null);
 
-  const { datos, cargando, recargando, error, recargar } = useConsulta(async (tk) => {
+  // HU-18: lo guardado en el teléfono sin enviar; al terminar un envío (`enviadas`) se vuelve a leer del servidor
+  const { pendientes, enviadas, cargado } = useTrabajoPendiente(usuario?.idUsuario ?? 0, idOs, idOsEquipo);
+  // Lo recién guardado solo vale hasta que se envía algo: después se vuelve a leer del servidor
+  const guardada = guardadaLocal && guardadaLocal.enviadas === enviadas ? guardadaLocal.cabecera : null;
+  const setGuardada = (c: CabeceraInforme | null) => setGuardadaLocal(c ? { cabecera: c, enviadas } : null);
+
+  const { datos, cargando: cargandoServidor, recargando, error, recargar } = useConsulta(async (tk) => {
     if (!valido) throw new ErrorApi('Servicio o equipo no válido.', 400, 1);
     const [r, cargos] = await Promise.all([
       obtenerCabeceraInformeConRespaldo(tk, usuario?.idUsuario ?? 0, idOs, idOsEquipo),
       obtenerCatalogo(tk, 'CARGO_USUARIO').catch(() => undefined),
     ]);
     return { cabecera: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
-  }, `${params.id ?? ''}|${params.eq ?? params.equipo ?? ''}`);
+  }, `${params.id ?? ''}|${params.eq ?? params.equipo ?? ''}|${enviadas}`);
+  const cargando = cargandoServidor || !cargado;
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
-  const cab = guardada ?? datos?.cabecera ?? null;
-  const editable = !!cab?.datos.puedeEditar && !datos?.sinConexion;
+  /** Lo último del servidor (o recién guardado) SIN lo pendiente: es la base sobre la que se funden las secciones guardadas en el teléfono. */
+  const base = guardada ?? datos?.cabecera ?? null;
+  const cab = useMemo(() => (base ? cabeceraConPendientes(base, pendientes) : null), [base, pendientes]);
+  const enTelefono = pendienteDe(pendientes, 'cabecera') !== null;
+  // Sin conexión se puede seguir editando si la app guarda en el teléfono (HU-18)
+  const editable = !!cab?.datos.puedeEditar && (!datos?.sinConexion || puedeGuardarTrabajoSinConexion());
   const sucio = Object.keys(ed).length > 0;
   const cambiar = (c: Partial<Edicion>) => setEd((x) => ({ ...x, ...c }));
 
@@ -198,12 +214,17 @@ export default function PantallaCabeceraInforme() {
     setGuardando(true);
     setMensaje(null);
     try {
-      const r = await guardarCabeceraInforme(token, idOs, idOsEquipo, cuerpo);
-      setGuardada(r.cabecera);
+      if (!base || !cab) return;
+      const equipo = [cab.datos.marca, cab.datos.modelo].filter(Boolean).join(' ') || 'Equipo';
+      const r = await guardarCabeceraOEncolar(token, { idUsuario: usuario?.idUsuario ?? 0, idOs, idOsEquipo, numeroOs: cab.datos.numeroOs, equipo }, cuerpo, base);
+      setGuardada(r.datos);
       setEd({});
       setMensaje({ tipo: 'info', texto: r.mensaje });
-      await recargar();
-      setGuardada(null);
+      // Con señal se vuelve a leer del servidor (E, EMP y conformidad definitivos); sin señal queda lo guardado en el teléfono
+      if (r.estado === 'enviado') {
+        await recargar();
+        setGuardada(null);
+      }
     } catch (e) {
       setMensaje({ tipo: 'error', texto: e instanceof Error ? e.message : 'No se pudo guardar la cabecera.', detalle: e instanceof ErrorApi && e.estadoHttp === 0 ? e.detalleTecnico : undefined });
     } finally {
@@ -215,6 +236,9 @@ export default function PantallaCabeceraInforme() {
   function pedirPreInforme() {
     if (!cab || descargando) return;
     if (datos?.sinConexion) return setMensaje({ tipo: 'info', texto: 'Sin conexión: el pre-informe se genera en el servidor. Inténtalo cuando tengas señal.' });
+    if (pendientes.length > 0) {
+      return Alert.alert('Hay trabajo sin enviar', 'Lo guardado en el teléfono todavía no llegó al servidor. Descarga el pre-informe cuando se haya enviado (se envía solo al volver la señal).');
+    }
     if (sucio) {
       return Alert.alert('Guarda los cambios', 'Hay cambios sin guardar en la cabecera. Guárdalos primero para que el pre-informe los incluya.');
     }
@@ -285,7 +309,12 @@ export default function PantallaCabeceraInforme() {
               </Text>
               {datos?.sinConexion && (
                 <View style={{ marginBottom: 10 }}>
-                  <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). Guardar exige conexión.`} />
+                  <Aviso mensaje={`Sin conexión: se muestra lo último guardado (${horaRespaldo(datos.guardadoEn)}). ${puedeGuardarTrabajoSinConexion() ? 'Lo que guardes queda en el teléfono y se envía solo al volver la señal.' : 'Guardar exige conexión.'}`} />
+                </View>
+              )}
+              {enTelefono && (
+                <View style={{ marginBottom: 10 }} testID="cabecera-en-telefono">
+                  <Aviso mensaje={TEXTO_EN_TELEFONO} />
                 </View>
               )}
               {!cab.datos.puedeEditar && !datos?.sinConexion && (

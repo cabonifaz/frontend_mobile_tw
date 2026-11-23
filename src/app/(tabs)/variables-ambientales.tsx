@@ -5,22 +5,26 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { guardarVariablesAmbientales, obtenerTrabajoEquipoConRespaldo } from '@/api/trabajo';
+import { guardarVariablesOEncolar } from '@/api/colaTrabajo';
+import { obtenerTrabajoEquipoConRespaldo } from '@/api/trabajo';
 import { Aviso } from '@/componentes/Aviso';
 import { Boton } from '@/componentes/Boton';
 import { EncabezadoApp } from '@/componentes/EncabezadoApp';
 import { useConsulta } from '@/hooks/useConsulta';
 import { useDiseno } from '@/hooks/useDiseno';
+import { useTrabajoPendiente } from '@/hooks/useTrabajoPendiente';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
 import { fechaCorta, horaDe } from '@/utilidades/formato';
 import { MAX_PROCEDENCIA, PROCEDENCIA_POR_DEFECTO, leerNumero, textoNumero, validarVariables } from '@/utilidades/trabajo';
+import { TEXTO_EN_TELEFONO, pendienteDe, trabajoConPendientes } from '@/utilidades/trabajoPendiente';
 
 /**
  * HU-09 — Registro de variables ambientales.
  *  - Temperatura (°C) y humedad relativa (%) obligatorias; procedencia con "N.I" (no indicado) por defecto.
  *  - Fecha y hora las toma la app (el servidor pone las definitivas) y no se pueden editar.
- *  - Al guardar se habilita "Ensayos y Calibración". Guardar exige conexión: es un dato metrológico que no se pierde ni se duplica.
+ *  - Al guardar se habilita "Ensayos y Calibración". HU-18: sin conexión se guardan en el teléfono con la hora en que se tomaron («GUARDADO EN EL TELÉFONO · POR ENVIAR»),
+ *    Ensayos se habilita igual y se envían solas al volver la señal (el servidor no duplica un reenvío: reconoce la misma hora de captura).
  */
 export default function PantallaVariablesAmbientales() {
   const { sesion } = useSesion();
@@ -40,6 +44,8 @@ export default function PantallaVariablesAmbientales() {
   const [mensaje, setMensaje] = useState<{ tipo: 'error' | 'info'; texto: string } | null>(null);
   const [ahora, setAhora] = useState(() => new Date());
 
+  // HU-18: lo guardado en el teléfono sin enviar; al terminar un envío (`enviadas`) se vuelve a leer del servidor
+  const { pendientes, enviadas } = useTrabajoPendiente(usuario?.idUsuario ?? 0, idOs, idOsEquipo);
   const { datos, cargando, error } = useConsulta(async (token) => {
     if (!valido) throw new ErrorApi('Servicio o equipo no válido.', 400, 1);
     const [r, cargos] = await Promise.all([
@@ -47,10 +53,12 @@ export default function PantallaVariablesAmbientales() {
       obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined),
     ]);
     return { trabajo: r.datos, cargos };
-  }, `${params.id ?? ''}|${params.equipo ?? ''}`);
+  }, `${params.id ?? ''}|${params.equipo ?? ''}|${enviadas}`);
 
-  // Si ya se registraron, se muestran para corregirlas
-  const registradas = datos?.trabajo.variables ?? null;
+  // Si ya se registraron (o están guardadas en el teléfono), se muestran para corregirlas
+  const trabajo = datos ? trabajoConPendientes(datos.trabajo, pendientes) : null;
+  const enTelefono = pendienteDe(pendientes, 'variables') !== null;
+  const registradas = trabajo?.variables ?? null;
   const temperatura = editTemperatura ?? (registradas ? textoNumero(registradas.temperatura) : '');
   const humedad = editHumedad ?? (registradas ? textoNumero(registradas.humedad) : '');
   const procedencia = editProcedencia ?? registradas?.procedencia ?? PROCEDENCIA_POR_DEFECTO;
@@ -63,7 +71,7 @@ export default function PantallaVariablesAmbientales() {
 
   const errores = useMemo(() => validarVariables(temperatura, humedad, procedencia), [temperatura, humedad, procedencia]);
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
-  const c = datos?.trabajo.cabecera;
+  const c = trabajo?.cabecera;
   const puedeRegistrar = c?.puedeRegistrar === true;
   const limaIso = new Date(ahora.getTime() - 5 * 3_600_000).toISOString().slice(0, 19);
 
@@ -76,14 +84,18 @@ export default function PantallaVariablesAmbientales() {
     if (Object.keys(errores).length > 0 || t === null || h === null) return;
     setGuardando(true);
     try {
-      await guardarVariablesAmbientales(sesion.token, idOs, idOsEquipo, { temperatura: t, humedad: h, procedencia });
+      await guardarVariablesOEncolar(
+        sesion.token,
+        { idUsuario: sesion.usuario.idUsuario, idOs, idOsEquipo, numeroOs: c?.numeroOs ?? '', equipo: c?.nombre ?? 'Equipo' },
+        { temperatura: t, humedad: h, procedencia },
+      );
       router.back();
     } catch (e) {
       setMensaje({
         tipo: 'error',
         texto:
           e instanceof ErrorApi && e.estadoHttp === 0
-            ? 'Sin conexión: las variables ambientales se guardan con señal. Inténtalo cuando vuelva.'
+            ? 'Sin conexión: esta versión de la app no puede guardar en el teléfono. Instala la última o inténtalo cuando vuelva la señal.'
             : e instanceof Error
               ? e.message
               : 'No se pudieron guardar las variables ambientales.',
@@ -125,6 +137,12 @@ export default function PantallaVariablesAmbientales() {
             {!puedeRegistrar && (
               <View style={{ marginTop: 12 }}>
                 <Aviso mensaje="Para registrar las variables el equipo debe estar en ejecución. Reanúdalo o inícialo desde los objetivos." />
+              </View>
+            )}
+
+            {enTelefono && (
+              <View style={{ marginTop: 12 }} testID="variables-en-telefono">
+                <Aviso mensaje={TEXTO_EN_TELEFONO} />
               </View>
             )}
 
