@@ -242,6 +242,30 @@ export async function obtenerServicioJefatura(token: string, idOs: number): Prom
   return (await solicitar<ServicioJefatura>(`${base}/servicios/${encodeURIComponent(String(idOs))}`, { token })).datos!;
 }
 
+/**
+ * HU-18 — Un registro que el técnico tomó sin señal y la app envió después (llegada, demora, variables, ensayos, evidencia…). Las horas son de Lima ("2026-11-24T10:32:00");
+ * `retrasoSeg` = lo que pasó entre que lo tomó y que llegó al servidor. `motivo`: sin_senal · servidor_no_disponible · otro.
+ */
+export interface EnvioTardio {
+  idEnvio: number;
+  idUsuario: number;
+  tecnico: string | null;
+  idOs: number | null;
+  idOsEquipo: number | null;
+  tipo: string;
+  capturadoEn: string | null;
+  recibidoEn: string | null;
+  retrasoSeg: number;
+  motivo: string;
+  intentos: number;
+}
+
+/** GET api/movil/jefatura/servicios/{idOs}/envios-diferidos → los registros que la app envió tarde (mismo alcance que el detalle del servicio). */
+export async function obtenerEnviosTardios(token: string, idOs: number): Promise<EnvioTardio[]> {
+  if (entorno.usarMock) return mockPanel.enviosTardios(idOs);
+  return (await solicitar<EnvioTardio[]>(`${base}/servicios/${encodeURIComponent(String(idOs))}/envios-diferidos`, { token })).datos ?? [];
+}
+
 export async function obtenerRutaServicio(token: string, idOs: number): Promise<RutaServicio> {
   if (entorno.usarMock) return mockPanel.ruta(idOs);
   return (await solicitar<RutaServicio>(`${base}/servicios/${encodeURIComponent(String(idOs))}/ruta`, { token })).datos!;
@@ -262,6 +286,9 @@ export function obtenerServiciosJefaturaConRespaldo(token: string, idUsuario: nu
 
 export const obtenerServicioJefaturaConRespaldo = (token: string, idUsuario: number, idOs: number) =>
   respaldo(() => mockPanel.servicio(idOs), `jefatura.servicio.${idOs}`, () => obtenerServicioJefatura(token, idOs), idUsuario);
+
+export const obtenerEnviosTardiosConRespaldo = (token: string, idUsuario: number, idOs: number) =>
+  respaldo(() => mockPanel.enviosTardios(idOs), `jefatura.enviosTardios.${idOs}`, () => obtenerEnviosTardios(token, idOs), idUsuario);
 
 export const obtenerRutaServicioConRespaldo = (token: string, idUsuario: number, idOs: number) =>
   respaldo(() => mockPanel.ruta(idOs), `jefatura.ruta.${idOs}`, () => obtenerRutaServicio(token, idOs), idUsuario);
@@ -321,6 +348,13 @@ const demoPanel: PanelCampo = {
 let estadoDemo: Record<number, string> = {};
 
 const mockPanel = {
+  async enviosTardios(idOs: number): Promise<EnvioTardio[]> {
+    await esperar(200);
+    return [
+      { idEnvio: 2, idUsuario: 7, tecnico: 'Técnico de Campo', idOs, idOsEquipo: 1, tipo: 'ensayos', capturadoEn: '2026-11-24T11:10:00', recibidoEn: '2026-11-24T14:05:00', retrasoSeg: 10_500, motivo: 'sin_senal', intentos: 3 },
+      { idEnvio: 1, idUsuario: 7, tecnico: 'Técnico de Campo', idOs, idOsEquipo: 1, tipo: 'variables', capturadoEn: '2026-11-24T10:32:00', recibidoEn: '2026-11-24T14:05:00', retrasoSeg: 12_780, motivo: 'sin_senal', intentos: 2 },
+    ];
+  },
   async panel(): Promise<PanelCampo> {
     await esperar(350);
     return demoPanel;

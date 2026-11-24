@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { obtenerServicioJefaturaConRespaldo } from '@/api/panelCampo';
+import { obtenerEnviosTardiosConRespaldo, obtenerServicioJefaturaConRespaldo } from '@/api/panelCampo';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { CambiarEstadoModal } from '@/componentes/CambiarEstadoModal';
@@ -14,7 +14,7 @@ import { useDiseno } from '@/hooks/useDiseno';
 import { useRefrescoAutomatico } from '@/hooks/useRefrescoAutomatico';
 import { useSesion } from '@/sesion/SesionContext';
 import { colores, radios } from '@/tema/colores';
-import { colorEstado, colorTono, enlaceLlamada, inicialesDe, nombreCortoEstado } from '@/utilidades/panelCampo';
+import { colorEstado, colorTono, enlaceLlamada, inicialesDe, lineaEnvioTardio, nombreCortoEstado, nombreEnvioTardio } from '@/utilidades/panelCampo';
 
 /**
  * HU-30 — Seguimiento del servicio (Jefe de Área): el técnico (con botón para llamarlo), el estado, la hora programada, la llegada y el SLA (puntualidad de
@@ -33,11 +33,13 @@ export default function PantallaServicioJefatura() {
 
   const { datos, cargando, recargando, error, recargar } = useConsulta(async (token) => {
     if (!valido) throw new Error('El servicio indicado no es válido.');
-    const [r, cargos] = await Promise.all([
+    const [r, cargos, tardios] = await Promise.all([
       obtenerServicioJefaturaConRespaldo(token, usuario?.idUsuario ?? 0, idOs),
       obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined),
+      // Un fallo aquí no debe romper el detalle del servicio: simplemente no se muestra la sección
+      obtenerEnviosTardiosConRespaldo(token, usuario?.idUsuario ?? 0, idOs).then((x) => x.datos).catch(() => []),
     ]);
-    return { servicio: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
+    return { servicio: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos, tardios };
   }, params.id ?? '');
   useRefrescoAutomatico(recargar, 30);
 
@@ -140,6 +142,21 @@ export default function PantallaServicioJefatura() {
             </View>
             <Text style={estilos.nota}>SLA = puntualidad de llegada (estimación). El avance y los hitos salen de lo que registra la app del técnico.</Text>
 
+            {(datos?.tardios?.length ?? 0) > 0 && (
+              <View testID="envios-tardios">
+                <Text style={estilos.seccion}>REGISTRADO SIN SEÑAL</Text>
+                <View style={estilos.hitos}>
+                  {datos?.tardios?.map((e, i) => (
+                    <View key={e.idEnvio} style={[estilos.tardio, i > 0 && estilos.tardioSeparado]}>
+                      <Text style={estilos.hitoTitulo}>{nombreEnvioTardio(e.tipo)}</Text>
+                      <Text style={estilos.hitoDetalle}>{lineaEnvioTardio(e)}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={estilos.nota}>La app del técnico guardó estos registros en el teléfono por falta de señal y los envió al volver la conexión.</Text>
+              </View>
+            )}
+
             {!!mensaje && (
               <View style={{ marginTop: 12 }} testID="mensaje-servicio">
                 <Aviso tipo={mensaje.tipo} mensaje={mensaje.texto} />
@@ -218,6 +235,8 @@ const estilos = StyleSheet.create({
   hitoLinea: { flex: 1, width: 2, backgroundColor: colores.bordeSuave, marginTop: 4 },
   hitoTitulo: { fontSize: 17.5, fontWeight: '800', color: colores.titulo },
   hitoDetalle: { fontSize: 15, color: colores.textoSecundario, marginTop: 2, lineHeight: 21 },
+  tardio: { paddingVertical: 2 },
+  tardioSeparado: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colores.bordeSuave },
   nota: { fontSize: 12.5, color: colores.textoTenue, marginTop: 8, lineHeight: 18 },
   botones: { flexDirection: 'row', gap: 10, marginTop: 16 },
   boton: { flex: 1, minHeight: 54, borderRadius: radios.boton, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },

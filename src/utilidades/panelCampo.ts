@@ -404,3 +404,52 @@ export function horaPreLlegada(recorrido: { latitud: number; longitud: number; h
   const p = recorrido.find((x) => distanciaMetros(x, planta) <= radioM);
   return p?.hora ?? null;
 }
+
+// ── HU-18 · Registros enviados tarde (sin señal) ─────────────────────────────────────────────────────────────
+
+const NOMBRES_ENVIO: Record<string, string> = {
+  llegada: 'Llegada a planta',
+  demora: 'Demora',
+  equipo_iniciar: 'Inicio del equipo',
+  equipo_pausar: 'Pausa del equipo',
+  equipo_reanudar: 'Reanudación del equipo',
+  variables: 'Variables ambientales',
+  ensayos: 'Ensayos y calibración',
+  cabecera: 'Cabecera del informe',
+  evidencia: 'Registro fotográfico',
+  jornada: 'Marcación de la jornada',
+  gasto: 'Gasto de viáticos',
+};
+
+export const nombreEnvioTardio = (tipo: string): string => NOMBRES_ENVIO[tipo] ?? 'Registro de campo';
+
+export const textoMotivoEnvio = (motivo: string): string =>
+  motivo === 'sin_senal' ? 'Sin señal' : motivo === 'servidor_no_disponible' ? 'Servidor no disponible' : 'Otro motivo';
+
+/** "3 h 33 min" / "12 min" / "menos de 1 min" a partir de los segundos de retraso. */
+export function textoRetraso(seg: number): string {
+  const min = Math.floor(Math.max(0, seg) / 60);
+  if (min < 1) return 'menos de 1 min';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? `${h} h${m > 0 ? ` ${m} min` : ''}` : `${m} min`;
+}
+
+/** "10:32" (mismo día que `referencia`) o "23/11 10:32" a partir de una hora de Lima "yyyy-MM-ddTHH:mm:ss". */
+export function horaCorta(iso: string | null, referencia: string | null = null): string {
+  if (!iso || iso.length < 16) return '—';
+  const hora = iso.slice(11, 16);
+  if (!referencia || referencia.slice(0, 10) === iso.slice(0, 10)) return hora;
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${hora}`;
+}
+
+/** Línea del seguimiento: "Se tomó 10:32 · llegó al servidor 14:05 (3 h 33 min después) · Sin señal · 2 intentos". */
+export function lineaEnvioTardio(e: { capturadoEn: string | null; recibidoEn: string | null; retrasoSeg: number; motivo: string; intentos: number }): string {
+  const partes = [
+    `Se tomó ${horaCorta(e.capturadoEn)}`,
+    `llegó al servidor ${horaCorta(e.recibidoEn, e.capturadoEn)} (${textoRetraso(e.retrasoSeg)} después)`,
+    textoMotivoEnvio(e.motivo),
+  ];
+  if (e.intentos > 0) partes.push(`${e.intentos} ${e.intentos === 1 ? 'intento' : 'intentos'}`);
+  return partes.join(' · ');
+}
