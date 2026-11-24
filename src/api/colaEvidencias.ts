@@ -267,7 +267,7 @@ async function ejecutar(token: string, idUsuario: number): Promise<ResumenEviden
         ubicacion: p.ubicacion,
         capturadoEn: p.capturadoEn,
         duracionSeg: p.duracionSeg ?? undefined,
-      });
+      }, { capturadoEn: p.capturadoEn, intentos: p.intentos });
       await quitar(p.idLocal);
       resumen.enviadas++;
       if (r.estado === 'rechazada') {

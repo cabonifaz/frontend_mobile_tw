@@ -52,7 +52,20 @@ export function registrarManejadorSesionInvalida(fn: ManejadorSesionInvalida | n
   alInvalidarSesion = fn;
 }
 
+/**
+ * HU-18 — Un registro que estaba guardado en el teléfono y se envía ahora. La API deja constancia (cuándo se tomó, cuánto tardó, cuántos intentos) para Jefatura y la intranet
+ * con las cabeceras X-TW-Capturado-En, X-TW-Motivo-Envio y X-TW-Intentos. Solo lo mandan las colas al reenviar: un envío en línea no lleva nada de esto.
+ */
+export interface EnvioDiferido {
+  /** ISO 8601 (UTC): la hora en que el técnico lo tomó. */
+  capturadoEn: string;
+  /** Veces que la app ya intentó enviarlo y falló. */
+  intentos?: number;
+}
+
 interface OpcionesRequest {
+  /** Marca el envío como reenvío de lo guardado en el teléfono. */
+  diferido?: EnvioDiferido;
   metodo?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   cuerpo?: unknown;
   token?: string | null;
@@ -67,7 +80,7 @@ interface OpcionesRequest {
  * En cualquier otro caso lanza ErrorApi con el mensaje del backend.
  */
 export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {}): Promise<Respuesta<T>> {
-  const { metodo = 'GET', cuerpo, token, manejarSesionInvalida = true, timeoutMs = entorno.timeoutMs } = opciones;
+  const { metodo = 'GET', cuerpo, token, manejarSesionInvalida = true, timeoutMs = entorno.timeoutMs, diferido } = opciones;
 
   if (!entorno.apiUrl) {
     throw new ErrorApi('La app no tiene configurada la URL del backend (EXPO_PUBLIC_API_URL).', 0, undefined, 'SIN URL · EXPO_PUBLIC_API_URL vacía en esta compilación');
@@ -88,6 +101,7 @@ export async function solicitar<T>(ruta: string, opciones: OpcionesRequest = {})
         Accept: 'application/json',
         ...(cuerpo !== undefined && !esFormulario ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(diferido ? { 'X-TW-Capturado-En': diferido.capturadoEn, 'X-TW-Motivo-Envio': 'sin_senal', 'X-TW-Intentos': String(Math.max(0, diferido.intentos ?? 0)) } : {}),
       },
       body: esFormulario ? (cuerpo as FormData) : cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
       signal: controlador.signal,

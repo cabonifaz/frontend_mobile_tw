@@ -201,7 +201,7 @@ async function ejecutar(token: string, idUsuario: number): Promise<ResumenSincro
     if (foto && (sueltaFoto || !(await existeArchivo(foto)))) foto = null;
 
     try {
-      await registrarDemora(token, p.idOs, aNuevaDemora(p, foto));
+      await registrarDemora(token, p.idOs, aNuevaDemora(p, foto), { capturadoEn: p.capturadoEn, intentos: p.intentos });
       await quitar(p.idLocal);
       resumen.enviadas++;
       totalEnviadas++;

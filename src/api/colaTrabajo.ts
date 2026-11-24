@@ -283,13 +283,13 @@ export function sincronizarTrabajo(token: string, idUsuario: number): Promise<Re
 async function enviar(token: string, p: TrabajoPendiente): Promise<void> {
   switch (p.tipo) {
     case 'variables':
-      await guardarVariablesAmbientales(token, p.idOs, p.idOsEquipo, p.cuerpo as NuevasVariables, p.capturadoEn);
+      await guardarVariablesAmbientales(token, p.idOs, p.idOsEquipo, p.cuerpo as NuevasVariables, p.capturadoEn, { capturadoEn: p.capturadoEn, intentos: p.intentos });
       return;
     case 'ensayos':
-      await guardarEnsayos(token, p.idOs, p.idOsEquipo, p.cuerpo as GuardarEnsayos);
+      await guardarEnsayos(token, p.idOs, p.idOsEquipo, p.cuerpo as GuardarEnsayos, { capturadoEn: p.capturadoEn, intentos: p.intentos });
       return;
     case 'cabecera':
-      await guardarCabeceraInforme(token, p.idOs, p.idOsEquipo, p.cuerpo as GuardarCabecera);
+      await guardarCabeceraInforme(token, p.idOs, p.idOsEquipo, p.cuerpo as GuardarCabecera, { capturadoEn: p.capturadoEn, intentos: p.intentos });
       return;
   }
 }

@@ -1,5 +1,6 @@
 import { agregarArchivo } from './archivosLocales';
-import { solicitar } from './cliente';
+import { solicitar, type EnvioDiferido } from './cliente';
+import { objetivosConLlegadaLocal } from './estadoLocal';
 import { entorno } from '@/config/entorno';
 import { mockRuta } from './mockRuta';
 import { conRespaldo, type ConRespaldo } from './respaldo';
@@ -137,7 +138,7 @@ export async function obtenerDemorasConRespaldo(token: string, idUsuario: number
   return conRespaldo(idUsuario, `demoras.${idOs}`, () => obtenerDemoras(token, idOs));
 }
 
-export async function registrarDemora(token: string, idOs: number, d: NuevaDemora): Promise<{ mensaje: string; datos: ResultadoDemora | null }> {
+export async function registrarDemora(token: string, idOs: number, d: NuevaDemora, diferido?: EnvioDiferido): Promise<{ mensaje: string; datos: ResultadoDemora | null }> {
   if (entorno.usarMock) return mockRuta.registrarDemora(idOs, d);
   const form = new FormData();
   form.append('tipo', d.tipo);
@@ -149,7 +150,7 @@ export async function registrarDemora(token: string, idOs: number, d: NuevaDemor
   form.append('precisionMetros', d.ubicacion.precisionMetros.toFixed(1));
   form.append('capturadoEn', d.capturadoEn);
   if (d.fotoUri) await agregarArchivo(form, 'foto', d.fotoUri, 'evidencia.jpg', 'image/jpeg');
-  const r = await solicitar<ResultadoDemora>(`${ruta(idOs)}/demoras`, { token, metodo: 'POST', cuerpo: form });
+  const r = await solicitar<ResultadoDemora>(`${ruta(idOs)}/demoras`, { token, metodo: 'POST', cuerpo: form, diferido });
   return { mensaje: r.mensaje, datos: r.datos ?? null };
 }
 
@@ -256,9 +257,10 @@ export async function registrarLlegada(
   idOs: number,
   u: Ubicacion,
   capturadoEn: string,
+  diferido?: EnvioDiferido,
 ): Promise<{ mensaje: string; datos: ResultadoLlegada | null }> {
   if (entorno.usarMock) return mockRuta.registrarLlegada(idOs);
-  const r = await solicitar<ResultadoLlegada>(`${ruta(idOs)}/llegada`, { token, metodo: 'POST', cuerpo: { ...u, capturadoEn } });
+  const r = await solicitar<ResultadoLlegada>(`${ruta(idOs)}/llegada`, { token, metodo: 'POST', cuerpo: { ...u, capturadoEn }, diferido });
   return { mensaje: r.mensaje, datos: r.datos ?? null };
 }
 
@@ -330,9 +332,10 @@ export interface Objetivos {
   equipos: ObjetivoEquipo[];
 }
 
-export async function obtenerObjetivos(token: string, idOs: number, buscar = ''): Promise<Objetivos> {
+export async function obtenerObjetivos(token: string, idOs: number, buscar = '', previo = false): Promise<Objetivos> {
   if (entorno.usarMock) return mockRuta.objetivos(idOs, buscar);
-  const q = buscar.trim() ? `?buscar=${encodeURIComponent(buscar.trim().slice(0, 100))}` : '';
+  const partes = [buscar.trim() ? `buscar=${encodeURIComponent(buscar.trim().slice(0, 100))}` : '', previo ? 'previo=true' : ''].filter(Boolean);
+  const q = partes.length > 0 ? `?${partes.join('&')}` : '';
   return (await solicitar<Objetivos>(`${ruta(idOs)}/objetivos${q}`, { token })).datos!;
 }
 
@@ -340,9 +343,11 @@ export async function obtenerObjetivos(token: string, idOs: number, buscar = '')
  * Igual que `obtenerObjetivos` (sin búsqueda), pero sin conexión devuelve la última lista guardada en el teléfono para poder seguir
  * iniciando, pausando y reanudando equipos: las acciones se guardan y se envían solas al volver la señal (`api/colaEquipos.ts`).
  */
-export async function obtenerObjetivosConRespaldo(token: string, idUsuario: number, idOs: number): Promise<ConRespaldo<Objetivos>> {
+export async function obtenerObjetivosConRespaldo(token: string, idUsuario: number, idOs: number, previo = false): Promise<ConRespaldo<Objetivos>> {
   if (entorno.usarMock) return { datos: await mockRuta.objetivos(idOs, ''), sinConexion: false, guardadoEn: new Date() };
-  return conRespaldo(idUsuario, `objetivos.${idOs}`, () => obtenerObjetivos(token, idOs));
+  const r = await conRespaldo(idUsuario, `objetivos.${idOs}`, () => obtenerObjetivos(token, idOs, '', previo));
+  // Sin señal, lo descargado antes de la llegada se muestra con la llegada guardada en el teléfono (botones habilitados)
+  return r.sinConexion ? { ...r, datos: await objetivosConLlegadaLocal(idUsuario, r.datos) } : r;
 }
 
 export async function buscarEquipoPorQr(token: string, idOs: number, contenido: string): Promise<ObjetivoEquipo> {
@@ -362,13 +367,14 @@ export async function cambiarEstadoEquipo(
   idOs: number,
   idOsEquipo: number,
   accion: AccionEquipo,
-  opciones: { motivo?: string; capturadoEn?: string } = {},
+  opciones: { motivo?: string; capturadoEn?: string; diferido?: EnvioDiferido } = {},
 ): Promise<{ mensaje: string; objetivos: Objetivos | null }> {
   if (entorno.usarMock) return mockRuta.cambiar(idOs, idOsEquipo, accion, opciones.motivo);
   const r = await solicitar<Objetivos>(`${ruta(idOs)}/equipos/${encodeURIComponent(String(idOsEquipo))}/${accion}`, {
     token,
     metodo: 'POST',
     cuerpo: { motivo: accion === 'pausar' ? (opciones.motivo?.trim() ?? '') : undefined, capturadoEn: opciones.capturadoEn },
+    diferido: opciones.diferido,
   });
   return { mensaje: r.mensaje, objetivos: r.datos ?? null };
 }

@@ -156,7 +156,7 @@ async function ejecutar(token: string, idUsuario: number): Promise<ResumenAccion
     if (esperandoLlegada.get(p.idOs)) continue;
 
     try {
-      await cambiarEstadoEquipo(token, p.idOs, p.idOsEquipo, p.accion, { motivo: p.motivo ?? undefined, capturadoEn: p.capturadoEn });
+      await cambiarEstadoEquipo(token, p.idOs, p.idOsEquipo, p.accion, { motivo: p.motivo ?? undefined, capturadoEn: p.capturadoEn, diferido: { capturadoEn: p.capturadoEn, intentos: p.intentos } });
       await quitar(p.idLocal);
       resumen.enviadas++;
     } catch (e) {

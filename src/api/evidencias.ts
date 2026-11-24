@@ -1,5 +1,6 @@
 import { agregarArchivo } from './archivosLocales';
-import { ErrorApi, solicitar } from './cliente';
+import { ErrorApi, solicitar, type EnvioDiferido } from './cliente';
+import { equipoEnEjecucionLocal } from './estadoLocal';
 import { entorno } from '@/config/entorno';
 import { conRespaldo, type ConRespaldo } from './respaldo';
 import type { Ubicacion } from './ruta';
@@ -135,19 +136,24 @@ export interface ResultadoEvidencia {
 const ruta = (idOs: number, idOsEquipo: number) =>
   `/api/movil/servicios/${encodeURIComponent(String(idOs))}/equipos/${encodeURIComponent(String(idOsEquipo))}/evidencias`;
 
-export async function obtenerEvidencias(token: string, idOs: number, idOsEquipo: number): Promise<Evidencias> {
+export async function obtenerEvidencias(token: string, idOs: number, idOsEquipo: number, previo = false): Promise<Evidencias> {
   if (entorno.usarMock) return mockEvidencias.obtener(idOs, idOsEquipo);
-  return (await solicitar<Evidencias>(ruta(idOs, idOsEquipo), { token })).datos!;
+  return (await solicitar<Evidencias>(`${ruta(idOs, idOsEquipo)}${previo ? '?previo=true' : ''}`, { token })).datos!;
 }
 
 /** Sin conexión muestra lo último guardado (las capturas y la IA exigen conexión). */
-export async function obtenerEvidenciasConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number): Promise<ConRespaldo<Evidencias>> {
+export async function obtenerEvidenciasConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number, previo = false): Promise<ConRespaldo<Evidencias>> {
   if (entorno.usarMock) return { datos: await mockEvidencias.obtener(idOs, idOsEquipo), sinConexion: false, guardadoEn: new Date() };
-  return conRespaldo(idUsuario, `evidencias.${idOs}.${idOsEquipo}`, () => obtenerEvidencias(token, idOs, idOsEquipo));
+  const r = await conRespaldo(idUsuario, `evidencias.${idOs}.${idOsEquipo}`, () => obtenerEvidencias(token, idOs, idOsEquipo, previo));
+  // Sin señal, lo descargado antes de iniciar el equipo se muestra con el inicio guardado en el teléfono (se puede capturar)
+  if (r.sinConexion && !r.datos.cabecera.puedeRegistrar && (await equipoEnEjecucionLocal(idUsuario, idOs, idOsEquipo))) {
+    return { ...r, datos: { ...r.datos, cabecera: { ...r.datos.cabecera, estado: 'en_ejecucion', puedeRegistrar: true } } };
+  }
+  return r;
 }
 
 /** Sube la captura (el back la valida con IA y la registra). Con la IA de por medio puede tardar: espera hasta 90 s. */
-export async function capturarEvidencia(token: string, idOs: number, idOsEquipo: number, c: CapturaEvidencia): Promise<ResultadoEvidencia> {
+export async function capturarEvidencia(token: string, idOs: number, idOsEquipo: number, c: CapturaEvidencia, diferido?: EnvioDiferido): Promise<ResultadoEvidencia> {
   if (entorno.usarMock) return mockEvidencias.capturar(idOs, idOsEquipo, c);
   const form = new FormData();
   form.append('codigo', c.codigo);
@@ -165,7 +171,7 @@ export async function capturarEvidencia(token: string, idOs: number, idOsEquipo:
     await agregarArchivo(form, 'archivo', c.archivoUri, video ? 'encendido.mp4' : `${c.codigo}.jpg`, video ? 'video/mp4' : 'image/jpeg');
   }
   if (c.cuadroUri) await agregarArchivo(form, 'cuadro', c.cuadroUri, 'cuadro.jpg', 'image/jpeg');
-  const r = await solicitar<ResultadoEvidencia>(ruta(idOs, idOsEquipo), { token, metodo: 'POST', cuerpo: form, timeoutMs: 90_000 });
+  const r = await solicitar<ResultadoEvidencia>(ruta(idOs, idOsEquipo), { token, metodo: 'POST', cuerpo: form, timeoutMs: 90_000, diferido });
   return { ...r.datos!, mensaje: r.datos?.mensaje ?? r.mensaje };
 }
 

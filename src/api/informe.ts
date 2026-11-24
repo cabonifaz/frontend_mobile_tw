@@ -1,7 +1,8 @@
 import { entorno } from '@/config/entorno';
 import { evaluar } from '@/utilidades/ensayos';
 import { agregarArchivo } from './archivosLocales';
-import { solicitar } from './cliente';
+import { solicitar, type EnvioDiferido } from './cliente';
+import { equipoEnEjecucionLocal } from './estadoLocal';
 import { conRespaldo, type ConRespaldo } from './respaldo';
 import type { Ubicacion } from './ruta';
 
@@ -235,15 +236,20 @@ export interface InformeGenerado {
 const base = (idOs: number, idOsEquipo: number) =>
   `/api/movil/servicios/${encodeURIComponent(String(idOs))}/equipos/${encodeURIComponent(String(idOsEquipo))}`;
 
-export async function obtenerCabeceraInforme(token: string, idOs: number, idOsEquipo: number): Promise<CabeceraInforme> {
+export async function obtenerCabeceraInforme(token: string, idOs: number, idOsEquipo: number, previo = false): Promise<CabeceraInforme> {
   if (entorno.usarMock) return mockInforme.obtener();
-  return (await solicitar<CabeceraInforme>(`${base(idOs, idOsEquipo)}/cabecera-informe`, { token })).datos!;
+  return (await solicitar<CabeceraInforme>(`${base(idOs, idOsEquipo)}/cabecera-informe${previo ? '?previo=true' : ''}`, { token })).datos!;
 }
 
 /** Igual que `obtenerCabeceraInforme`, pero sin conexión muestra lo último guardado en el teléfono (guardar exige conexión). */
-export async function obtenerCabeceraInformeConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number): Promise<ConRespaldo<CabeceraInforme>> {
+export async function obtenerCabeceraInformeConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number, previo = false): Promise<ConRespaldo<CabeceraInforme>> {
   if (entorno.usarMock) return { datos: await mockInforme.obtener(), sinConexion: false, guardadoEn: new Date() };
-  return conRespaldo(idUsuario, `informe.${idOs}.${idOsEquipo}`, () => obtenerCabeceraInforme(token, idOs, idOsEquipo));
+  const r = await conRespaldo(idUsuario, `informe.${idOs}.${idOsEquipo}`, () => obtenerCabeceraInforme(token, idOs, idOsEquipo, previo));
+  // Sin señal, lo descargado antes de iniciar el equipo se muestra con el inicio guardado en el teléfono (se puede editar)
+  if (r.sinConexion && !r.datos.datos.puedeEditar && !r.datos.datos.generado && (await equipoEnEjecucionLocal(idUsuario, idOs, idOsEquipo))) {
+    return { ...r, datos: { ...r.datos, datos: { ...r.datos.datos, puedeEditar: true } } };
+  }
+  return r;
 }
 
 export async function guardarCabeceraInforme(
@@ -251,9 +257,10 @@ export async function guardarCabeceraInforme(
   idOs: number,
   idOsEquipo: number,
   cuerpo: GuardarCabecera,
+  diferido?: EnvioDiferido,
 ): Promise<{ mensaje: string; cabecera: CabeceraInforme | null }> {
   if (entorno.usarMock) return mockInforme.guardar(cuerpo);
-  const r = await solicitar<CabeceraInforme>(`${base(idOs, idOsEquipo)}/cabecera-informe`, { token, metodo: 'PUT', cuerpo });
+  const r = await solicitar<CabeceraInforme>(`${base(idOs, idOsEquipo)}/cabecera-informe`, { token, metodo: 'PUT', cuerpo, diferido });
   return { mensaje: r.mensaje, cabecera: r.datos ?? null };
 }
 

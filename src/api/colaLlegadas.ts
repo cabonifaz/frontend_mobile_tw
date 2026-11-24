@@ -136,7 +136,7 @@ async function ejecutar(token: string, idUsuario: number): Promise<ResumenLlegad
 
   for (const p of lista) {
     try {
-      await registrarLlegada(token, p.idOs, { latitud: p.latitud, longitud: p.longitud, precisionMetros: p.precisionMetros }, p.capturadoEn);
+      await registrarLlegada(token, p.idOs, { latitud: p.latitud, longitud: p.longitud, precisionMetros: p.precisionMetros }, p.capturadoEn, { capturadoEn: p.capturadoEn, intentos: p.intentos });
       await quitar(p.idOs);
       resumen.enviadas++;
     } catch (e) {

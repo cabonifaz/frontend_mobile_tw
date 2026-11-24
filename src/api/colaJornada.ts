@@ -122,7 +122,7 @@ async function ejecutar(token: string, idUsuario: number): Promise<ResumenJornad
         ubicacion: { latitud: p.latitud, longitud: p.longitud, precisionMetros: p.precisionMetros },
         marcadoEn: p.capturadoEn,
         sinConexion: true,
-      });
+      }, { capturadoEn: p.capturadoEn, intentos: p.intentos });
       await quitar(p);
       resumen.enviadas++;
     } catch (e) {

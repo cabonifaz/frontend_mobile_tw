@@ -1,4 +1,5 @@
-import { solicitar } from './cliente';
+import { solicitar, type EnvioDiferido } from './cliente';
+import { equipoEnEjecucionLocal } from './estadoLocal';
 import { entorno } from '@/config/entorno';
 import { conRespaldo, type ConRespaldo } from './respaldo';
 
@@ -80,15 +81,20 @@ export interface NuevasVariables {
 const ruta = (idOs: number, idOsEquipo: number) =>
   `/api/movil/servicios/${encodeURIComponent(String(idOs))}/equipos/${encodeURIComponent(String(idOsEquipo))}`;
 
-export async function obtenerTrabajoEquipo(token: string, idOs: number, idOsEquipo: number): Promise<TrabajoEquipo> {
+export async function obtenerTrabajoEquipo(token: string, idOs: number, idOsEquipo: number, previo = false): Promise<TrabajoEquipo> {
   if (entorno.usarMock) return mockTrabajo.obtener(idOs, idOsEquipo);
-  return (await solicitar<TrabajoEquipo>(`${ruta(idOs, idOsEquipo)}/trabajo`, { token })).datos!;
+  return (await solicitar<TrabajoEquipo>(`${ruta(idOs, idOsEquipo)}/trabajo${previo ? '?previo=true' : ''}`, { token })).datos!;
 }
 
 /** Igual que `obtenerTrabajoEquipo`, pero sin conexión muestra lo último guardado en el teléfono (guardar las variables sí exige conexión). */
-export async function obtenerTrabajoEquipoConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number): Promise<ConRespaldo<TrabajoEquipo>> {
+export async function obtenerTrabajoEquipoConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number, previo = false): Promise<ConRespaldo<TrabajoEquipo>> {
   if (entorno.usarMock) return { datos: await mockTrabajo.obtener(idOs, idOsEquipo), sinConexion: false, guardadoEn: new Date() };
-  return conRespaldo(idUsuario, `trabajo.${idOs}.${idOsEquipo}`, () => obtenerTrabajoEquipo(token, idOs, idOsEquipo));
+  const r = await conRespaldo(idUsuario, `trabajo.${idOs}.${idOsEquipo}`, () => obtenerTrabajoEquipo(token, idOs, idOsEquipo, previo));
+  // Sin señal, lo descargado antes de iniciar el equipo se muestra con el inicio guardado en el teléfono (se puede registrar)
+  if (r.sinConexion && !r.datos.cabecera.puedeRegistrar && (await equipoEnEjecucionLocal(idUsuario, idOs, idOsEquipo))) {
+    return { ...r, datos: { ...r.datos, cabecera: { ...r.datos.cabecera, estado: 'en_ejecucion', puedeRegistrar: true } } };
+  }
+  return r;
 }
 
 export async function guardarVariablesAmbientales(
@@ -98,6 +104,8 @@ export async function guardarVariablesAmbientales(
   v: NuevasVariables,
   /** HU-18: la hora (ISO 8601, UTC) en que se tomaron; al reenviar lo guardado en el teléfono es la de entonces (el servidor solo la respeta dentro de 24 h). */
   capturadoEn: string = new Date().toISOString(),
+  /** HU-18: lo guardado en el teléfono que se reenvía (la API deja constancia de cuándo se tomó, cuánto tardó y cuántos intentos). */
+  diferido?: EnvioDiferido,
 ): Promise<{ mensaje: string; trabajo: TrabajoEquipo | null }> {
   if (entorno.usarMock) return mockTrabajo.guardar(idOs, idOsEquipo, v);
   const r = await solicitar<TrabajoEquipo>(`${ruta(idOs, idOsEquipo)}/variables-ambientales`, {
@@ -109,6 +117,7 @@ export async function guardarVariablesAmbientales(
       procedencia: v.procedencia.trim() || undefined,
       capturadoEn,
     },
+    diferido,
   });
   return { mensaje: r.mensaje, trabajo: r.datos ?? null };
 }

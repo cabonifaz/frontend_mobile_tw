@@ -1,6 +1,6 @@
 import { entorno } from '@/config/entorno';
 import { agregarArchivo } from './archivosLocales';
-import { solicitar } from './cliente';
+import { solicitar, type EnvioDiferido } from './cliente';
 import { mockViaticos } from './mockViaticos';
 
 /**
@@ -198,13 +198,13 @@ export interface ResultadoGasto {
 }
 
 /** Rinde un gasto nuevo (idGasto = 0, POST) o corrige uno observado (PUT). Las fotos son JPEG de la cámara de la app. */
-export async function enviarGasto(token: string, idGasto: number, entrada: EntradaGasto, fotos: string[]): Promise<{ mensaje: string; resultado: ResultadoGasto }> {
+export async function enviarGasto(token: string, idGasto: number, entrada: EntradaGasto, fotos: string[], diferido?: EnvioDiferido): Promise<{ mensaje: string; resultado: ResultadoGasto }> {
   if (entorno.usarMock) return mockViaticos.enviar(entrada, fotos.length);
   const form = new FormData();
   form.append('datos', JSON.stringify(entrada));
   for (let i = 0; i < fotos.length; i++) await agregarArchivo(form, 'fotos', fotos[i], `comprobante-${i + 1}.jpg`, 'image/jpeg');
   const ruta = idGasto > 0 ? `/api/movil/viaticos/gastos/${idGasto}` : '/api/movil/viaticos/gastos';
-  const r = await solicitar<ResultadoGasto>(ruta, { token, metodo: idGasto > 0 ? 'PUT' : 'POST', cuerpo: form });
+  const r = await solicitar<ResultadoGasto>(ruta, { token, metodo: idGasto > 0 ? 'PUT' : 'POST', cuerpo: form, diferido });
   return { mensaje: r.mensaje, resultado: r.datos as ResultadoGasto };
 }
 

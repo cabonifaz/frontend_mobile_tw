@@ -1,6 +1,11 @@
-import { solicitar } from './cliente';
+import { ErrorApi, solicitar, type EnvioDiferido } from './cliente';
 import { entorno } from '@/config/entorno';
-import { conRespaldo, type ConRespaldo } from './respaldo';
+import { conRespaldo, leerRespaldo, type ConRespaldo } from './respaldo';
+import type { CabeceraInforme } from './informe';
+import type { Objetivos } from './ruta';
+import type { TrabajoEquipo } from './trabajo';
+import { numeroDeTexto } from '@/utilidades/trabajoPendiente';
+import { equipoEnEjecucionLocal } from './estadoLocal';
 import { calcularPesaje, empDe, evaluar, type FormaPlato } from '@/utilidades/ensayos';
 
 /**
@@ -89,12 +94,68 @@ export async function obtenerEnsayos(token: string, idOs: number, idOsEquipo: nu
 /** Sin conexión muestra lo último guardado (para ver las lecturas); guardar sí exige conexión. */
 export async function obtenerEnsayosConRespaldo(token: string, idUsuario: number, idOs: number, idOsEquipo: number): Promise<ConRespaldo<Ensayos>> {
   if (entorno.usarMock) return { datos: await mockEnsayos.obtener(idOs, idOsEquipo), sinConexion: false, guardadoEn: new Date() };
-  return conRespaldo(idUsuario, `ensayos.${idOs}.${idOsEquipo}`, () => obtenerEnsayos(token, idOs, idOsEquipo));
+  try {
+    return await conRespaldo(idUsuario, `ensayos.${idOs}.${idOsEquipo}`, () => obtenerEnsayos(token, idOs, idOsEquipo));
+  } catch (e) {
+    // Sin señal y sin ensayos descargados: se arma la hoja vacía con los datos del equipo que ya están en el teléfono (cabecera del informe + trabajo)
+    if (e instanceof ErrorApi && e.estadoHttp === 0) {
+      const [cab, trabajo, objetivos] = await Promise.all([
+        leerRespaldo<CabeceraInforme>(idUsuario, `informe.${idOs}.${idOsEquipo}`),
+        leerRespaldo<TrabajoEquipo>(idUsuario, `trabajo.${idOs}.${idOsEquipo}`),
+        leerRespaldo<Objetivos>(idUsuario, `objetivos.${idOs}`),
+      ]);
+      const numero = objetivos?.equipos.find((q) => q.idOsEquipo === idOsEquipo)?.numero ?? 1;
+      const armados = cab && trabajo ? ensayosDesdeCabecera(cab, trabajo, numero) : null;
+      if (armados) {
+        // El inicio del equipo guardado en el teléfono habilita registrar (el servidor lo vuelve a validar al enviar)
+        if (!armados.cabecera.puedeRegistrar && (await equipoEnEjecucionLocal(idUsuario, idOs, idOsEquipo))) armados.cabecera.puedeRegistrar = true;
+        return { datos: armados, sinConexion: true, guardadoEn: new Date() };
+      }
+    }
+    throw e;
+  }
 }
 
-export async function guardarEnsayos(token: string, idOs: number, idOsEquipo: number, g: GuardarEnsayos): Promise<{ mensaje: string; ensayos: Ensayos | null }> {
+/** "80 000 kg" → "kg"; sin unidad en el texto se asume kg. */
+const unidadDeTexto = (t: string | null | undefined): string => /[a-zA-Z]+\s*$/.exec((t ?? '').trim())?.[0].toLowerCase() ?? 'kg';
+
+/**
+ * Ensayos vacíos del equipo armados en el teléfono (clase, e, d y capacidad salen de la cabecera del informe). Solo sirve para registrar sin señal: el servidor vuelve a
+ * calcular E, EMP y conformidad al recibirlos. puedeRegistrar sale como en el trabajo del equipo descargado.
+ */
+export function ensayosDesdeCabecera(cab: CabeceraInforme, trabajo: TrabajoEquipo, numero: number = 1): Ensayos | null {
+  const t = trabajo.cabecera;
+  const e = numeroDeTexto(cab.datos.e ?? cab.datos.d);
+  return {
+    cabecera: {
+      idOs: t.idOs,
+      idOsEquipo: t.idOsEquipo,
+      numeroOs: t.numeroOs,
+      nombre: t.nombre,
+      numero,
+      unidad: unidadDeTexto(cab.datos.capacidadMax),
+      clase: cab.datos.clase,
+      capMaxima: numeroDeTexto(cab.datos.capacidadMax),
+      d: numeroDeTexto(cab.datos.d),
+      e,
+      evaluable: !!cab.datos.clase && e !== null,
+      formaPlato: 'rectangular',
+      motivoErrorCritico: null,
+      aceptaError: false,
+      finalizado: false,
+      finalizadoEn: null,
+      puedeRegistrar: t.puedeRegistrar,
+      areaEncargado: null,
+    },
+    pesaje: [],
+    excentricidad: [],
+    encargado: null,
+  };
+}
+
+export async function guardarEnsayos(token: string, idOs: number, idOsEquipo: number, g: GuardarEnsayos, diferido?: EnvioDiferido): Promise<{ mensaje: string; ensayos: Ensayos | null }> {
   if (entorno.usarMock) return mockEnsayos.guardar(idOs, idOsEquipo, g);
-  const r = await solicitar<Ensayos>(ruta(idOs, idOsEquipo), { token, metodo: 'PUT', cuerpo: g });
+  const r = await solicitar<Ensayos>(ruta(idOs, idOsEquipo), { token, metodo: 'PUT', cuerpo: g, diferido });
   return { mensaje: r.mensaje, ensayos: r.datos ?? null };
 }
 

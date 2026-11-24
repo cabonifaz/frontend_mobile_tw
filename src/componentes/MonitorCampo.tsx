@@ -271,7 +271,7 @@ export function MonitorCampo() {
     };
   }, [activo, token, idUsuario]);
 
-  // 4 · Descarga del día (HU-18): una vez por día (y al volver la señal si aún no se pudo)
+  // 4 · Descarga por adelantado (HU-18): al abrir la app, al volver la señal y cada 15 min se revisa la agenda; si cambió, se descarga
   useEffect(() => {
     if (!activo || !token || !idUsuario) return;
     const descargar = () => {
@@ -281,6 +281,8 @@ export function MonitorCampo() {
     const estadoApp = AppState.addEventListener('change', (e) => {
       if (e === 'active') descargar();
     });
+    // Con la app abierta se revisa cada 15 min si la agenda cambió (una orden nueva o reprogramada se descarga sola)
+    const revision = setInterval(descargar, 15 * 60_000);
     let estabaEnLinea = leerEstadoConexion().enLinea;
     const bajaConexion = suscribirConexion(() => {
       const enLinea = leerEstadoConexion().enLinea;
@@ -288,6 +290,7 @@ export function MonitorCampo() {
       estabaEnLinea = enLinea;
     });
     return () => {
+      clearInterval(revision);
       estadoApp.remove();
       bajaConexion();
     };

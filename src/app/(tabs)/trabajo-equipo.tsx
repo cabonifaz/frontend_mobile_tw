@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
+import { precargarEquipo } from '@/api/descargaDelDia';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { generarInforme, validarCierre, type CierreEquipo } from '@/api/informe';
 import { guardarProgreso, quitarProgreso } from '@/api/progreso';
@@ -65,6 +66,12 @@ export default function PantallaTrabajoEquipo() {
     ]);
     return { trabajo: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
   }, `${params.id ?? ''}|${params.equipo ?? ''}|${enviadas}`);
+
+  // Con señal, se deja en el teléfono lo que las demás etapas (fotos, ensayos, cabecera, correlativo) necesitarán si luego se pierde la señal
+  const trabajoEnLinea = !!datos && !datos.sinConexion;
+  useEffect(() => {
+    if (trabajoEnLinea && valido && token) void precargarEquipo(token, usuario?.idUsuario ?? 0, idOs, idOsEquipo);
+  }, [trabajoEnLinea, valido, token, usuario?.idUsuario, idOs, idOsEquipo, enviadas]);
 
   // Al volver de una etapa (p. ej. de guardar las variables) se relee
   const primeraVez = useRef(true);

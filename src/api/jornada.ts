@@ -1,5 +1,5 @@
 import { entorno } from '@/config/entorno';
-import { solicitar } from './cliente';
+import { solicitar, type EnvioDiferido } from './cliente';
 import { conRespaldo, type ConRespaldo } from './respaldo';
 import type { Ubicacion } from './ruta';
 import type { ExtrasUbicacion } from './ubicacion';
@@ -100,7 +100,7 @@ export function obtenerJornadaConRespaldo(token: string, idUsuario: number): Pro
   return conRespaldo(idUsuario, 'jornada', () => obtenerJornada(token));
 }
 
-export async function marcarJornada(token: string, m: NuevaMarcacion): Promise<{ mensaje: string; datos: MarcacionRegistrada | null }> {
+export async function marcarJornada(token: string, m: NuevaMarcacion, diferido?: EnvioDiferido): Promise<{ mensaje: string; datos: MarcacionRegistrada | null }> {
   if (entorno.usarMock) {
     return { mensaje: 'Marcación registrada.', datos: { tipo: m.tipo, repetida: false, estado: 'en_labores', siguiente: null, hora: null, lugar: null, puntualidad: null, minutosDiferencia: null } };
   }
@@ -115,6 +115,7 @@ export async function marcarJornada(token: string, m: NuevaMarcacion): Promise<{
       ...(m.marcadoEn ? { marcadoEn: m.marcadoEn } : {}),
       sinConexion: m.sinConexion === true,
     },
+    diferido,
   });
   return { mensaje: r.mensaje, datos: r.datos ?? null };
 }
