@@ -6,9 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { precargarEquipo } from '@/api/descargaDelDia';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
-import { generarInforme, validarCierre, type CierreEquipo } from '@/api/informe';
+import { generarInforme, validarCierre, type CabeceraInforme, type CierreEquipo } from '@/api/informe';
 import { guardarProgreso, quitarProgreso } from '@/api/progreso';
-import { horaRespaldo } from '@/api/respaldo';
+import { horaRespaldo, leerRespaldo } from '@/api/respaldo';
 import { obtenerTrabajoEquipoConRespaldo, type EtapaTrabajo } from '@/api/trabajo';
 import { Aviso } from '@/componentes/Aviso';
 import { CertificadoModal } from '@/componentes/CertificadoModal';
@@ -64,7 +64,9 @@ export default function PantallaTrabajoEquipo() {
       obtenerTrabajoEquipoConRespaldo(token, usuario?.idUsuario ?? 0, idOs, idOsEquipo),
       obtenerCatalogo(token, 'CARGO_USUARIO').catch(() => undefined),
     ]);
-    return { trabajo: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos };
+    // Lo último descargado de la cabecera del informe: con él se sabe si lo guardado en el teléfono la deja completa (etapa «Conforme»)
+    const cabeceraInforme = await leerRespaldo<CabeceraInforme>(usuario?.idUsuario ?? 0, `informe.${idOs}.${idOsEquipo}`).catch(() => null);
+    return { trabajo: r.datos, sinConexion: r.sinConexion, guardadoEn: r.guardadoEn, cargos, cabeceraInforme };
   }, `${params.id ?? ''}|${params.equipo ?? ''}|${enviadas}`);
 
   // Con señal, se deja en el teléfono lo que las demás etapas (fotos, ensayos, cabecera, correlativo) necesitarán si luego se pierde la señal
@@ -83,7 +85,7 @@ export default function PantallaTrabajoEquipo() {
   );
 
   const cargo = nombreDeCodigo(datos?.cargos, usuario?.cargo) ?? usuario?.cargo ?? 'Técnico de Campo';
-  const t = useMemo(() => (datos?.trabajo ? trabajoConPendientes(datos.trabajo, pendientes) : undefined), [datos, pendientes]);
+  const t = useMemo(() => (datos?.trabajo ? trabajoConPendientes(datos.trabajo, pendientes, datos.cabeceraInforme) : undefined), [datos, pendientes]);
   const c = t?.cabecera;
 
   // HU-21: el trabajo en curso queda en "Progreso Guardado" (paso donde se quedó y avance); al completarse el equipo sale de la lista

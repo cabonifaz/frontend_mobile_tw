@@ -7,7 +7,7 @@ import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { guardarCabeceraOEncolar, puedeGuardarTrabajoSinConexion } from '@/api/colaTrabajo';
 import { obtenerCabeceraInformeConRespaldo, type CabeceraInforme, type CuerpoFalla, type GuardarCabecera, type Severidad } from '@/api/informe';
-import { descargarPreInforme } from '@/api/preInforme';
+import { descargarPreInforme, generarPreInformeLocal, puedeGenerarPreInformeLocal } from '@/api/preInforme';
 import { abrirPdf } from '@/api/procedimientos';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
@@ -235,10 +235,6 @@ export default function PantallaCabeceraInforme() {
   /** Pre-informe: solo con la cabecera completa y GUARDADA (el PDF lo arma el servidor con lo guardado). Antes de descargar pide confirmación. */
   function pedirPreInforme() {
     if (!cab || descargando) return;
-    if (datos?.sinConexion) return setMensaje({ tipo: 'info', texto: 'Sin conexión: el pre-informe se genera en el servidor. Inténtalo cuando tengas señal.' });
-    if (pendientes.length > 0) {
-      return Alert.alert('Hay trabajo sin enviar', 'Lo guardado en el teléfono todavía no llegó al servidor. Descarga el pre-informe cuando se haya enviado (se envía solo al volver la señal).');
-    }
     if (sucio) {
       return Alert.alert('Guarda los cambios', 'Hay cambios sin guardar en la cabecera. Guárdalos primero para que el pre-informe los incluya.');
     }
@@ -246,21 +242,39 @@ export default function PantallaCabeceraInforme() {
     if (faltan.length > 0) {
       return Alert.alert('La cabecera no está completa', `Para descargar el pre-informe completa:\n\n${faltan.map((x) => `• ${x}`).join('\n')}`);
     }
+    // Sin señal, o con lo guardado aún sin enviar (el servidor no lo tiene): el PDF se arma en el teléfono como borrador
+    const local = !!datos?.sinConexion || pendientes.length > 0;
+    if (local && !puedeGenerarPreInformeLocal()) {
+      return setMensaje({ tipo: 'info', texto: datos?.sinConexion ? 'Sin conexión: esta versión de la app no arma el PDF en el teléfono. Descárgalo cuando tengas señal.' : 'Lo guardado en el teléfono todavía no llegó al servidor. Descarga el pre-informe cuando se haya enviado (se envía solo al volver la señal).' });
+    }
     Alert.alert(
-      'Descargar pre-informe',
-      'Se generará un PDF con los datos guardados de la cabecera del informe y un espacio para la firma del encargado de planta. No es el informe oficial.\n\n¿Seguro que quieres descargarlo?',
+      local ? 'Pre-informe sin conexión' : 'Descargar pre-informe',
+      local
+        ? 'Se armará en el teléfono un PDF borrador con lo guardado de la cabecera y un espacio para la firma del encargado de planta. No es el informe oficial; con señal podrás descargar el del servidor.\n\n¿Quieres generarlo?'
+        : 'Se generará un PDF con los datos guardados de la cabecera del informe y un espacio para la firma del encargado de planta. No es el informe oficial.\n\n¿Seguro que quieres descargarlo?',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Descargar', onPress: () => void descargarYAbrir() },
+        { text: local ? 'Generar' : 'Descargar', onPress: () => void descargarYAbrir(local) },
       ],
     );
   }
 
-  async function descargarYAbrir() {
+  async function descargarYAbrir(local: boolean) {
     setDescargando(true);
     setMensaje(null);
     try {
-      const uri = await descargarPreInforme(token, idOs, idOsEquipo);
+      let uri: string;
+      if (local) uri = await generarPreInformeLocal(cab!, idOs, idOsEquipo);
+      else {
+        try {
+          uri = await descargarPreInforme(token, idOs, idOsEquipo);
+        } catch (e) {
+          // Se perdió la señal en el momento: se arma el borrador en el teléfono si esta versión puede
+          if (!cab || !puedeGenerarPreInformeLocal()) throw e;
+          uri = await generarPreInformeLocal(cab, idOs, idOsEquipo);
+          setMensaje({ tipo: 'info', texto: 'No se pudo con el servidor: se armó un borrador en el teléfono con lo guardado.' });
+        }
+      }
       await abrirPdf(uri);
     } catch (e) {
       setMensaje({ tipo: 'error', texto: e instanceof Error ? e.message : 'No se pudo descargar el pre-informe.' });

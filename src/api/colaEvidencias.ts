@@ -46,6 +46,8 @@ export interface CapturaPendiente {
   capturadoEn: string;
   duracionSeg: number | null;
   intentos: number;
+  /** Solo en la evidencia «QR»: lo que leyó la cámara (no lleva archivo). El servidor lo compara con el equipo al enviarla. */
+  qrTexto?: string | null;
 }
 
 /** ¿Se puede guardar una captura en el teléfono? */
@@ -137,6 +139,7 @@ export interface EntradaCaptura {
   ubicacion?: Ubicacion | null;
   capturadoEn: string;
   duracionSeg?: number;
+  qrTexto?: string;
 }
 
 /** Guarda la toma en el teléfono para enviarla después. Reemplaza a la que hubiera en cola para la misma evidencia y hoja. */
@@ -180,6 +183,7 @@ export async function guardarCapturaPendiente(e: EntradaCaptura): Promise<Captur
     capturadoEn: e.capturadoEn,
     duracionSeg: e.duracionSeg ?? null,
     intentos: 0,
+    qrTexto: e.qrTexto ?? null,
   };
   m.set(id, pendiente);
   await guardar(claveDe(id), JSON.stringify(pendiente));
@@ -267,6 +271,7 @@ async function ejecutar(token: string, idUsuario: number): Promise<ResumenEviden
         ubicacion: p.ubicacion,
         capturadoEn: p.capturadoEn,
         duracionSeg: p.duracionSeg ?? undefined,
+        qrTexto: p.qrTexto ?? undefined,
       }, { capturadoEn: p.capturadoEn, intentos: p.intentos });
       await quitar(p.idLocal);
       resumen.enviadas++;

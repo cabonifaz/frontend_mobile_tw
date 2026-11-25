@@ -3,6 +3,7 @@ import type { Ensayos, GuardarEnsayos, LecturaExcentricidad, LecturaPesaje } fro
 import type { CabeceraInforme, Falla, GuardarCabecera, LecturaGeneral, LecturaPrueba, PruebasGenerales } from '@/api/informe';
 import type { EtapaTrabajo, NuevasVariables, TrabajoEquipo } from '@/api/trabajo';
 import { evaluar } from '@/utilidades/ensayos';
+import { pendientesPreInforme } from '@/utilidades/informe';
 import { etapaResuelta, textoNumero } from '@/utilidades/trabajo';
 
 /**
@@ -32,7 +33,7 @@ export function pendienteDe(lista: readonly TrabajoPendiente[], tipo: TrabajoPen
 // ── Variables ambientales y etapas del trabajo en el equipo ──────────────────────────────────────────
 
 /** El trabajo del equipo con lo guardado en el teléfono: etapas «en el teléfono», variables a la vista y Ensayos sin bloqueo. */
-export function trabajoConPendientes(t: TrabajoEquipo, pendientes: readonly TrabajoPendiente[]): TrabajoEquipo {
+export function trabajoConPendientes(t: TrabajoEquipo, pendientes: readonly TrabajoPendiente[], cabeceraInforme?: CabeceraInforme | null): TrabajoEquipo {
   if (pendientes.length === 0) return t;
   const pv = pendienteDe(pendientes, 'variables');
   const pe = pendienteDe(pendientes, 'ensayos');
@@ -56,6 +57,9 @@ export function trabajoConPendientes(t: TrabajoEquipo, pendientes: readonly Trab
       if (v && e.estado === 'bloqueado') return { ...e, estado: 'pendiente', detalle: 'Pesaje y excentricidad' };
     }
     if (e.codigo === 'cabecera' && pc) {
+      // Con la cabecera completa (las 6 partes; el pre-informe en PDF es opcional y no cuenta) la etapa queda conforme igual que en el servidor
+      const completa = !!cabeceraInforme && pendientesPreInforme(cabeceraConPendientes(cabeceraInforme, pendientes)).length === 0;
+      if (completa) return { ...e, enTelefono: true, estado: 'conforme', detalle: 'Cabecera completa' };
       return { ...e, enTelefono: true, estado: e.estado === 'conforme' ? 'conforme' : 'en_curso', detalle: e.estado === 'conforme' ? e.detalle : 'Cabecera guardada' };
     }
     return e;

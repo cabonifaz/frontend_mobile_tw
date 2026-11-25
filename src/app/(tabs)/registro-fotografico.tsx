@@ -6,7 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ErrorApi } from '@/api/cliente';
 import { nombreDeCodigo, obtenerCatalogo } from '@/api/catalogos';
 import { MAX_FOTOS_ADICIONALES, capturarEvidencia, obtenerEvidenciasConRespaldo, quitarFotoAdicional, urlArchivoEvidencia, type Evidencia, type Evidencias, type FotoAdicional } from '@/api/evidencias';
-import { puedeGuardarSinConexion, sincronizarEvidencias } from '@/api/colaEvidencias';
+import { guardarCapturaPendiente, puedeGuardarSinConexion, sincronizarEvidencias } from '@/api/colaEvidencias';
+import { evaluarQrLocal } from '@/utilidades/qrEquipo';
 import { horaRespaldo } from '@/api/respaldo';
 import { Aviso } from '@/componentes/Aviso';
 import { CamaraApp } from '@/componentes/CamaraApp';
@@ -166,13 +167,49 @@ export default function PantallaRegistroFotografico() {
     setEscaner(false);
     if (!sesion || !c) return;
     setMensaje(null);
+    // Sin señal el QR se verifica en el teléfono con los datos del equipo (el técnico está junto al equipo) y se registra al volver la conexión
+    if (datos?.sinConexion) return void (await leerQrSinSenal(contenido));
     try {
       const r = await capturarEvidencia(sesion.token, c.idOs, c.idOsEquipo, { codigo: 'qr', capturadoEn: new Date().toISOString(), qrTexto: contenido.slice(0, 300) });
       setMensaje({ tipo: r.estado === 'rechazada' ? 'error' : 'info', texto: r.estado === 'rechazada' ? `${r.motivoRechazo ?? 'El QR no corresponde a este equipo.'} Se leyó: «${contenido.slice(0, 80)}»` : r.mensaje || 'QR del equipo leído.' });
       await recargar();
       setPanel(null);
     } catch (e) {
+      if (e instanceof ErrorApi && e.estadoHttp === 0) return void (await leerQrSinSenal(contenido));
       setMensaje({ tipo: 'error', texto: e instanceof Error ? e.message : 'No se pudo registrar el QR.' });
+    }
+  }
+
+  /** QR sin conexión: la misma regla del servidor contra el equipo guardado; si corresponde se guarda en el teléfono y se envía solo con señal. */
+  async function leerQrSinSenal(contenido: string) {
+    if (!sesion || !c) return;
+    const veredicto = evaluarQrLocal(contenido, c);
+    if (veredicto === 'invalido') return setMensaje({ tipo: 'error', texto: 'El código leído no es válido.' });
+    if (veredicto === 'no_coincide') {
+      return setMensaje({ tipo: 'error', texto: `El QR leído no corresponde a este equipo. Escanea la etiqueta del equipo que estás trabajando. Se leyó: «${contenido.slice(0, 80)}»` });
+    }
+    if (!puedeGuardarSinConexion()) return setMensaje({ tipo: 'error', texto: 'Sin conexión: esta versión de la app no puede guardar el QR en el teléfono.' });
+    try {
+      await guardarCapturaPendiente({
+        idUsuario: sesion.usuario.idUsuario,
+        idOs: c.idOs,
+        idOsEquipo: c.idOsEquipo,
+        numeroOs: c.numeroOs,
+        equipo: `${c.nombre} #${String(c.numero).padStart(2, '0')}`,
+        codigo: 'qr',
+        nombreEvidencia: 'QR del equipo',
+        pagina: 1,
+        capturadoEn: new Date().toISOString(),
+        qrTexto: contenido.slice(0, 300),
+      });
+      setMensaje({
+        tipo: 'info',
+        texto: veredicto === 'coincide'
+          ? `QR verificado en el teléfono: corresponde a este equipo${c.codigoTw ? ` (${c.codigoTw})` : ''}. Se registra solo al volver la señal.`
+          : 'Etiqueta QR leída. El servidor la confirma con este equipo al volver la señal.',
+      });
+    } catch {
+      setMensaje({ tipo: 'error', texto: 'No se pudo guardar el QR en el teléfono. Inténtalo de nuevo.' });
     }
   }
 
